@@ -1563,7 +1563,7 @@ class ControlMain(QtWidgets.QMainWindow):
             #    parent=self, delay=HUTCH_TIMER_DELAY, host=daq_utils.redis_raw_url
             #)
             self.sampleCameraThread = CV2VideoThread(
-                parent=self, delay=SAMPLE_TIMER_DELAY, url=self.capture
+                parent=self, delay=SAMPLE_TIMER_DELAY, url=getBlConfig("highMagCamURL")
             )
         else:
             self.sampleCameraThread = VideoThread(
