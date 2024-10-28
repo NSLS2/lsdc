@@ -72,7 +72,7 @@ from gui.dialog import (
 from gui.raster import RasterCell, RasterGroup
 from gui.vector import VectorMarker, VectorWidget
 from QPeriodicTable import QPeriodicTable
-from threads import RaddoseThread, ServerCheckThread, VideoThread, RedisVideoThread
+from threads import RaddoseThread, ServerCheckThread, VideoThread, RedisVideoThread, CV2VideoThread
 from utils import validation
 
 logger = logging.getLogger()
@@ -1559,8 +1559,11 @@ class ControlMain(QtWidgets.QMainWindow):
 
         
         if daq_utils.beamline == "nyx":
-            self.sampleCameraThread = RedisVideoThread(
-                parent=self, delay=HUTCH_TIMER_DELAY, host=daq_utils.redis_raw_url
+            #self.sampleCameraThread = RedisVideoThread(
+            #    parent=self, delay=HUTCH_TIMER_DELAY, host=daq_utils.redis_raw_url
+            #)
+            self.sampleCameraThread = CV2VideoThread(
+                parent=self, delay=SAMPLE_TIMER_DELAY, url=self.capture
             )
         else:
             self.sampleCameraThread = VideoThread(
