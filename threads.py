@@ -7,7 +7,7 @@ import sys
 import urllib
 import struct
 from io import BytesIO
-import redis
+#import redis
 import logging
 from config_params import SERVER_CHECK_DELAY
 import raddoseLib
@@ -29,6 +29,8 @@ class VideoThread(QThread):
                 img = Image.open(file)
                 qimage = ImageQt.ImageQt(img)
                 pixmap_orig = QtGui.QPixmap.fromImage(qimage)
+                pixmap_orig = pixmap_orig.copy()
+                
                 self.showing_error = False
             except Exception as e:
                 if not self.showing_error:

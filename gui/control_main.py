@@ -1562,7 +1562,7 @@ class ControlMain(QtWidgets.QMainWindow):
             #self.sampleCameraThread = RedisVideoThread(
             #    parent=self, delay=HUTCH_TIMER_DELAY, host=daq_utils.redis_raw_url
             #)
-            self.sampleCameraThread = CV2VideoThread(
+            self.sampleCameraThread = VideoThread(
                 parent=self, delay=SAMPLE_TIMER_DELAY, url=getBlConfig("highMagCamURL")
             )
         else:
@@ -3004,14 +3004,14 @@ class ControlMain(QtWidgets.QMainWindow):
     def omegaTweakNegCB(self):
         tv = float(self.omegaTweakVal_ledit.text())
         if self.controlEnabled():
-            mv_status = self.gon.omega.move(self.gon.omega.val() + tv)
+            mv_status = self.gon.omega.move(self.gon.omega.val() - tv, wait=False)
         else:
             self.popupServerMessage("You don't have control")
 
     def omegaTweakPosCB(self):
         tv = float(self.omegaTweakVal_ledit.text())
         if self.controlEnabled():
-            mv_status = self.gon.omega.move(self.gon.omega.val() + tv)
+            mv_status = self.gon.omega.move(self.gon.omega.val() + tv, wait=False)
         else:
             self.popupServerMessage("You don't have control")
 
@@ -3047,7 +3047,7 @@ class ControlMain(QtWidgets.QMainWindow):
 
     def omegaTweakCB(self, tv):
         if self.controlEnabled():
-            status = self.gon.omega.move(self.gon.omega.val() + float(tv))
+            status = self.gon.omega.move(self.gon.omega.val() + float(tv), wait=False)
             status.wait()
         else:
             self.popupServerMessage("You don't have control")
