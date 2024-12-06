@@ -189,6 +189,11 @@ class VectorWidget(QtWidgets.QWidget):
             "z": gonio_coords["z"],
             "omega": gonio_coords["omega"],
         }
+        if "finex" and "finey" in gonio_coords:
+            gonio_coords_start["finex"] = gonio_coords["finex"]
+            gonio_coords_start["finey"] = gonio_coords["finey"]
+            gonio_coords_end["finex"] = gonio_coords["finex"]
+            gonio_coords_end["finey"] = gonio_coords["finey"]
         self.set_vector_point("vector_start", scene, gonio_coords_start, center)
         self.set_vector_point("vector_end", scene, gonio_coords_end, center)
 
@@ -278,6 +283,10 @@ class VectorWidget(QtWidgets.QWidget):
             vectorCoords = {
                 k: v for k, v in gonio_coords.items() if k in ["x", "y", "z"]
             }
+        if "finex" and "finey" in gonio_coords:
+            vectorCoords["finex"] = gonio_coords["finex"]
+            vectorCoords["finey"] = gonio_coords["finey"]
+            
 
         vecMarker = VectorMarker(
             marker_x,
