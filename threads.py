@@ -39,7 +39,7 @@ class VideoThread(QThread):
                     painter.drawText( QPoint(10, 10), "No image obtained from: " )
                     painter.drawText( QPoint(10, 30), f"{self.url}")
                     painter.end()
-                    self.frame_ready.emit(pixmap_orig)
+                    #self.frame_ready.emit(pixmap_orig)
                     self.showing_error = True
 
         if self.video_capture:
