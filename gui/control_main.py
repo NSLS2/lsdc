@@ -4727,9 +4727,9 @@ class ControlMain(QtWidgets.QMainWindow):
                 gonio_coords=gonioCoords,
                 center=(center_x, center_y),
             )
-        self.processSampMove(self.sampx_pv.get(), "x")
-        self.processSampMove(self.sampy_pv.get(), "y")
-        self.processSampMove(self.sampz_pv.get(), "z")
+        self.processSampMove(self.gon.x.val(), "x")
+        self.processSampMove(self.gon.y.val(), "y")
+        self.processSampMove(self.gon.z.val(), "z")
 
     def drawVector(self):
         self.protoVectorRadio.setChecked(True)
