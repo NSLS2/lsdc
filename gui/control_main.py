@@ -23,7 +23,7 @@ from qt_epics.QtEpicsPVLabel import QtEpicsPVLabel
 from qtpy import QtCore, QtGui, QtWidgets
 from qtpy.QtCore import QModelIndex, QRectF, Qt, QTimer, QMutex, QMutexLocker
 from qtpy.QtGui import QIntValidator
-from qtpy.QtWidgets import QCheckBox, QFrame, QGraphicsPixmapItem, QApplication
+from qtpy.QtWidgets import QCheckBox, QFrame, QGraphicsPixmapItem, QApplication, QHBoxLayout
 
 import daq_utils
 if daq_utils.beamline == 'nyx':
@@ -64,6 +64,7 @@ from gui.dialog import (
     UserScreenDialog,
     CalculatorWindow
 )
+from gui.widgets.log_widget import get_summary_widget
 from gui.raster import RasterCell, RasterGroup
 from gui.vector import VectorMarker, VectorWidget
 from QPeriodicTable import QPeriodicTable
@@ -956,6 +957,20 @@ class ControlMain(QtWidgets.QMainWindow):
         vBoxMainColLayout.addWidget(paramsGridGB)
 
         vBoxMainColLayout.addWidget(self.dataPathGB)
+        visit_path = Path(getBlConfig("visitDirectory"))
+        visit_name = daq_utils.getVisitName()
+        for part in visit_path.parts:
+            if "pass-" in part:
+                visit_name = f"mx{part.split('-')[1]}-1"
+        fast_dp_summary_file = Path(f'{getBlConfig("visitDirectory")}/{visit_name}/fast_dp_dir/fast_dp.summary.csv')
+        summaryTableGB = QtWidgets.QGroupBox()
+        summaryTableGB.setTitle("FastDP Summary")
+        summaryTableLayout = QtWidgets.QVBoxLayout()
+        self.summaryTableWidget = get_summary_widget(fast_dp_summary_file)
+        summaryTableLayout.addWidget(self.summaryTableWidget)
+        summaryTableGB.setLayout(summaryTableLayout)
+        vBoxMainColLayout.addWidget(summaryTableGB)
+        
         self.mainColFrame.setLayout(vBoxMainColLayout)
         self.mainToolBox.addItem(self.mainColFrame, "Collection Parameters")
         editSampleButton = QtWidgets.QPushButton("Apply Changes")
@@ -986,12 +1001,13 @@ class ControlMain(QtWidgets.QMainWindow):
         editScreenParamsButton = QtWidgets.QPushButton("Edit Raster Params...")
         editScreenParamsButton.clicked.connect(self.editScreenParamsCB)
         vBoxMainSetup.addWidget(self.mainToolBox)
-        vBoxMainSetup.addLayout(hBoxPriorityLayout1)
-        vBoxMainSetup.addWidget(queueSampleButton)
-        vBoxMainSetup.addWidget(editSampleButton)
-        vBoxMainSetup.addWidget(cloneRequestButton)
-
-        vBoxMainSetup.addWidget(editScreenParamsButton)
+        #vBoxMainSetup.addLayout(hBoxPriorityLayout1)
+        hBoxQueueButtons = QHBoxLayout()
+        hBoxQueueButtons.addWidget(queueSampleButton)
+        hBoxQueueButtons.addWidget(editSampleButton)
+        hBoxQueueButtons.addWidget(cloneRequestButton)
+        hBoxQueueButtons.addWidget(editScreenParamsButton)
+        vBoxMainSetup.addLayout(hBoxQueueButtons)
         self.mainSetupFrame.setLayout(vBoxMainSetup)
         self.VidFrame = QFrame()
         self.VidFrame.setFixedWidth(680)
