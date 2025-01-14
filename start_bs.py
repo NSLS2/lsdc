@@ -114,6 +114,7 @@ class SampleXYZ(Device):
 if (beamline=="amx"):
     from mxbluesky.devices import (WorkPositions, TwoClickLowMag, LoopDetector, MountPositions, 
                                    TopAlignerFast, TopAlignerSlow, GoniometerStack)
+    from mxbluesky.devices.generic import CryoStream
     mercury = ABBIXMercury('XF:17IDB-ES:AMX{Det:Mer}', name='mercury')
     mercury.read_attrs = ['mca.spectrum', 'mca.preset_live_time', 'mca.rois.roi0.count',
                                             'mca.rois.roi1.count', 'mca.rois.roi2.count', 'mca.rois.roi3.count']
@@ -144,11 +145,12 @@ if (beamline=="amx"):
     loop_detector = LoopDetector(name="loop_detector")
     top_aligner_fast = TopAlignerFast(name="top_aligner_fast", gov_robot=gov_robot)
     top_aligner_slow = TopAlignerSlow(name="top_aligner_slow")
-    
+    cs700 = CryoStream("XF:17ID1:CS700:", name="cs700", atol=0.1)
 
 elif beamline == "fmx":  
     from mxbluesky.devices import (WorkPositions, TwoClickLowMag, LoopDetector, MountPositions, 
                                    TopAlignerFast, TopAlignerSlow, GoniometerStack)
+    from mxbluesky.devices.generic import CryoStream
     mercury = ABBIXMercury('XF:17IDC-ES:FMX{Det:Mer}', name='mercury')
     mercury.read_attrs = ['mca.spectrum', 'mca.preset_live_time', 'mca.rois.roi0.count',
                                             'mca.rois.roi1.count', 'mca.rois.roi2.count', 'mca.rois.roi3.count']
@@ -181,6 +183,7 @@ elif beamline == "fmx":
     top_aligner_slow = TopAlignerSlow(name="top_aligner_slow")
 
     import setenergy_lsdc
+    cs700 = CryoStream("XF:17ID2:CS700:", name="cs700", atol=0.1)
 
 elif beamline=="nyx":
     from mxbluesky.devices.md2 import LightDevice, BeamstopDevice, MD2SimpleHVDevice, MD2Device, ShutterDevice
