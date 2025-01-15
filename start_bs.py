@@ -185,7 +185,7 @@ elif beamline == "fmx":
 
 elif beamline=="nyx":
     from mxbluesky.devices import LoopDetector
-    from mxbluesky.devices.md2 import LightDevice, BeamstopDevice, MD2SimpleHVDevice, MD2Device, ShutterDevice
+    from mxbluesky.devices.md2 import CameraDevice, LightDevice, BeamstopDevice, MD2SimpleHVDevice, MD2Device, ShutterDevice
     low_mag_cam_reset_signal = two_click_low = mount_pos = loop_detector = top_aligner_fast = top_aligner_slow = work_pos = None
     mercury = ABBIXMercury('XF:17IDC-ES:FMX{Det:Mer}', name='mercury')
     mercury.read_attrs = ['mca.spectrum', 'mca.preset_live_time', 'mca.rois.roi0.count',
@@ -202,6 +202,7 @@ elif beamline=="nyx":
     capillary = MD2SimpleHVDevice('XF:19IDC-ES{MD2}:Capillary', name='capillary')
     zebra = Zebra('XF:19IDC-ES{Zeb:1}:', name='zebra')
     loop_detector = LoopDetector(name="loop_detector")
+    two_click_low = CameraDevice("XF:19IDC-ES{MD2}:", name="two_click_low")
     from nyxtools.vector import VectorProgram
     vector = VectorProgram("XF:19IDC-ES{Gon:1-Vec}", name="vector")
     from mxtools.eiger import EigerSingleTriggerV26
