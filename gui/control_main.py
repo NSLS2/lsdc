@@ -51,6 +51,7 @@ from config_params import (
     VALID_TRANSMISSION,
     RasterStatus,
     cryostreamTempPV,
+    AUTO_CENTER_PROTOCOL
 )
 from daq_utils import getBlConfig, setBlConfig
 from element_info import element_info
@@ -3062,31 +3063,28 @@ class ControlMain(QtWidgets.QMainWindow):
 
     def autoCenterLoopCB(self):
         #self.send_to_server("loop_center_xrec")
-
-        logger.info("auto center loop")
-        autocenter_call = '/nsls2/data/nyx/legacy/Rudra/lsdcSpoofer/run_auto_center'
-        popup_info = ProcessPopup(parent = self, window_title='AutoCenter Info', main_text="Waiting for auto center, view detailed text for more info")
-        
-        popup_info.setIcon(QMessageBox.Information)
-        x = popup_info.open()
-        self.autocenter_process = QProcess(parent=self)
-        self.autocenter_process.readyReadStandardOutput.connect(lambda: popup_info.setDetailedText(bytes(self.autocenter_process.readAllStandardOutput()).decode("utf8")))
-        self.autocenter_process.finished.connect(lambda: popup_info.setText("AUTO CENTERING FINISHED\n\nopen details for more information"))
-        self.autocenter_process.finished.connect(lambda: popup_info.setWindowTitle("Done"))
+        if(AUTO_CENTER_PROTOCOL == 1): # protocol 1 for lucid3
+            logger.info("auto center loop")
+            autocenter_call = '/nsls2/data/nyx/legacy/Rudra/lsdcSpoofer/run_auto_center'
+            popup_info = ProcessPopup(parent = self, window_title='AutoCenter Info', main_text="Waiting for auto center, view detailed text for more info")
+            popup_info.setIcon(QMessageBox.Information)
+            x = popup_info.open()
+            self.autocenter_process = QProcess(parent=self)
+            self.autocenter_process.readyReadStandardOutput.connect(lambda: popup_info.setDetailedText(bytes(self.autocenter_process.readAllStandardOutput()).decode("utf8")))
+            self.autocenter_process.finished.connect(lambda: popup_info.setText("AUTO CENTERING FINISHED\n\nopen details for more information"))
+            self.autocenter_process.finished.connect(lambda: popup_info.setWindowTitle("Done"))
     
-        self.autocenter_process.start(autocenter_call)
+            self.autocenter_process.start(autocenter_call)
         
-
-
-
-        # with subprocess.Popen(autocenter_call, stdout=subprocess.PIPE, bufsize=1, universal_newlines=True) as p:
-        #     for line in p.stdout:
+            # with subprocess.Popen(autocenter_call, stdout=subprocess.PIPE, bufsize=1, universal_newlines=True) as p:
+            #     for line in p.stdout:
                 
-        #         popup_info.setText(line + "")
+            #         popup_info.setText(line + "")
 
-        # if p.returncode != 0:
-        #     raise subprocess.CalledProcessError(p.returncode, p.args)
-
+            # if p.returncode != 0:
+            #     raise subprocess.CalledProcessError(p.returncode, p.args)
+        elif(AUTO_CENTER_PROTOCOL == 0): # protocol 0 for LoopDetector
+            self.send_to_server("run_loop_center_plan")
 
 
     def handle_raster_output(self, data):
