@@ -1461,7 +1461,11 @@ class ControlMain(QtWidgets.QMainWindow):
             highlight_on_change=False,
         )
         ringCurrentMessageLabel = QtWidgets.QLabel("Ring (mA):")
-        self.ringCurrentMessage = QtWidgets.QLabel(str(self.ringCurrent_pv.get()))
+        try:
+            self.ringCurrentMessage = QtWidgets.QLabel(str(self.ringCurrent_pv.get()))
+        except Exception as e:
+            print(f'failed to get ring current PV:  {e}')
+            self.ringCurrentMessage = QtWidgets.QLabel(str("no signal"))
         beamAvailable = self.beamAvailable_pv.get()
 
         '''
@@ -5557,8 +5561,11 @@ class ControlMain(QtWidgets.QMainWindow):
         if getBlConfig(CRYOSTREAM_ONLINE):
             self.cryostreamTempSignal.connect(self.processCryostreamTemp)
             self.cryostreamTemp_pv.add_callback(self.cryostreamTempChangedCB)
-        self.ringCurrentSignal.connect(self.processRingCurrent)
-        self.ringCurrent_pv.add_callback(self.ringCurrentChangedCB)
+        try:
+            self.ringCurrentSignal.connect(self.processRingCurrent)
+            self.ringCurrent_pv.add_callback(self.ringCurrentChangedCB)
+        except Exception as e:
+            print(f'Failed to get ring current PV from facility:  {e}')
         self.threeClickSignal.connect(self.processThreeClickCentering)
         self.beamAvailable_pv.add_callback(self.beamAvailableChangedCB)
         self.sampleExposedSignal.connect(self.processSampleExposed)
