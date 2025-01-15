@@ -2,7 +2,7 @@ import os
 import socket
 
 from ophyd import Component as Cpt
-from ophyd import Device, Signal, EpicsSignal, EpicsSignalRO, PVPositioner
+from ophyd import Device, EpicsSignal, EpicsSignalRO, PVPositioner
 from ophyd.status import SubscriptionStatus
 
 
@@ -390,14 +390,3 @@ class CameraDevice(Device):
     scale_x = Cpt(EpicsSignalRO, "CoaxCamScaleX", name="scale_x")
     scale_y = Cpt(EpicsSignalRO, "CoaxCamScaleY", name="scale_y")
     zoom = Cpt(EpicsSignal, "CoaxialCameraZoomValue", name="zoom")
-    getImageJPG = Cpt(EpicsSignal, "getImageJPG", name="getImageJPG")
-    cam_mode = Cpt(Signal, value="", kind="config") # this should be virtual for interface use
-    jpeg = Cpt(Signal, value="", kind="config")
-    filename = "auto-centering.jpg"
-
-    def write_image(self):
-        jpg_byte_array = self.getImageJPG.put("__EMPTY__")
-        with open(self.filename, "wb") as f:
-            f.write(jpg_byte_array)
-        return jpg_byte_array
-

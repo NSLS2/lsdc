@@ -45,16 +45,12 @@ def trigger_two_click():
 @finalize_decorator(cleanup_two_click_low)
 def detect_loop(sample_detection: "Dict[str, float|int]"):
     # face on attempt, most features, should work
-    if daq_utils.beamline != "nyx":
-        yield from bps.abs_set(two_click_low.cam_mode, "two_click", wait=True)
-        logger.info("Starting loop centering")
-        yield from trigger_two_click()
+    yield from bps.abs_set(two_click_low.cam_mode, "two_click", wait=True)
+    logger.info("Starting loop centering")
+    yield from trigger_two_click()
         
-        loop_detector.filename.set(two_click_low.jpeg.full_file_name.get())
-    else:
-        two_click_low.write_image()
-        loop_detector.filename.set(two_click_low.filename)
-
+    loop_detector.filename.set(two_click_low.jpeg.full_file_name.get())
+    
     scan_uid = yield from bp.count([loop_detector], 1)
     #box_coords_face: "list[int]" = db[scan_uid].table()['loop_detector_box'][1]
     box_coords_face: "list[int]" = loop_detector.box.get()
