@@ -20,11 +20,12 @@ def cleanup_two_click_low():
         yield from bps.abs_set(two_click_low.jpeg.file_template, "%s%s_%d.jpg", wait=True)
 
 def reset_low_mag_cam():
-    yield from bps.abs_set(two_click_low.cam.acquire, 0, wait=True)
-    yield from bps.sleep(3)
-    yield from bps.abs_set(low_mag_cam_reset_signal, 1, wait=True)
-    yield from bps.sleep(5)
-    yield from bps.abs_set(two_click_low.cam.acquire, 1, wait=True)
+    if daq_utils.beamline != "nyx":
+        yield from bps.abs_set(two_click_low.cam.acquire, 0, wait=True)
+        yield from bps.sleep(3)
+        yield from bps.abs_set(low_mag_cam_reset_signal, 1, wait=True)
+        yield from bps.sleep(5)
+        yield from bps.abs_set(two_click_low.cam.acquire, 1, wait=True)
 
 def trigger_two_click():
     tries = 0
@@ -55,13 +56,13 @@ def detect_loop(sample_detection: "Dict[str, float|int]"):
     else:
         logger.info("Starting loop centering")
         #yield from bps.abs_set(two_click_low.cam_mode, "two_click", wait=True)
-        #yield from trigger_two_click()
-        two_click_low.trigger()
+        yield from trigger_two_click()
+        #two_click_low.trigger()
         loop_detector.filename.set(two_click_low.filename.get())
     scan_uid = yield from bp.count([loop_detector], 1)
     #box_coords_face: "list[int]" = db[scan_uid].table()['loop_detector_box'][1]
     box_coords_face: "list[int]" = loop_detector.box.get()
-    logger.info("Got loop predictions")
+    logger.info(f"Got loop predictions:  {box_coords_face}")
     if len(box_coords_face) != 4:
         logger.exception("Exception during loop detection plan. Face on loop not found")
         sample_detection["sample_detected"] = False

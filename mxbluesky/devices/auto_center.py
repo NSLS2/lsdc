@@ -236,7 +236,10 @@ class URLCamera(Device):
     url = Cpt(Signal, value='http://10.67.147.26:3908/video_feed2')
     filename = Cpt(Signal, value='auto-center.jpg')
     delay = Cpt(Signal, value=1000)
-    cam_mode = Cpt(Signal, value='auto-center') # empty signal to use existing interface
+    cam_mode = Cpt(Signal, value='auto-center')
+    cam = Cpt(Signal, value=0) # placeholder signals
+    cam.acquire = Cpt(Signal, value=0)
+    reset_signal = Cpt(Signal, value=0)
 
     def __init__(self, *args, **kwargs):    
         super().__init__(*args, **kwargs)
@@ -254,7 +257,9 @@ class URLCamera(Device):
         except IOError as e:
             logger.error(f"Failed to save image: {e}")
             raise
-        return self.image
+        status = DeviceStatus(self, timeout=10)
+        status.set_finished()
+        return status
 
     def getRasterBox(self):
         self.image=self.getImageFromURL()
