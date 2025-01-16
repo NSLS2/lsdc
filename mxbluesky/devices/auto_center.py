@@ -10,6 +10,14 @@ from bluesky.utils import FailedStatus
 import daq_utils
 import os
 
+from PIL import Image
+import logging
+import subprocess
+import numpy
+import urllib.request
+from io import BytesIO
+logger = logging.getLogger(__name__)
+
 
 @register_plugin
 class CVPlugin(PluginBase):
@@ -43,6 +51,8 @@ class StandardProsilica(SingleTrigger, ProsilicaDetector):
     stats5 = Cpt(StatsPlugin, "Stats5:")
 
 class FileStoreJPEG(FileStorePluginBase):
+    delay = Cpt(Signal, value=1000)  # default delay in milliseconds
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.filestore_spec = "AD_JPEG"  # spec name stored in resource doc
@@ -102,23 +112,31 @@ class LoopDetector(Device):
         post_data = None
         if self.get_threshold.get():
             post_data = {"x_start": self.x_start.get(), "x_end": self.x_end.get()}
-        response = requests.post(self.url.get(), files=filename_dict, data=post_data)
-        response.raise_for_status()
-        json_response = response.json()
-        if json_response['pred_boxes']:
-            self.box.put(response.json()['pred_boxes'][0]['box'])
-        else:
-            self.box.put([])
-        if "threshold" in json_response:
-            self.thresholded_box.put(response.json()["threshold"])
-        else:
-            self.thresholded_box.put([])
-        
-        self.get_threshold.set(False)
-        response_status = DeviceStatus(self.box, timeout=10)
-        response_status.set_finished()
+        try:
+            response = requests.post(self.url.get(), files=filename_dict, data=post_data)
+            response.raise_for_status()
+            json_response = response.json()
+            if json_response['pred_boxes']:
+                self.box.put(response.json()['pred_boxes'][0]['box'])
+            else:
+                self.box.put([])
+            if "threshold" in json_response:
+                self.thresholded_box.put(response.json()["threshold"])
+            else:
+                self.thresholded_box.put([])
+            
+            self.get_threshold.set(False)
+            response_status = DeviceStatus(self.box, timeout=10)
+            response_status.set_finished()
 
-        return response_status
+            return response_status
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Request failed: {e}")
+            self.box.put([])
+            self.thresholded_box.put([])
+            response_status = DeviceStatus(self.box, timeout=10)
+            response_status.set_exception(e)
+            return response_status
 
 
 class TwoClickLowMag(StandardProsilica):
@@ -214,3 +232,40 @@ class TwoClickLowMag(StandardProsilica):
             raise FailedStatus
         return status
 
+class URLCamera(Device):
+    url = Cpt(Signal, value='http://10.67.147.26:3908/video_feed2')
+    filename = Cpt(Signal, value='auto-center.jpg')
+    delay = Cpt(Signal, value=1000)
+    cam_mode = Cpt(Signal, value='auto-center') # empty signal to use existing interface
+
+    def __init__(self, *args, **kwargs):    
+        super().__init__(*args, **kwargs)
+
+    def getImageFromURL(self):
+        image_file = BytesIO(urllib.request.urlopen(self.url.get(), timeout=self.delay/1000).read())
+        sample_image = Image.open(image_file)
+        numpy_image = numpy.asarray(sample_image)
+        return numpy_image
+    
+    def trigger(self):
+        self.image=self.getImageFromURL()
+        try:
+            Image.fromarray(self.image).save(self.filename.get())
+        except IOError as e:
+            logger.error(f"Failed to save image: {e}")
+            raise
+        return self.image
+
+    def getRasterBox(self):
+        self.image=self.getImageFromURL()
+        Image.fromarray(self.image).save('CurrentSample.jpg')
+        result = subprocess.run(self.raster_box_subprocess_call, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if 'Connection refused' in result.stderr.decode():
+            logger.warning(result.stderr.decode())
+            return None
+        result_dict = eval(result.stdout.decode())
+        box = result_dict['pred_boxes'][0]['box']
+        #returns box as x1,y1,x2,y2
+        bottom_left = (box[0],box[1])
+        top_right = (box[2], box[3])
+        return bottom_left, top_right
