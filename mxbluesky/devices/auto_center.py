@@ -242,7 +242,7 @@ class URLCamera(Device):
         super().__init__(*args, **kwargs)
 
     def getImageFromURL(self):
-        image_file = BytesIO(urllib.request.urlopen(self.url.get(), timeout=self.delay/1000).read())
+        image_file = BytesIO(urllib.request.urlopen(self.url.get(), timeout=self.delay.get()/1000).read())
         sample_image = Image.open(image_file)
         numpy_image = numpy.asarray(sample_image)
         return numpy_image
