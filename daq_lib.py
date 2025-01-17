@@ -780,15 +780,29 @@ def checkC2C_X(x,fovx): # this is to make sure the user doesn't make too much of
   return 1
   
 
+def lsdc_to_md2_pixel_scale(x, y):
+  lsdc_x = daq_utils.screenPixX
+  lsdc_y = daq_utils.screenPixY
+  md2_x = md2.center_pixel_x.get() * 2
+  md2_y = md2.center_pixel_y.get() * 2
+  scale_x = md2_x / lsdc_x
+  scale_y = md2_y / lsdc_y
+  x = x * scale_x
+  y = y * scale_y 
+  return x, y
+
 def center_on_click(x,y,fovx,fovy,source="screen",maglevel=0,jog=0,viewangle=daq_utils.CAMERA_ANGLE_BEAM): #maglevel=0 means lowmag, high fov, #1 = himag with digizoom option, 
   #source=screen = from screen click, otherwise from macro with full pixel dimensions
   #viewangle=daq_utils.CAMERA_ANGLE_BEAM, default camera angle is in-line with the beam
 
   if daq_utils.beamline == "nyx":
-    logger.info("center_on_click: %s" % str((x,y)))
-    str_coords = f'{x} {y}'
-    setPvDesc("MD2C2C", str_coords)
-    return
+    if source in ["unscaled", "screen"]:
+      if source == "unscaled":
+        x, y = lsdc_to_md2_pixel_scale(x, y)
+      logger.info("center_on_click: %s" % str((x, y)))
+      str_coords = f'{x} {y}'
+      setPvDesc("MD2C2C", str_coords)
+      return
 
   if (getBlConfig('robot_online')): #so that we don't move things when robot moving?
     robotGovState = (getPvDesc("robotSaActive") or getPvDesc("humanSaActive"))
