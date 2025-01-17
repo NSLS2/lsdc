@@ -67,7 +67,7 @@ def detect_loop(sample_detection: "Dict[str, float|int]"):
     
 
     logger.info("Moving sample to center")
-    daq_lib.center_on_click(mean_x, mean_y, source="unscaled")
+    daq_lib.center_on_click(mean_x, mean_y, 0,0, source="unscaled")
 
     # The sample has moved to the center of the beam (hopefully), need to update co-ordinates
 
@@ -135,3 +135,4 @@ def detect_loop(sample_detection: "Dict[str, float|int]"):
 
     sample_detection["sample_detected"] = True
     '''
+

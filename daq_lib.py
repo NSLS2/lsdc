@@ -796,13 +796,13 @@ def center_on_click(x,y,fovx,fovy,source="screen",maglevel=0,jog=0,viewangle=daq
   #viewangle=daq_utils.CAMERA_ANGLE_BEAM, default camera angle is in-line with the beam
 
   if daq_utils.beamline == "nyx":
-    if source in ["unscaled", "screen"]:
+    if source in ["unscaled"]:
       if source == "unscaled":
         x, y = lsdc_to_md2_pixel_scale(x, y)
-      logger.info("center_on_click: %s" % str((x, y)))
-      str_coords = f'{x} {y}'
-      setPvDesc("MD2C2C", str_coords)
-      return
+    logger.info("center_on_click: %s" % str((x, y)))
+    str_coords = f'{x} {y}'
+    setPvDesc("MD2C2C", str_coords)
+    return
 
   if (getBlConfig('robot_online')): #so that we don't move things when robot moving?
     robotGovState = (getPvDesc("robotSaActive") or getPvDesc("humanSaActive"))
