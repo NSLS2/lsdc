@@ -384,8 +384,8 @@ class ShutterDevice(Device):
 
 class CameraDevice(Device):
     # MD2 camera has the following attributes:
-    # CoaxCamScaleX
-    # CoaxCamScaleY
+    # CoaxCamScaleX in mm/pixel
+    # CoaxCamScaleY in mm/pixel
     # CoaxialCameraZoomValue
     scale_x = Cpt(EpicsSignalRO, "CoaxCamScaleX", name="scale_x")
     scale_y = Cpt(EpicsSignalRO, "CoaxCamScaleY", name="scale_y")
