@@ -4,6 +4,7 @@ try:
     from .auto_center import *
     from .top_align import *
     from .zebra import *
+    from .url_camera import *
 except Exception as e:
     pass
 
