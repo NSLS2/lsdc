@@ -185,7 +185,7 @@ elif beamline == "fmx":
 
 elif beamline=="nyx":
     from mxbluesky.devices import LoopDetector, URLCamera
-    from mxbluesky.devices.md2 import LightDevice, BeamstopDevice, MD2SimpleHVDevice, MD2Device, ShutterDevice
+    from mxbluesky.devices.md2 import CameraDevice, LightDevice, BeamstopDevice, MD2SimpleHVDevice, MD2Device, ShutterDevice
     low_mag_cam_reset_signal = two_click_low = mount_pos = loop_detector = top_aligner_fast = top_aligner_slow = work_pos = None
     mercury = ABBIXMercury('XF:17IDC-ES:FMX{Det:Mer}', name='mercury')
     mercury.read_attrs = ['mca.spectrum', 'mca.preset_live_time', 'mca.rois.roi0.count',
@@ -193,6 +193,7 @@ elif beamline=="nyx":
     vdcm = VerticalDCM('XF:17IDA-OP:FMX{Mono:DCM', name='vdcm')
     md2 = MD2Device("XF:19IDC-ES{MD2}:", name="md2")
     gonio = md2
+    camera = CameraDevice("XF:19IDC-ES{MD2}:", name="camera")
     shutter = ShutterDevice('XF:19IDC-ES{MD2}:', name='shutter')
     beamstop = BeamstopDevice('XF:19IDC-ES{MD2}:', name='beamstop')
     front_light = LightDevice('XF:19IDC-ES{MD2}:Front', name='front_light')
@@ -202,7 +203,7 @@ elif beamline=="nyx":
     capillary = MD2SimpleHVDevice('XF:19IDC-ES{MD2}:Capillary', name='capillary')
     zebra = Zebra('XF:19IDC-ES{Zeb:1}:', name='zebra')
     loop_detector = LoopDetector(name='loop_detector')
-    two_click_low = URLCamera(name='two_click_low')
+    sample_cam = URLCamera(name='sample_cam')
 
     from nyxtools.vector import VectorProgram
     vector = VectorProgram("XF:19IDC-ES{Gon:1-Vec}", name="vector")
