@@ -16,7 +16,7 @@ import db_lib
 from daq_utils import getBlConfig
 from config_params import *
 from kafka_producer import send_kafka_message
-from start_bs import govs, gov_robot, flyer, RE
+from start_bs import govs, gov_robot, flyer, RE, dewar
 import gov_lib
 from bluesky.preprocessors import finalize_wrapper
 import bluesky.plan_stubs as bps
@@ -367,12 +367,22 @@ def runDCQueue(): #maybe don't run rasters from here???
   autoMounted = 0 #this means the mount was performed from a runQueue, as opposed to a manual mount button push
   logger.info("running queue in daq server")
   while (1):
+    currentRequest = db_lib.popNextRequest(daq_utils.beamline)
     if (getBlConfig("queueCollect") == 1 and getBlConfig(BEAM_CHECK) == 1):
       waitBeam()
+
+      sampleID = currentRequest["sample"]
+      puckPos,pinPos,puckID = db_lib.getCoordsfromSampleID(daq_utils.beamline, sampleID)
+      puck_plate_pos = f"{(puckPos//3)+1}{'ABC'[puckPos%3]}"
+      if not dewar.get_puck_status(puck_plate_pos):
+        logger.error(f"Could not find puck in position {puck_plate_pos}, skipping collection")
+        db_lib.updatePriority(currentRequest["uid"],-1)
+        refreshGuiTree()        
+        continue
+      
     if (abort_flag):
       abort_flag =  0 #careful about when to reset this
       return
-    currentRequest = db_lib.popNextRequest(daq_utils.beamline)
     if (currentRequest == {}):
       break
     logger.info("processing request " + str(time.time()))

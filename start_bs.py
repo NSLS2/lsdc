@@ -148,7 +148,7 @@ if (beamline=="amx"):
 
 elif beamline == "fmx":  
     from mxbluesky.devices import (WorkPositions, TwoClickLowMag, LoopDetector, MountPositions, 
-                                   TopAlignerFast, TopAlignerSlow, GoniometerStack)
+                                   TopAlignerFast, TopAlignerSlow, GoniometerStack, Dewar)
     mercury = ABBIXMercury('XF:17IDC-ES:FMX{Det:Mer}', name='mercury')
     mercury.read_attrs = ['mca.spectrum', 'mca.preset_live_time', 'mca.rois.roi0.count',
                                             'mca.rois.roi1.count', 'mca.rois.roi2.count', 'mca.rois.roi3.count']
@@ -179,6 +179,7 @@ elif beamline == "fmx":
     loop_detector = LoopDetector(name="loop_detector")
     top_aligner_fast = TopAlignerFast(name="top_aligner_fast", gov_robot=gov_robot)
     top_aligner_slow = TopAlignerSlow(name="top_aligner_slow")
+    dewar = Dewar("XF:17IDC-ES:FMX", name="dewar")
 
     import setenergy_lsdc
 
