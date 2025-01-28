@@ -114,7 +114,6 @@ class SampleXYZ(Device):
 if (beamline=="amx"):
     from mxbluesky.devices import (WorkPositions, TwoClickLowMag, LoopDetector, MountPositions, 
                                    TopAlignerFast, TopAlignerSlow, GoniometerStack, Dewar, RobotArm)
-    from mxbluesky.devices import Dewar, RobotArm
     from mxbluesky.devices.auto_recovery import PYZHomer
     from mxbluesky.plans.auto_recovery import home_pins_plan
     from mxtools.vector_program import VectorProgram
@@ -157,7 +156,8 @@ if (beamline=="amx"):
     robot_arm = RobotArm("XF:17IDB-ES:AMX", name="robot_arm")
 
 elif beamline == "fmx":
-    from mxbluesky.devices import Dewar, RobotArm
+    from mxbluesky.devices import (WorkPositions, TwoClickLowMag, LoopDetector, MountPositions, 
+                                   TopAlignerFast, TopAlignerSlow, GoniometerStack, Dewar, RobotArm)
     from mxtools.vector_program import VectorProgram
     from mxbluesky.devices.auto_recovery import PYZHomer
     from mxbluesky.plans.auto_recovery import home_pins_plan

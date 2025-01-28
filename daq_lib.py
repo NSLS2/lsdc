@@ -16,7 +16,7 @@ import db_lib
 from daq_utils import getBlConfig
 from config_params import *
 from kafka_producer import send_kafka_message
-from start_bs import govs, gov_robot, flyer, RE, gonio, robot_arm
+from start_bs import govs, gov_robot, flyer, RE, gonio, robot_arm, dewar
 import gov_lib
 from bluesky.preprocessors import finalize_wrapper
 import bluesky.plan_stubs as bps
@@ -432,21 +432,36 @@ def waitRobotArm():
     if robot_arm.is_full_speed():
       waiting = False
 
+def puck_lifted(puckPos):
+  puck_plate_pos = f"{(puckPos//3)+1}{'ABC'[puckPos%3]}"
+  if not dewar.get_puck_status(puck_plate_pos):
+    logger.error(f"Could not find puck in position {puck_plate_pos}, skipping collection")
+    return True
+  return False
+
 def runDCQueue(): #maybe don't run rasters from here???
   global abort_flag
 
   autoMounted = 0 #this means the mount was performed from a runQueue, as opposed to a manual mount button push
   logger.info("running queue in daq server")
   while (1):
+    currentRequest = db_lib.popNextRequest(daq_utils.beamline)
     if (getBlConfig("queueCollect") == 1): 
       if (getBlConfig(BEAM_CHECK) == 1):
         waitBeam()
-      if not start_bs.robot_arm.is_full_speed():
+      if not robot_arm.is_full_speed():
         waitRobotArm()
+      sampleID = currentRequest["sample"]
+      puckPos,pinPos,puckID = db_lib.getCoordsfromSampleID(daq_utils.beamline, sampleID)
+      if puck_lifted(puckPos):
+        # If the puck is lifted set the collection as complete and move on
+        db_lib.updatePriority(currentRequest["uid"],-1)
+        refreshGuiTree()
+        continue
+      
     if (abort_flag):
       abort_flag =  0 #careful about when to reset this
       return
-    currentRequest = db_lib.popNextRequest(daq_utils.beamline)
     if (currentRequest == {}):
       break
     logger.info("processing request " + str(time.time()))

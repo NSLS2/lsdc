@@ -1,5 +1,7 @@
 from ophyd import Component as Cpt
-from ophyd import Device, EpicsMotor, EpicsSignal
+from ophyd import Device, EpicsMotor, EpicsSignal, EpicsSignalRO
+from ophyd.status import SubscriptionStatus
+from ophyd import DynamicDeviceComponent as DDC
 from mxbluesky.devices import standardize_readback
 
 class WorkPositions(Device):
@@ -35,10 +37,30 @@ class GoniometerStack(Device):
         self.cz = self.pz
         self.omega = self.o
 
+class Puck(Device):
+    status = Cpt(EpicsSignalRO, "-Sts")
+
+class Sector(Device):
+    A = Cpt(Puck, "A", name="A")
+    B = Cpt(Puck, "B", name="B")
+    C = Cpt(Puck, "C", name="C")
 
 class Dewar(Device):
     rotation = Cpt(EpicsSignal, "{Dew:1-Ax:R}Virtual")
     rotation_motor = Cpt(EpicsMotor, "{Dew:1-Ax:R}Mtr")
+    sectors = DDC(
+        {
+            f"sector_{i}": (Sector, f"{{Wago:1}}Puck{i}", {"name": "sector_{i}"})
+            for i in range(1, 9)
+        }
+    )
+    num_sectors = 8
+
+    def get_puck_status(self, puck_pos: str):
+        # puck_pos assumed to be of the form "7A"
+        sector = getattr(self.sectors, f"sector_{puck_pos[0]}")
+        puck: Puck = getattr(sector, puck_pos[1])
+        return puck.status.get()
 
     def rotate(self, rotation_angle, absolute=True):
         def check_value_sink(*, old_value, value, **kwargs):
@@ -65,6 +87,7 @@ class Dewar(Device):
             self.rotation_motor.motor_done_move, check_value_raise
         )
         status.wait()
+
 
 class RobotArm(Device):
     speed = Cpt(EpicsSignal, '{EMBL}:RobotSpeed')
