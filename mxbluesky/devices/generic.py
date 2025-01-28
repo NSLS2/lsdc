@@ -1,7 +1,5 @@
-from ophyd import Component as Cpt
-from ophyd import Device, EpicsMotor, EpicsSignal, EpicsSignalRO
+from ophyd import Component as Cpt, Device, EpicsMotor, EpicsSignal, EpicsSignalRO, DynamicDeviceComponent as DDC
 from ophyd.status import SubscriptionStatus
-from ophyd import DynamicDeviceComponent as DDC
 from mxbluesky.devices import standardize_readback
 from enum import IntEnum, unique
 

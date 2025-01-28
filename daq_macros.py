@@ -259,7 +259,7 @@ def run_robot_recovery_procedure():
   """ Generic recovery procedure to be used during automated
   collection"""
   # Recover robot
-  logging.info("Running robot recovery procedure (nuclear option)")
+  logger.info("Running robot recovery procedure (nuclear option)")
   logger.info("Recovering robot")
   robot_lib.recoverRobot()
   # Dry Gripper
