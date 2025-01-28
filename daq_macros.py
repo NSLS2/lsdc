@@ -330,8 +330,9 @@ def run_recovery_procedure(stop=True):
   else:
     steps_to_run.update({"Enable mount": enableMount, "Robot on": robotOn})
   
-  steps_to_run.update({"Move Governor to SE": gov_state_to_se, 
-                       "Checking robot arm speed": check_robot_speed,
+  steps_to_run.update({"Move Governor to SE": gov_state_to_se, })
+  if not stop:
+    steps_to_run.update({"Checking robot arm speed": check_robot_speed,
                        "Checking beam": check_beam})
 
   for i, (step_message, func) in enumerate(steps_to_run.items()):
