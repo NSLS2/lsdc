@@ -9,7 +9,7 @@ import conftrak.client.commands as ccc
 import conftrak.exceptions
 import six
 from analysisstore.client.commands import AnalysisClient
-
+from pathlib import Path
 logger = logging.getLogger(__name__)
 
 #12/19 - Skinner inherited this from Hugo, who inherited it from Matt. Arman wrote the underlying DB and left BNL in 2018. 
@@ -663,13 +663,29 @@ def popNextRequest(beamlineName):
     actually pop it off the stack
     """
     orderedRequests = getOrderedRequestList(beamlineName)
+    logger.info(f"Requests in queue: {len(orderedRequests)}")
+    request_proposal_ids = set()
+    request_paths = set()
+    for req in orderedRequests:
+        if req["priority"] > 0 and req["priority"] != 99999:
+            request_proposal_ids.add(req["proposalID"])
+            request_paths.add(req["request_obj"]["basePath"])
+    visit_dir_path = Path(getBeamlineConfigParam(beamlineName, "visitDirectory")).resolve()
+    if request_proposal_ids:
+        if len(request_proposal_ids) > 1 and "commissioning" not in visit_dir_path.parts:
+            # Multiple proposal requests being run and not in commissioning
+            logger.error(f"Queue contains requests with multiple proposals, and server not running in commissioning dir")
+            return None
+        elif Path(list(request_paths)[0]).resolve() != visit_dir_path and "commissioning" not in visit_dir_path.parts:
+            # Single proposal being run, does not match visit dir and not commissioning
+            logger.error(f"Proposal directory mismatch, and server not running in commissioning dir")
+            return None
+
+
     try:
-        if (orderedRequests[0]["priority"] != 99999):
-            if orderedRequests[0]["priority"] > 0:
-                return orderedRequests[0]
-        else: #99999 priority means it's running, try next
-            if orderedRequests[1]["priority"] > 0:
-                return orderedRequests[1]
+        for req in orderedRequests:
+            if req["priority"] != 99999 and req["priority"] > 0:
+                return req
     except IndexError:
         pass
 

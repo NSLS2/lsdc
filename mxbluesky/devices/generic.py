@@ -3,6 +3,7 @@ from ophyd import Device, EpicsMotor, EpicsSignal, EpicsSignalRO
 from ophyd.status import SubscriptionStatus
 from ophyd import DynamicDeviceComponent as DDC
 from mxbluesky.devices import standardize_readback
+from enum import IntEnum, unique
 
 class WorkPositions(Device):
     gx = Cpt(EpicsSignal, "{Gov:Robot-Dev:gx}Pos:Work-Pos")

@@ -464,6 +464,12 @@ def runDCQueue(): #maybe don't run rasters from here???
       return
     if (currentRequest == {}):
       break
+    elif currentRequest is None:
+      gui_message("Queue contains collection requests from different proposals" 
+                  "and not using commissioning directory."
+                  "Please remove invalid requests or switch to" 
+                  "commissioning directory to continue")
+      break
     logger.info("processing request " + str(time.time()))
     reqObj = currentRequest["request_obj"]
     gov_lib.set_detz_in(gov_robot, reqObj["detDist"])
@@ -476,6 +482,12 @@ def runDCQueue(): #maybe don't run rasters from here???
       if (getBlConfig("queueCollect") == 0):
         current_request = db_lib.popNextRequest(daq_utils.beamline)
         logger.info(f"Current request: {current_request}")
+        if currentRequest is None:
+          gui_message("Queue contains collection requests from different proposals" 
+                      "and not using commissioning directory."
+                      "Please remove invalid requests or switch to" 
+                      "commissioning directory to continue")
+          return
         if current_request["request_obj"]["beamline"] != daq_utils.beamline:
             message = f"Beamline mismatch between collection and beamline. request: '{current_request['request_obj']['beamline']}' beamline: '{daq_utils.beamline}'. request_uid: {current_request['uid']}\nuse db_lib.delete_request(uid) to delete this bad request"
             logger.error(message)

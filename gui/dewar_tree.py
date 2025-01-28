@@ -106,6 +106,7 @@ class DewarTree(QtWidgets.QTreeView):
             table_data['Resolution'] = req_data['resolution']
             table_data['Energy (eV)'] = req_data['energy']
             table_data['Wavelength'] = req_data['wavelength']
+            table_data['Data path'] = req_data['directory']
             text = """<table border='1' style='border-collapse: collapse;'>
             <tr>
             <th style='border: 1px solid black;'>Parameter</th>
@@ -280,17 +281,21 @@ class DewarTree(QtWidgets.QTreeView):
 
     def is_proposal_member(self, proposal_id) -> bool:
         # Check if the user running LSDC is part of the sample's proposal
-        if proposal_id not in self.proposal_membership:
-            r = requests.get(f"{os.environ['NSLS2_API_URL']}/v1/proposal/{proposal_id}")
-            r.raise_for_status()
-            response = r.json()['proposal']
-            if "users" in response and getpass.getuser() in [
-                user["username"] for user in response["users"] if "username" in user
-            ]:
-                self.proposal_membership[proposal_id] = True
-            else:
-                logger.info(f"Users not found in response: {response}")
-                self.proposal_membership[proposal_id] = False
+        try:
+            if proposal_id not in self.proposal_membership:
+                r = requests.get(f"{os.environ['NSLS2_API_URL']}/v1/proposal/{proposal_id}")
+                r.raise_for_status()
+                response = r.json()['proposal']
+                if "users" in response and getpass.getuser() in [
+                    user["username"] for user in response["users"] if "username" in user
+                ]:
+                    self.proposal_membership[proposal_id] = True
+                else:
+                    logger.info(f"Users not found in response: {response}")
+                    self.proposal_membership[proposal_id] = False
+        except Exception as e:
+            logger.exception(e)
+            return False
         return self.proposal_membership[proposal_id]
 
     def create_request_item(self, request) -> QtGui.QStandardItem:

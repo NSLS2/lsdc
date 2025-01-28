@@ -74,8 +74,9 @@ def check_working_directory():
         # Hacky way to check if amx or fmx is in path. Unless server can tell GUI where its running?
         check_working_directory.remediation = f'Please start LSDC in {daq_utils.beamline} data directory. Current directory: {working_dir}'
         return False
-    if daq_utils.getBlConfig("visitDirectory") != os.getcwd():
-        check_working_directory.remediation = (f"Working directory mismatch. Please start LSDC GUI in the same folder as the server is running.")
+    if Path(daq_utils.getBlConfig("visitDirectory")).resolve() != working_dir:
+        check_working_directory.remediation = ("Working directory mismatch. Please start LSDC GUI in the same folder as the server is running.")
+
         return False
     return True
 

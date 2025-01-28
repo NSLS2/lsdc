@@ -33,7 +33,7 @@ handler1.setFormatter(myformat)
 logger.addHandler(handler1)
 
 perform_server_checks()
-setBlConfig("visitDirectory", os.getcwd())
+setBlConfig("visitDirectory", os.environ.get("CURRENT_VISIT_DIR", os.getcwd()))
 sitefilename = ""
 global command_list,immediate_command_list,z
 command_list = []

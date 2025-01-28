@@ -91,7 +91,7 @@ GOVERNOR_TIMEOUT = 120  # seconds for a governor move
 DEWAR_SECTORS = {'amx':8, 'fmx':8, 'nyx':8}
 PUCKS_PER_DEWAR_SECTOR = {'amx':3, 'fmx':3, 'nyx':3}
 
-cryostreamTempPV = {"amx": "XF:17IDB-ES:AMX{CS:1}SAMPLE_TEMP_RBV", "fmx": "FMX:cs700:gasT-I", "nyx":"XF:19ID2:CS700:TEMP"}
+cryostreamTempPV = {"amx": "XF:17ID1:CS700:TEMP", "fmx": "XF:17ID2:CS700:TEMP", "nyx":"XF:19ID2:CS700:TEMP"}
 
 VALID_EXP_TIMES = {
     "amx": {"min": 0.005, "max": 1, "digits": 3},

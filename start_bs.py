@@ -115,6 +115,7 @@ if (beamline=="amx"):
     from mxbluesky.devices import (WorkPositions, TwoClickLowMag, LoopDetector, MountPositions, 
                                    TopAlignerFast, TopAlignerSlow, GoniometerStack, Dewar, RobotArm)
     from mxbluesky.devices.auto_recovery import PYZHomer
+    from mxbluesky.devices.cryostream import CryoStream
     from mxbluesky.plans.auto_recovery import home_pins_plan
     from mxtools.vector_program import VectorProgram
     from mxtools.flyer import MXFlyer
@@ -154,12 +155,14 @@ if (beamline=="amx"):
     dewar = Dewar("XF:17IDB-ES:AMX", name="dewar")
     home_pins = home_pins_plan(gov_mon_signal, gonio_mon_signal, pyz_homer, gonio)
     robot_arm = RobotArm("XF:17IDB-ES:AMX", name="robot_arm")
+    cs700 = CryoStream("XF:17ID1:CS700:", name="cs700", atol=0.1)
 
 elif beamline == "fmx":
     from mxbluesky.devices import (WorkPositions, TwoClickLowMag, LoopDetector, MountPositions, 
                                    TopAlignerFast, TopAlignerSlow, GoniometerStack, Dewar, RobotArm)
     from mxtools.vector_program import VectorProgram
     from mxbluesky.devices.auto_recovery import PYZHomer
+    from mxbluesky.devices.cryostream import CryoStream
     from mxbluesky.plans.auto_recovery import home_pins_plan
     from mxtools.vector_program import VectorProgram
     from mxtools.flyer import MXFlyer
@@ -199,6 +202,7 @@ elif beamline == "fmx":
     dewar = Dewar("XF:17IDC-ES:FMX", name="dewar")
     home_pins = home_pins_plan(gov_mon_signal, gonio_mon_signal, pyz_homer, gonio)
     robot_arm = RobotArm("XF:17IDC-ES:FMX", name="robot_arm")
+    cs700 = CryoStream("XF:17ID2:CS700:", name="cs700", atol=0.1)
 
 elif beamline=="nyx":
     from mxbluesky.devices.md2 import LightDevice, BeamstopDevice, MD2SimpleHVDevice, MD2Device, ShutterDevice

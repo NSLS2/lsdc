@@ -194,7 +194,7 @@ def lab2gonio(x_lab, y_lab, z_lab, omega_deg):
   z_gonio = (sinO * y_lab) + (cosO * z_lab)
   return x_lab, y_gonio, z_gonio, omega_deg
 
-def createDefaultRequest(sample_id,createVisit=True):
+def createDefaultRequest(sample_id,createVisit=True, basePath=None):
     """
     Doesn't really create a request, just returns a dictionary
     with the default parameters that can be passed to addRequesttoSample().
@@ -212,7 +212,7 @@ def createDefaultRequest(sample_id,createVisit=True):
       setProposalID(propNum,createVisit)
     screenDist, screenEnergy, screenExptime, screenPhiend, screenPhist, screenReso, screenTransmissionPercent, screenWidth, screenbeamHeight, screenbeamWidth = getScreenDefaultParams()
     sampleName = str(db_lib.getSampleNamebyID(sample_id))
-    basePath = getBlConfig("visitDirectory")
+    basePath = getBlConfig("visitDirectory") if basePath is None else basePath
     runNum = db_lib.getSampleRequestCount(sample_id)
     (puckPosition,samplePositionInContainer,containerID) = db_lib.getCoordsfromSampleID(beamline,sample_id)          
     request = {"sample": sample_id}

@@ -7,11 +7,13 @@ import os
 import sys
 import time
 from typing import Dict, List, Optional
+from pathlib import Path
 import threading
 
 from queue import Queue
 import cv2
 import numpy as np
+import requests
 from epics import PV
 from PyMca5.PyMcaGui.physics.xrf.McaAdvancedFit import McaAdvancedFit
 from PyMca5.PyMcaGui.pymca.McaWindow import McaWindow, ScanWindow
@@ -21,7 +23,7 @@ from qt_epics.QtEpicsPVLabel import QtEpicsPVLabel
 from qtpy import QtCore, QtGui, QtWidgets
 from qtpy.QtCore import QModelIndex, QRectF, Qt, QTimer, QMutex, QMutexLocker
 from qtpy.QtGui import QIntValidator
-from qtpy.QtWidgets import QCheckBox, QFrame, QGraphicsPixmapItem, QApplication
+from qtpy.QtWidgets import QCheckBox, QFrame, QGraphicsPixmapItem, QApplication, QHBoxLayout
 
 import daq_utils
 if daq_utils.beamline == 'nyx':
@@ -62,6 +64,7 @@ from gui.dialog import (
     UserScreenDialog,
     CalculatorWindow
 )
+from gui.widgets.log_widget import get_summary_widget
 from gui.raster import RasterCell, RasterGroup
 from gui.vector import VectorMarker, VectorWidget
 from QPeriodicTable import QPeriodicTable
@@ -159,6 +162,7 @@ class ControlMain(QtWidgets.QMainWindow):
 
     def __init__(self):
         super(ControlMain, self).__init__()
+        self.proposal_directories = {}
         self.SelectedItemData = ""  # attempt to know what row is selected
         self.popUpMessageInit = 1  # I hate these next two, but I don't want to catch old messages. Fix later, maybe.
         self.textWindowMessageInit = 1
@@ -953,6 +957,20 @@ class ControlMain(QtWidgets.QMainWindow):
         vBoxMainColLayout.addWidget(paramsGridGB)
 
         vBoxMainColLayout.addWidget(self.dataPathGB)
+        visit_path = Path(getBlConfig("visitDirectory"))
+        visit_name = daq_utils.getVisitName()
+        for part in visit_path.parts:
+            if "pass-" in part:
+                visit_name = f"mx{part.split('-')[1]}-1"
+        fast_dp_summary_file = Path(f'{getBlConfig("visitDirectory")}/{visit_name}/fast_dp_dir/fast_dp.summary.csv')
+        summaryTableGB = QtWidgets.QGroupBox()
+        summaryTableGB.setTitle("FastDP Summary")
+        summaryTableLayout = QtWidgets.QVBoxLayout()
+        self.summaryTableWidget = get_summary_widget(fast_dp_summary_file)
+        summaryTableLayout.addWidget(self.summaryTableWidget)
+        summaryTableGB.setLayout(summaryTableLayout)
+        vBoxMainColLayout.addWidget(summaryTableGB)
+        
         self.mainColFrame.setLayout(vBoxMainColLayout)
         self.mainToolBox.addItem(self.mainColFrame, "Collection Parameters")
         editSampleButton = QtWidgets.QPushButton("Apply Changes")
@@ -983,12 +1001,13 @@ class ControlMain(QtWidgets.QMainWindow):
         editScreenParamsButton = QtWidgets.QPushButton("Edit Raster Params...")
         editScreenParamsButton.clicked.connect(self.editScreenParamsCB)
         vBoxMainSetup.addWidget(self.mainToolBox)
-        vBoxMainSetup.addLayout(hBoxPriorityLayout1)
-        vBoxMainSetup.addWidget(queueSampleButton)
-        vBoxMainSetup.addWidget(editSampleButton)
-        vBoxMainSetup.addWidget(cloneRequestButton)
-
-        vBoxMainSetup.addWidget(editScreenParamsButton)
+        #vBoxMainSetup.addLayout(hBoxPriorityLayout1)
+        hBoxQueueButtons = QHBoxLayout()
+        hBoxQueueButtons.addWidget(queueSampleButton)
+        hBoxQueueButtons.addWidget(editSampleButton)
+        hBoxQueueButtons.addWidget(cloneRequestButton)
+        hBoxQueueButtons.addWidget(editScreenParamsButton)
+        vBoxMainSetup.addLayout(hBoxQueueButtons)
         self.mainSetupFrame.setLayout(vBoxMainSetup)
         self.VidFrame = QFrame()
         self.VidFrame.setFixedWidth(680)
@@ -4011,7 +4030,25 @@ class ControlMain(QtWidgets.QMainWindow):
         db_lib.updateRequest(colRequest)
         self.treeChanged_pv.put(1)
 
+    def get_proposal_directory(self, proposal_num):
+        if proposal_num not in self.proposal_directories:
+            try:
+                r = requests.get(f"{os.environ['NSLS2_API_URL']}/v1/proposal/{proposal_num}/directories")
+                r.raise_for_status()
+                response = r.json().get("directories")
+            except requests.exceptions.HTTPError:
+                return None
+            if response is None:
+                # Proposal does not exist
+                return None
+            for directory in response:
+                if directory["beamline"].lower() == daq_utils.beamline:
+                    self.proposal_directories[proposal_num] = directory["path"]
+        
+        return self.proposal_directories[proposal_num]
+
     def addRequestsToAllSelectedCB(self):
+        invalid_samples = set()
         if (
             self.protoComboBox.currentText() == "raster"
             or self.protoComboBox.currentText() == "stepRaster"
@@ -4046,6 +4083,17 @@ class ControlMain(QtWidgets.QMainWindow):
                 if self.selectedSampleID in samplesConsidered:
                     continue
 
+                sample_data = db_lib.getSampleByID(self.selectedSampleID)
+                prop_dir = self.get_proposal_directory(sample_data["proposalID"])
+
+                # If API does not have info about the proposal or current visitDirectory is not the same
+                # Do not add request
+                if (str(sample_data["proposalID"]) not in ["999999"] and 
+                    (prop_dir is None or 
+                     (Path(prop_dir).resolve() not in Path(getBlConfig("visitDirectory")).resolve().parents))):
+                    invalid_samples.add(sample_data["name"])
+                    continue
+
                 try:
                     self.selectedSampleRequest = daq_utils.createDefaultRequest(
                         self.selectedSampleID
@@ -4072,25 +4120,49 @@ class ControlMain(QtWidgets.QMainWindow):
                     samplesConsidered.add(self.selectedSampleID)
         else:  # If queue collect is off does not matter how many requests you select only one will be added to current pin
             self.selectedSampleID = self.mountedPin_pv.get()
-            self.selectedSampleRequest = daq_utils.createDefaultRequest(
-                self.selectedSampleID
-            )
-            self.dataPathGB.setFilePrefix_ledit(
-                str(self.selectedSampleRequest["request_obj"]["file_prefix"])
-            )
-            self.dataPathGB.setDataPath_ledit(
-                str(self.selectedSampleRequest["request_obj"]["directory"])
-            )
-            self.EScanDataPathGB.setFilePrefix_ledit(
-                str(self.selectedSampleRequest["request_obj"]["file_prefix"])
-            )
-            self.EScanDataPathGB.setDataPath_ledit(
-                str(self.selectedSampleRequest["request_obj"]["directory"])
-            )
-            self.addSampleRequestCB(selectedSampleID=self.selectedSampleID)
+            sample_data = db_lib.getSampleByID(self.selectedSampleID)
+            prop_dir = self.get_proposal_directory(sample_data["proposalID"])
+
+            if self.is_valid_request(prop_dir, sample_data, invalid_samples):
+                self.selectedSampleRequest = daq_utils.createDefaultRequest(
+                    self.selectedSampleID
+                )
+                self.dataPathGB.setFilePrefix_ledit(
+                    str(self.selectedSampleRequest["request_obj"]["file_prefix"])
+                )
+                self.dataPathGB.setDataPath_ledit(
+                    str(self.selectedSampleRequest["request_obj"]["directory"])
+                )
+                self.EScanDataPathGB.setFilePrefix_ledit(
+                    str(self.selectedSampleRequest["request_obj"]["file_prefix"])
+                )
+                self.EScanDataPathGB.setDataPath_ledit(
+                    str(self.selectedSampleRequest["request_obj"]["directory"])
+                )
+                self.addSampleRequestCB(selectedSampleID=self.selectedSampleID)
 
         self.progressDialog.close()
         self.treeChanged_pv.put(1)
+        if invalid_samples:
+            self.popupServerMessage(f"Requests not added to {', '.join(invalid_samples)}")
+
+    def is_valid_request(self, prop_dir, sample_data, invalid_samples):
+        add_request = True
+        if prop_dir is None:
+            response = self.confirm_add_request_dialog(sample_data["proposalID"]).exec_()
+            if response != QtWidgets.QMessageBox.Ok:
+                add_request = False
+        elif (Path(prop_dir).resolve() not in Path(getBlConfig("visitDirectory")).resolve().parents):
+            invalid_samples.add(sample_data["name"])
+            add_request = False
+        return add_request
+
+    def confirm_add_request_dialog(self, proposal_num):
+        msg_box = QtWidgets.QMessageBox()
+        msg_box.setText(f"Path for proposal {proposal_num} not found, data will be written to {getBlConfig('visitDirectory')}. Continue?")
+        msg_box.setStandardButtons(QtWidgets.QMessageBox.StandardButton.Ok | QtWidgets.QMessageBox.StandardButton.Cancel)  # type: ignore
+        msg_box.setDefaultButton(QtWidgets.QMessageBox.StandardButton.Ok)
+        return msg_box
 
     def addSampleRequestCB(self, rasterDef=None, selectedSampleID=None):
         if self.selectedSampleID != None:
