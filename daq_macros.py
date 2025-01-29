@@ -3866,7 +3866,10 @@ def rasterDaq(rasterReqID):
     stepsize /= 1000 # MD2 wants mm
     logger.info(f"move calculations:  {xMotAbsoluteMove}, {xEnd}, {yMotAbsoluteMove}, {yEnd}, {zMotAbsoluteMove}, {zEnd}")
     line_range = stepsize * numsteps
-    total_uturn_range = stepsize * number_of_lines
+    if number_of_lines > 1:
+        total_uturn_range = stepsize * (number_of_lines - 1)
+    else:
+        total_uturn_range = stepsize * number_of_lines
     start_y = start_y - (xEnd / 1000)
     start_z = start_z - (yMotAbsoluteMove / 1000)
     #start_z = start_z - (xEnd / 1000)
