@@ -60,6 +60,7 @@ def init_environment():
   setBlConfig("fastdpComm", "/nsls2/software/mx/nyx/DIALS/dials-v3-16-1/build/bin/fast_dp -j 12 -k 8 -e 'titania-cpu002 titania-cpu003 titania-cpu004'")
   setBlConfig("redisCamUrl", '10.67.146.131')
   redis_raw_url = getBlConfig("redisCamUrl")
+  setBlConfig("cryostream_online", True)
   owner = getpass.getuser()
   primaryDewarName = getBlConfig("primaryDewarName")
   db_lib.setPrimaryDewarName(primaryDewarName)

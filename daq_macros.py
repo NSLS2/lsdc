@@ -1000,12 +1000,12 @@ def runDozorThread(directory,
         ID of raster collection
     """
     global rasterRowResultsList,processedRasterRowCount
-    file_writing_delay = 0.5
-    node = getNodeName("spot", rowIndex, 8)
-    if daq_utils.beamline == 'nyx':
-      file_writing_delay = 10
-      node = "titania-cpu00"+str((rowIndex%4)+1)
-    time.sleep(file_writing_delay) #allow for file writing
+
+    time.sleep(0.1) #allow for file writing
+     
+    #node = getNodeName("spot", rowIndex, 8)
+    node = RASTER_DOZOR_PREFIX + str((rowIndex%RASTER_DOZOR_NODE_COUNT)+1).zfill(3)
+    logger.info(f"distributing row {rowIndex} to {node}")
 
     if (seqNum>-1): #eiger
         dozorRowDir = makeDozorInputFile(directory,
@@ -3948,7 +3948,7 @@ def rasterDaq(rasterReqID):
     rasterFilePrefix = rasterFilePrefix.split("/")[-1]
     logger.info(f"raster prefix {rasterFilePrefix}")
     for i in range(0, number_of_lines):
-        time.sleep(1.0)
+        time.sleep(0.1)
         row_index = i
         logger.info(f'spot finding for row {i}')
         seqNum = raster_flyer.detector.cam.sequence_id.get()

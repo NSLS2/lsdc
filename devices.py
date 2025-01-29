@@ -299,7 +299,7 @@ class MD2Device(GonioDevice):
         # "start_z", "start_cx", "start_cy", "number_of_lines", "frames_per_lines", "exposure_time",
         # "invert_direction", "use_centring_table", "use_fast_mesh_scans"
         param_list = [omega_range, line_range, total_uturn_range, start_omega, start_y, start_z,
-                start_cx, start_cy, number_of_lines, frames_per_line, exposure_time, 
+                start_cx, start_cy, number_of_lines+1, frames_per_line, exposure_time,
                 invert_direction, use_centring_table, use_fast_mesh_scans]
         return self.exporter.cmd(command, param_list)
     

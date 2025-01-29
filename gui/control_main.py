@@ -2139,7 +2139,11 @@ class ControlMain(QtWidgets.QMainWindow):
 
     def processSampMove(self, posRBV, motID):
         #      print "new " + motID + " pos=" + str(posRBV)
-        self.motPos[motID] = posRBV
+        print(f"process samp move:   {posRBV}, {motID}")
+        if not (daq_utils.exporter_enabled):
+            self.motPos[motID] = posRBV
+        else:
+            posRBV*=1000
         if self.centeringMarksList:
             for mark in self.centeringMarksList:
                 if mark is None:
@@ -2527,7 +2531,7 @@ class ControlMain(QtWidgets.QMainWindow):
         try:
             if float(str(self.osc_range_ledit.text())) == 0:
                 if text == "oscRange":
-                    if self.controlEnabled():
+                    if self.controlEnabled() and daq_utils.beamline != "nyx":
                         self.stillMode_pv.put(1)
                 self.colEndLabel.setText("Number of Images: ")
                 if (
@@ -2550,7 +2554,7 @@ class ControlMain(QtWidgets.QMainWindow):
                 return
             else:
                 if text == "oscRange":
-                    if self.controlEnabled():
+                    if self.controlEnabled() and daq_utils.beamline != "nyx":
                         self.standardMode_pv.put(1)
                 self.colEndLabel.setText("Oscillation Range:")
         except ValueError:
@@ -3056,8 +3060,8 @@ class ControlMain(QtWidgets.QMainWindow):
 
     def omegaTweakCB(self, tv):
         if self.controlEnabled():
-            status = self.gon.omega.move(self.gon.omega.val() + float(tv), wait=False)
-            status.wait()
+            tvf = float(tv)
+            status = self.gon.omega.move(self.gon.omega.val() + tvf)
         else:
             self.popupServerMessage("You don't have control")
 
@@ -3988,7 +3992,8 @@ class ControlMain(QtWidgets.QMainWindow):
         Three click centering will update self.threeClickSignal.emit(self.threeClickCount)
         
         '''
-        if self.threeClickCount > 0:  # 3-click centering
+        md2_value = self.md2.task_info.get()
+        if md2_value[0] == 'Manual Centring' and md2_value[3] == 'null':  # 3-click centering
             self.threeClickCount = self.threeClickCount + 1
             self.threeClickSignal.emit('{} more clicks'.format(str(4-self.threeClickCount)))
             #adding drawing for three click centering
@@ -4048,7 +4053,7 @@ class ControlMain(QtWidgets.QMainWindow):
             )
         if not self.vidActionRasterExploreRadio.isChecked():
             self.aux_send_to_server(*comm_s)
-        if self.threeClickCount == 4:
+        if md2_value[0] == 'Manual Centring' and md2_value[3] != 'null' and self.threeClickCount != 0:
             self.threeClickCount = 0
             self.threeClickSignal.emit('0')
             self.click3Button.setStyleSheet("background-color: None")
@@ -5055,8 +5060,8 @@ class ControlMain(QtWidgets.QMainWindow):
                     itemData, createVisit=False
                 )
                 self.refreshCollectionParams(self.selectedSampleRequest)
-                if self.stillModeStatePV.get():
-                    self.setGuiValues({"osc_range": "0.0"})
+                #if self.stillModeStatePV.get():
+                #    self.setGuiValues({"osc_range": "0.0"})
                 reqObj = self.selectedSampleRequest["request_obj"]
                 self.dataPathGB.setFilePrefix_ledit(str(reqObj["file_prefix"]))
                 self.dataPathGB.setBasePath_ledit(reqObj["basePath"])
