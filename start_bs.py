@@ -222,7 +222,7 @@ elif beamline=="nyx":
     govs = _make_governors("XF:19IDC-ES", name="govs")
     gov_robot = govs.gov.Robot
 
-    det_move_done = EpicsSignalRO("XF:19IDC-ES{Det:1-Ax:Z}Mtr.DMOV", name="det_move_done")
+    det_move_done = EpicsSignalRO("XF:19IDD-ES{DET:DZ1}VMtr.DMOV", name="det_move_done")
     #back_light = EpicsSignal(read_pv="XF:19IDD-CT{DIODE-Box_D1:4}InCh00:Data-RB",write_pv="XF:19IDD-CT{DIODE-Box_D1:4}OutCh00:Data-SP",name="back_light")
     back_light_low_limit = EpicsSignalRO("XF:19IDD-CT{DIODE-Box_D1:4}CfgCh00:LowLimit-RB",name="back_light_low_limit") 
     back_light_high_limit = EpicsSignalRO("XF:19IDD-CT{DIODE-Box_D1:4}CfgCh00:HighLimit-RB",name="back_light_high_limit")
