@@ -113,23 +113,26 @@ class SampleXYZ(Device):
 
 if (beamline=="amx"):
     from mxbluesky.devices import (WorkPositions, TwoClickLowMag, LoopDetector, MountPositions, 
-                                   TopAlignerFast, TopAlignerSlow, GoniometerStack)
-    from mxbluesky.devices.generic import CryoStream
+                                   TopAlignerFast, TopAlignerSlow, GoniometerStack, Dewar, RobotArm)
+    from mxbluesky.devices.auto_recovery import PYZHomer
+    from mxbluesky.devices.cryostream import CryoStream
+    from mxbluesky.plans.auto_recovery import home_pins_plan
+    from mxtools.vector_program import VectorProgram
+    from mxtools.flyer import MXFlyer
+    from mxtools.raster_flyer import MXRasterFlyer
+    from embl_robot import EMBLRobot
+
     mercury = ABBIXMercury('XF:17IDB-ES:AMX{Det:Mer}', name='mercury')
     mercury.read_attrs = ['mca.spectrum', 'mca.preset_live_time', 'mca.rois.roi0.count',
                                             'mca.rois.roi1.count', 'mca.rois.roi2.count', 'mca.rois.roi3.count']
     vdcm = VerticalDCM('XF:17IDA-OP:AMX{Mono:DCM', name='vdcm')
     zebra = Zebra('XF:17IDB-ES:AMX{Zeb:2}:', name='zebra')
     eiger = EigerSingleTriggerV26('XF:17IDB-ES:AMX{Det:Eig9M}', name='eiger', beamline=beamline)
-    from mxtools.vector_program import VectorProgram
     vector_program = VectorProgram('XF:17IDB-ES:AMX{Gon:1-Vec}', name='vector_program')
-    from mxtools.flyer import MXFlyer
     flyer = MXFlyer(vector_program, zebra, eiger)
-    from mxtools.raster_flyer import MXRasterFlyer
     raster_flyer = MXRasterFlyer(vector_program, zebra, eiger)
     samplexyz = SampleXYZ("XF:17IDB-ES:AMX{Gon:1-Ax", name="samplexyz")
 
-    from embl_robot import EMBLRobot
     robot = EMBLRobot()
     govs = _make_governors("XF:17IDB-ES:AMX", name="govs")
     gov_robot = govs.gov.Robot
@@ -141,31 +144,43 @@ if (beamline=="amx"):
     mount_pos = MountPositions("XF:17IDB-ES:AMX", name="mount_pos")
     two_click_low = TwoClickLowMag("XF:17IDB-ES:AMX{Cam:6}", name="two_click_low")
     low_mag_cam_reset_signal = EpicsSignal('XF:17IDB-CT:AMX{IOC:CAM06}:SysReset')
+    top_cam_reset_signal = EpicsSignal('XF:17IDB-CT:AMX{IOC:CAM09}:SysReset')
     gonio = GoniometerStack("XF:17IDB-ES:AMX{Gon:1", name="gonio")
     loop_detector = LoopDetector(name="loop_detector")
     top_aligner_fast = TopAlignerFast(name="top_aligner_fast", gov_robot=gov_robot)
     top_aligner_slow = TopAlignerSlow(name="top_aligner_slow")
+    gov_mon_signal = EpicsSignal("XF:17ID:AMX{Karen}govmon", name="govmon")
+    gonio_mon_signal = EpicsSignal("XF:17ID:AMX{Karen}goniomon", name="goniomon")
+    pyz_homer = PYZHomer("", name="pyz_homer")
+    dewar = Dewar("XF:17IDB-ES:AMX", name="dewar")
+    home_pins = home_pins_plan(gov_mon_signal, gonio_mon_signal, pyz_homer, gonio)
+    robot_arm = RobotArm("XF:17IDB-ES:AMX", name="robot_arm")
     cs700 = CryoStream("XF:17ID1:CS700:", name="cs700", atol=0.1)
 
-elif beamline == "fmx":  
+elif beamline == "fmx":
     from mxbluesky.devices import (WorkPositions, TwoClickLowMag, LoopDetector, MountPositions, 
-                                   TopAlignerFast, TopAlignerSlow, GoniometerStack)
-    from mxbluesky.devices.generic import CryoStream
+                                   TopAlignerFast, TopAlignerSlow, GoniometerStack, Dewar, RobotArm)
+    from mxtools.vector_program import VectorProgram
+    from mxbluesky.devices.auto_recovery import PYZHomer
+    from mxbluesky.devices.cryostream import CryoStream
+    from mxbluesky.plans.auto_recovery import home_pins_plan
+    from mxtools.vector_program import VectorProgram
+    from mxtools.flyer import MXFlyer
+    from mxtools.raster_flyer import MXRasterFlyer
+    from embl_robot import EMBLRobot
+    import setenergy_lsdc
+
     mercury = ABBIXMercury('XF:17IDC-ES:FMX{Det:Mer}', name='mercury')
     mercury.read_attrs = ['mca.spectrum', 'mca.preset_live_time', 'mca.rois.roi0.count',
                                             'mca.rois.roi1.count', 'mca.rois.roi2.count', 'mca.rois.roi3.count']
     vdcm = VerticalDCM('XF:17IDA-OP:FMX{Mono:DCM', name='vdcm')
     zebra = Zebra('XF:17IDC-ES:FMX{Zeb:3}:', name='zebra')
     eiger = EigerSingleTriggerV26('XF:17IDC-ES:FMX{Det:Eig16M}', name='eiger', beamline=beamline)
-    from mxtools.vector_program import VectorProgram
     vector_program = VectorProgram('XF:17IDC-ES:FMX{Gon:1-Vec}', name='vector_program')
-    from mxtools.flyer import MXFlyer
     flyer = MXFlyer(vector_program, zebra, eiger)
-    from mxtools.raster_flyer import MXRasterFlyer
     raster_flyer = MXRasterFlyer(vector_program, zebra, eiger)
     samplexyz = SampleXYZ("XF:17IDC-ES:FMX{Gon:1-Ax", name="samplexyz")
 
-    from embl_robot import EMBLRobot
     robot = EMBLRobot()
     govs = _make_governors("XF:17IDC-ES:FMX", name="govs")
     gov_robot = govs.gov.Robot
@@ -181,8 +196,12 @@ elif beamline == "fmx":
     loop_detector = LoopDetector(name="loop_detector")
     top_aligner_fast = TopAlignerFast(name="top_aligner_fast", gov_robot=gov_robot)
     top_aligner_slow = TopAlignerSlow(name="top_aligner_slow")
-
-    import setenergy_lsdc
+    gov_mon_signal = EpicsSignal("XF:17ID:FMX{Karen}govmon", name="govmon")
+    gonio_mon_signal = EpicsSignal("XF:17ID:FMX{Karen}goniomon", name="goniomon")
+    pyz_homer = PYZHomer("", name="pyz_homer")
+    dewar = Dewar("XF:17IDC-ES:FMX", name="dewar")
+    home_pins = home_pins_plan(gov_mon_signal, gonio_mon_signal, pyz_homer, gonio)
+    robot_arm = RobotArm("XF:17IDC-ES:FMX", name="robot_arm")
     cs700 = CryoStream("XF:17ID2:CS700:", name="cs700", atol=0.1)
 
 elif beamline=="nyx":

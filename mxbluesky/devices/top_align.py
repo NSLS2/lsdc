@@ -68,31 +68,18 @@ class CVPlugin(PluginBase):
 
 
 class StandardProsilica(SingleTrigger, ProsilicaDetector):
-    image = Cpt(ImagePlugin, "image1:")
     roi1 = Cpt(ROIPlugin, "ROI1:")
     roi2 = Cpt(ROIPlugin, "ROI2:")
-    roi3 = Cpt(ROIPlugin, "ROI3:")
-    roi4 = Cpt(ROIPlugin, "ROI4:")
     trans1 = Cpt(TransformPlugin, "Trans1:")
     proc1 = Cpt(ProcessPlugin, "Proc1:")
-    stats1 = Cpt(StatsPlugin, "Stats1:")
-    stats2 = Cpt(StatsPlugin, "Stats2:")
-    stats3 = Cpt(StatsPlugin, "Stats3:")
-    stats4 = Cpt(StatsPlugin, "Stats4:")
-    stats5 = Cpt(StatsPlugin, "Stats5:")
 
 class EpicsMotorSPMG(EpicsMotor):
     SPMG = Cpt(EpicsSignal, ".SPMG")
 
 
 class TopAlignCam(StandardProsilica):
-    _default_read_attrs = ["cv1", "tiff"]
+    _default_read_attrs = ["cv1"]
     cv1 = Cpt(CVPlugin, "CV1:")
-    tiff = Cpt(
-        TIFFPluginWithFileStore,
-        "TIFF1:",
-        write_path_template=f"/nsls2/data/{daq_utils.beamline}/legacy/topcam",
-    )
     cam_mode = Cpt(Signal, value=None, kind="config")
     pix_per_um = Cpt(Signal, value=0.164, doc="pixels per um")
     out10_buffer = Cpt(
@@ -124,7 +111,6 @@ class TopAlignCam(StandardProsilica):
         Coarse align takes place during SE -> TA transition
         Fine face takes place during TA -> SA transition
         """
-        self.tiff.stage_sigs.update([("enable", 0)])
         self.stage_sigs.clear()
         self.stage_sigs.update(
             [
@@ -136,7 +122,6 @@ class TopAlignCam(StandardProsilica):
                 ("cv1.inputs.input5", 13),
                 ("cv1.inputs.input6", 1),
                 ("trans1.nd_array_port", "PROC1"),
-                ("tiff.nd_array_port", "CV1"),
             ]
         )
         if self.cam_mode.get() == CamMode.COARSE_ALIGN.value:
@@ -370,37 +355,19 @@ class TopAlignerFast(TopAlignerBase):
             )
 
 
-class TopAlignerSlow(TopAlignerBase):
+class TopAlignerSlow(TopAlignCam):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-    def _configure_device(self, *args, **kwargs):
-
-        self.stage_sigs.clear()
-        self.stage_sigs.update(
-            [
-                ("topcam.cam.trigger_mode", 5),
-                ("topcam.cam.image_mode", 1),
-                ("topcam.cam.acquire", 1),
+        super().__init__(f"{device_prefix}{{Cam:9}}",*args, **kwargs)
+        self.cam_mode.set(CamMode.COARSE_ALIGN.value)
+        self.cam.stage_sigs.update(
+                [
+                ("trigger_mode", 5),
+                ("image_mode", 1),
+                #("acquire", 1),
             ]
         )
-        self.topcam.cam_mode.set(CamMode.COARSE_ALIGN.value)
         self.read_attrs = [
-            "topcam.cv1.outputs.output8",
-            "topcam.cv1.outputs.output9",
-            "topcam.cv1.outputs.output10",
+            "cv1.outputs.output8",
+            "cv1.outputs.output9",
+            "cv1.outputs.output10",
         ]
-
-    def trigger(self):
-        return self.topcam.trigger()
-
-    def read(self):
-        return self.topcam.read()
-
-
-
-
-
-
-
-

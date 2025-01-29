@@ -5,9 +5,9 @@ import bluesky.plans as bp
 import numpy as np
 from bluesky.preprocessors import finalize_decorator
 from bluesky.utils import FailedStatus
-from ophyd.utils import WaitTimeoutError
+from ophyd.utils import WaitTimeoutError, StatusTimeoutError
 from scipy.interpolate import interp1d
-
+from sklearn.linear_model import LinearRegression, RANSACRegressor
 import gov_lib
 from mxbluesky.devices.top_align import GovernorError, CamMode
 from mxbluesky.plans.utils import mv_with_retry, mvr_with_retry
@@ -19,17 +19,18 @@ from start_bs import (
     top_aligner_fast,
     top_aligner_slow,
     work_pos,
+    top_cam_reset_signal
 )
 
 logger = getLogger()
 
 def cleanup_topcam():
     try:
-        yield from bps.abs_set(top_aligner_slow.topcam.cam.acquire, 1, wait=True, timeout=4)
+        yield from bps.abs_set(top_aligner_slow.cam.acquire, 1, wait=True, timeout=4)
         yield from bps.abs_set(top_aligner_fast.zebra.pos_capt.direction, 0, wait=True, timeout=4)
     except WaitTimeoutError as error:
         logger.exception(f"Exception in cleanup_topcam, trying again: {error}")
-        yield from bps.abs_set(top_aligner_slow.topcam.cam.acquire, 1, wait=True, timeout=4)
+        yield from bps.abs_set(top_aligner_slow.cam.acquire, 1, wait=True, timeout=4)
         yield from bps.abs_set(top_aligner_fast.zebra.pos_capt.direction, 0, wait=True, timeout=4)
     
 
@@ -42,25 +43,32 @@ def inner_pseudo_fly_scan(*args, **kwargs):
     d = np.pi / 180
 
     # rot axis calculation, use linear regression
-    A_rot = np.matrix(
-        [[np.cos(omega * d), np.sin(omega * d), 1] for omega in omegas]
-    )
+    
+    omegas_rad = np.array(omegas) * d
+    X = np.vstack([np.cos(omegas_rad), np.sin(omegas_rad)]).T
 
-    b_rot = db[scan_uid].table()[top_aligner_fast.topcam.out9_buffer.name][
+    y = np.array(db[scan_uid].table()[top_aligner_fast.topcam.out9_buffer.name][
         1
-    ]
-    p = (
-        np.linalg.inv(A_rot.transpose() * A_rot)
-        * A_rot.transpose()
-        * np.matrix(b_rot).transpose()
-    )
+    ]).reshape(-1,1)
+    try:
+        ransac_kwargs = {
+            'estimator': LinearRegression(),
+            'min_samples': 5,
+            'residual_threshold': 10,
+            'random_state': 0,
+        }
+        delta_z_pix, delta_y_pix = fit_ransac_linear(X, y, **ransac_kwargs)
+    except ValueError as e:
+        logger.error(f"Error using RANSAC estimator: {e}. Using linear instead")
+        delta_z_pix, delta_y_pix = fit_linear(X, y)
 
-    delta_z_pix, delta_y_pix, rot_axis_pix = p[0], p[1], p[2]
+    print(f"Ransac Regression predictions: {delta_z_pix}, {delta_y_pix}")
+    
     delta_y, delta_z = (
         delta_y_pix / top_aligner_fast.topcam.pix_per_um.get(),
         delta_z_pix / top_aligner_fast.topcam.pix_per_um.get(),
     )
-
+    
     # face on calculation
     b = db[scan_uid].table()[top_aligner_fast.topcam.out10_buffer.name][1]
 
@@ -86,20 +94,35 @@ def setup_transition_signals(target_state, zebra_dir, cam_mode):
     yield from bps.abs_set(top_aligner_fast.topcam.cam_mode, cam_mode, wait=True, timeout=4)
     yield from bps.sleep(0.1)
 
+def reset_top_cam():
+    yield from bps.abs_set(top_aligner_slow.cam.acquire, 0, wait=True)
+    yield from bps.sleep(3)
+    yield from bps.abs_set(top_cam_reset_signal, 1, wait=True)
+    yield from bps.sleep(12)
+    n = 1
+    # sometimes array_callbacks not setup properly, need to find out why
+    while top_aligner_slow.cam.array_callbacks.get() != 1 and n <= 10:
+        yield from bps.abs_set(top_cam_reset_signal, 1, wait=True)
+        yield from bps.sleep(12)
+        logger.info(f'rebooting topcam after {n} out of 10 attempts')
+        n += 1
+    yield from bps.abs_set(top_aligner_slow.cam.acquire, 1, wait=True)
+    yield from bps.sleep(3) # Sleeping here to prevent interference with count
 
 @finalize_decorator(cleanup_topcam)
 def topview_optimized():
-    logger.info("Starting topview")
+    logger.info("Starting topview --")
     try:
         # horizontal bump calculation, don't move just yet to avoid disturbing gov
         scan_uid = yield from bp.count([top_aligner_slow], 1)
-    except FailedStatus:
+    except (FailedStatus, WaitTimeoutError, StatusTimeoutError) as e:
+        yield from reset_top_cam()
         scan_uid = yield from bp.count([top_aligner_slow], 1)
 
     logger.info(f"Finished top aligner slow scan {scan_uid}")
-    x = db[scan_uid].table()[top_aligner_slow.topcam.cv1.outputs.output8.name][1]
-    delta_x = ((top_aligner_slow.topcam.roi2.size.x.get() / 2) -
-               x) / top_aligner_slow.topcam.pix_per_um.get()
+    x = db[scan_uid].table()[top_aligner_slow.cv1.outputs.output8.name][1]
+    delta_x = ((top_aligner_slow.roi2.size.x.get() / 2) -
+               x) / top_aligner_slow.pix_per_um.get()
     logger.info(f"Horizontal bump calc finished: {delta_x}")
     # update work positions
     yield from set_TA_work_pos(delta_x=delta_x)
@@ -111,7 +134,7 @@ def topview_optimized():
     except WaitTimeoutError as error:
         logger.exception(f"Exception while setting SE to TA signals, trying again: {error}")
         yield from setup_transition_signals("TA", 0, CamMode.COARSE_ALIGN.value)
-
+        
     logger.info("Starting 1st inner fly scan")
 
     try:
@@ -143,6 +166,7 @@ def topview_optimized():
     except WaitTimeoutError as error:
         logger.exception(f"Exception while setting TA to SA signals, trying again: {error}")
         yield from setup_transition_signals("SA", 1, CamMode.FINE_FACE.value)
+
     logger.info("Starting 2nd inner fly scan")
     try:
         delta_y, delta_z, omega_min = yield from inner_pseudo_fly_scan(
@@ -195,3 +219,18 @@ def set_SA_work_pos(delta_y, delta_z, current_y=None, current_z= None, omega=0):
         work_pos.gpz, current_z - delta_z, wait=True
     )
     yield from bps.abs_set(work_pos.o, omega, wait=True)
+
+def fit_linear(X,y):
+    reg = LinearRegression().fit(X,y)
+    return reg.coef_[0]
+
+def fit_ransac_linear(X,y, min_n_inliers=10, **kwargs):
+    reg = RANSACRegressor(**kwargs).fit(X,y)
+    mask = reg.inlier_mask_
+    masked_X = X[mask, :]
+    masked_y = y[mask, :]
+    if len(masked_y) < min_n_inliers:
+        raise ValueError(
+            f'Too few inliers. Identified {len(masked_y)}, need {min_n_inliers}.'
+        )
+    return reg.estimator_.coef_[0]

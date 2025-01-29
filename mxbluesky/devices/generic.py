@@ -1,5 +1,5 @@
-from ophyd import Component as Cpt
-from ophyd import Device, EpicsMotor, EpicsSignal, EpicsSignalRO, PVPositionerIsClose
+from ophyd import Component as Cpt, Device, EpicsMotor, EpicsSignal, EpicsSignalRO, DynamicDeviceComponent as DDC
+from ophyd.status import SubscriptionStatus
 from mxbluesky.devices import standardize_readback
 from enum import IntEnum, unique
 
@@ -36,17 +36,64 @@ class GoniometerStack(Device):
         self.cz = self.pz
         self.omega = self.o
 
-@unique
-class CryoStreamCmd(IntEnum):
-    START_RAMP = 1
-    STOP_RAMP = 0
+class Puck(Device):
+    status = Cpt(EpicsSignalRO, "-Sts")
+
+class Sector(Device):
+    A = Cpt(Puck, "A", name="A")
+    B = Cpt(Puck, "B", name="B")
+    C = Cpt(Puck, "C", name="C")
+
+class Dewar(Device):
+    rotation = Cpt(EpicsSignal, "{Dew:1-Ax:R}Virtual")
+    rotation_motor = Cpt(EpicsMotor, "{Dew:1-Ax:R}Mtr")
+    sectors = DDC(
+        {
+            f"sector_{i}": (Sector, f"{{Wago:1}}Puck{i}", {"name": "sector_{i}"})
+            for i in range(1, 9)
+        }
+    )
+    num_sectors = 8
+
+    def get_puck_status(self, puck_pos: str):
+        # puck_pos assumed to be of the form "7A"
+        sector = getattr(self.sectors, f"sector_{puck_pos[0]}")
+        puck: Puck = getattr(sector, puck_pos[1])
+        return puck.status.get()
+
+    def rotate(self, rotation_angle, absolute=True):
+        def check_value_sink(*, old_value, value, **kwargs):
+            "Return True when the movement is complete, False otherwise."
+            return old_value == 1 and value == 0
+
+        def check_value_raise(*, old_value, value, **kwargs):
+            "Return True when the movement is started, False otherwise."
+            return old_value == 0 and value == 1
+
+        status = SubscriptionStatus(
+            self.rotation_motor.motor_done_move, check_value_sink
+        )
+        if not self.rotation_motor.motor_done_move.get():
+            raise RuntimeError("Dewar rotation motor already moving.")
+            ### Maybe don't raise an error here but rather do a timeout retry?
+        if absolute:
+            self.rotation.set(rotation_angle)
+        else:
+            current_angle = self.rotation.get()
+            self.rotation.set(current_angle + rotation_angle)
+        status.wait()
+        status = SubscriptionStatus(
+            self.rotation_motor.motor_done_move, check_value_raise
+        )
+        status.wait()
 
 
-class CryoStream(PVPositionerIsClose):
-    readback = Cpt(EpicsSignalRO, 'TEMP')
-    setpoint = Cpt(EpicsSignal, 'RTEMP')
-    actuate = Cpt(EpicsSignal, "RAMP.PROC")
-    actuate_value = CryoStreamCmd.START_RAMP
-    stop_signal = Cpt(EpicsSignal, "RAMP.PROC")
-    stop_value = CryoStreamCmd.STOP_RAMP
+class RobotArm(Device):
+    speed = Cpt(EpicsSignal, '{EMBL}:RobotSpeed')
+
+    def is_full_speed(self):
+        # Checks if the robot speed is 100%
+        if self.speed.get() < 100:
+            return False
+        return True
 

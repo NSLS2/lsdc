@@ -4,6 +4,7 @@ from ophyd.areadetector.plugins import JPEGPlugin, register_plugin, PluginBase
 from ophyd import (DeviceStatus, Component as Cpt, Signal, EpicsSignal, Device, 
                     DDC_EpicsSignal, DDC_EpicsSignalRO, ADComponent as ADCpt, ImagePlugin,
                       ROIPlugin, TransformPlugin, StatsPlugin, ProcessPlugin, SingleTrigger, ProsilicaDetector)
+from ophyd.utils.errors import WaitTimeoutError
 from pathlib import Path
 import requests
 from bluesky.utils import FailedStatus
@@ -210,7 +211,7 @@ class TwoClickLowMag(StandardProsilica):
         try:
             status = super().trigger()
             status.wait(6)
-        except AttributeError:
+        except (AttributeError, WaitTimeoutError) as e:
             raise FailedStatus
         return status
 

@@ -217,7 +217,7 @@ class EMBLRobot:
         logger.info("mounting " + str(puckPos) + " " + str(pinPos) + " " + str(sampID))
         platePos = int(puckPos/3)
         rotMotTarget = daq_utils.dewarPlateMap[platePos][0]
-        rotCP = beamline_lib.motorPosFromDescriptor("dewarRot")
+        rotCP = daq_macros.dewar.rotation.get()
         logger.info("dewar target,CP")
         logger.info("%s %s" % (rotMotTarget,rotCP))
         if (abs(rotMotTarget-rotCP)>0.01):
@@ -231,7 +231,7 @@ class EMBLRobot:
             daq_lib.gui_message(message)
             logger.error(message)
             return MOUNT_FAILURE, kwargs
-          beamline_lib.mvaDescriptor("dewarRot",rotMotTarget)
+          daq_macros.dewar.rotate(rotMotTarget)
       return MOUNT_STEP_SUCCESSFUL, kwargs
 
 
@@ -275,9 +275,20 @@ class EMBLRobot:
               except Exception as e:
                 e_s = str(e)
                 message = "ROBOT mount ERROR: " + e_s
-                daq_lib.gui_message(message)
-                logger.error(message)
-                return MOUNT_FAILURE
+                if "Load ABORT with exception Timeout" in e_s:
+                  daq_macros.run_robot_recovery_procedure()
+                  try:
+                    RobotControlLib.mount(absPos)
+                  except Exception as e:
+                    e_s = str(e)
+                    message = "ROBOT mount ERROR: " + e_s                    
+                    daq_lib.gui_message(message)
+                    logger.error(message)
+                    return MOUNT_FAILURE
+                else:
+                  daq_lib.gui_message(message)
+                  logger.error(message)
+                  return MOUNT_FAILURE
             else:
               time.sleep(0.5)
               if (getPvDesc("sampleDetected") == 0):
@@ -406,7 +417,7 @@ class EMBLRobot:
         logger.info("absPos = " + str(absPos))
         platePos = int(puckPos/3)
         rotMotTarget = daq_utils.dewarPlateMap[platePos][0]
-        rotCP = beamline_lib.motorPosFromDescriptor("dewarRot")
+        rotCP = daq_macros.dewar.rotation.get()
         logger.info("dewar target,CP")
         logger.info("%s %s" % (rotMotTarget,rotCP))
         if (abs(rotMotTarget-rotCP)>1):
@@ -419,7 +430,7 @@ class EMBLRobot:
             daq_lib.gui_message(message)
             logger.error(message)
             return UNMOUNT_FAILURE
-          beamline_lib.mvaDescriptor("dewarRot",rotMotTarget)
+          daq_macros.dewar.rotate(rotMotTarget)
         try:
           par_init=(beamline_support.get_any_epics_pv("SW:RobotState","VAL")!="Ready")
           par_cool=(getPvDesc("gripTemp")>-170)
