@@ -97,7 +97,7 @@ class MD2StandardFlyer():
         logger.debug(f"FLYER COMPLETE FUNCTION")
         task_status = self.md2.task_status()
         logger.debug(f"assigning task status")
-        timeout = (self.collection_params["exposure_time"] * 3) + 80
+        timeout = (self.collection_params["exposure_time"] * 3) + 30
         logger.info(f"TASK TIMEOUT: {timeout}")
         #ready_status.wait(timeout=timeout)
         try:
@@ -282,3 +282,22 @@ class MD2RasterFlyer(MD2StandardFlyer):
             "use_centring_table": use_centring_table,
             "use_fast_mesh_scans": use_fast_mesh_scans,
         }
+    
+    def complete(self):
+            # monitor md2 status, wait for ready or timeout and then return
+            #ready_status = self.md2.ready_status()
+            #logger.info(f"TASK OUTPUT: {self.md2.task_output}")
+            logger.debug(f"FLYER COMPLETE FUNCTION")
+            task_status = self.md2.task_status()
+            logger.debug(f"assigning task status")
+            timeout = (self.collection_params["exposure_time"] * self.collection_params["number_of_lines"] * 1.5) + 13
+            logger.info(f"TASK TIMEOUT: {timeout}")
+            #ready_status.wait(timeout=timeout)
+            try:
+                task_status.wait(timeout=timeout)
+            except WaitTimeoutError:
+                logger.info("reached task timeout")
+                logger.info(f"TASK INFO: {self.md2.task_info}")
+                logger.info(f"TASK OUTPUT: {self.md2.task_output}")
+                return
+            return task_status
