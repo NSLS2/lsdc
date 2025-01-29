@@ -431,9 +431,9 @@ class ControlMain(QtWidgets.QMainWindow):
         colParamsGB = QtWidgets.QGroupBox()
         colParamsGB.setTitle("Acquisition")
         vBoxColParams1 = QtWidgets.QVBoxLayout()
-        colStartLabel = QtWidgets.QLabel("Oscillation Start:")
-        colStartLabel.setFixedWidth(140)
-        colStartLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.colStartLabel = QtWidgets.QLabel("Oscillation Start:")
+        self.colStartLabel.setFixedWidth(140)
+        self.colStartLabel.setAlignment(QtCore.Qt.AlignCenter)
         self.osc_start_ledit = QtWidgets.QLineEdit()
         self.setGuiValues({"osc_start": "0.0"})
         self.osc_start_ledit.setFixedWidth(60)
@@ -450,9 +450,9 @@ class ControlMain(QtWidgets.QMainWindow):
         )
         if daq_utils.beamline == "fmx":
             self.osc_end_ledit.textChanged.connect(self.calcLifetimeCB)
-        colRangeLabel = QtWidgets.QLabel("Oscillation Width:")
-        colRangeLabel.setFixedWidth(140)
-        colRangeLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.colRangeLabel = QtWidgets.QLabel("Oscillation Width:")
+        self.colRangeLabel.setFixedWidth(140)
+        self.colRangeLabel.setAlignment(QtCore.Qt.AlignCenter)
         self.osc_range_ledit = QtWidgets.QLineEdit()
         self.osc_range_ledit.setFixedWidth(60)
         self.osc_range_ledit.setValidator(QtGui.QDoubleValidator(0.001, 3600, 3))
@@ -465,13 +465,13 @@ class ControlMain(QtWidgets.QMainWindow):
         else:
             self.stillModeCheckBox.setChecked(False)
             self.osc_range_ledit.setEnabled(True)
-        colExptimeLabel = QtWidgets.QLabel("ExposureTime:")
+        self.colExptimeLabel = QtWidgets.QLabel("ExposureTime:")
         self.stillModeCheckBox.clicked.connect(self.stillModeUserPushCB)
         self.osc_range_ledit.textChanged[str].connect(
             functools.partial(self.totalExpChanged, "oscRange")
         )
-        colExptimeLabel.setFixedWidth(140)
-        colExptimeLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.colExptimeLabel.setFixedWidth(140)
+        self.colExptimeLabel.setAlignment(QtCore.Qt.AlignCenter)
         self.exp_time_ledit = QtWidgets.QLineEdit()
         self.exp_time_ledit.setFixedWidth(60)
         self.exp_time_ledit.textChanged[str].connect(self.totalExpChanged)
@@ -483,9 +483,9 @@ class ControlMain(QtWidgets.QMainWindow):
             )
         )
         self.exp_time_ledit.textChanged.connect(self.checkEntryState)
-        totalExptimeLabel = QtWidgets.QLabel("Total Exposure Time (s):")
-        totalExptimeLabel.setFixedWidth(155)
-        totalExptimeLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.totalExptimeLabel = QtWidgets.QLabel("Total Exposure Time (s):")
+        self.totalExptimeLabel.setFixedWidth(155)
+        self.totalExptimeLabel.setAlignment(QtCore.Qt.AlignCenter)
         self.totalExptime_ledit = QtWidgets.QLineEdit()
         self.totalExptime_ledit.setReadOnly(True)
         self.totalExptime_ledit.setFrame(False)
@@ -499,7 +499,7 @@ class ControlMain(QtWidgets.QMainWindow):
         )
         self.totalExptime_ledit.textChanged.connect(self.checkEntryState)
 
-        sampleLifetimeLabel = QtWidgets.QLabel("Estimated Sample Lifetime (s): ")
+        self.sampleLifetimeLabel = QtWidgets.QLabel("Estimated Sample Lifetime (s): ")
         if daq_utils.beamline == "amx":
             self.sampleLifetimeReadback = QtEpicsPVLabel(
                 daq_utils.pvLookupDict["sampleLifetime"], self, 70, 2
@@ -518,7 +518,7 @@ class ControlMain(QtWidgets.QMainWindow):
                 self.transmissionSetPoint = QtEpicsPVEntry(
                     daq_utils.pvLookupDict["RI_Atten_SP"], self, 60, 3
                 )
-                colTransmissionLabel = QtWidgets.QLabel("Transmission (RI) (0.0-1.0):")
+                self.colTransmissionLabel = QtWidgets.QLabel("Transmission (RI) (0.0-1.0):")
             else:
                 self.transmissionReadback = QtEpicsPVLabel(
                     daq_utils.pvLookupDict["transmissionRBV"], self, 60, 3
@@ -526,7 +526,7 @@ class ControlMain(QtWidgets.QMainWindow):
                 self.transmissionSetPoint = QtEpicsPVEntry(
                     daq_utils.pvLookupDict["transmissionSet"], self, 60, 3
                 )
-                colTransmissionLabel = QtWidgets.QLabel("Transmission (BCU) (0.0-1.0):")
+                self.colTransmissionLabel = QtWidgets.QLabel("Transmission (BCU) (0.0-1.0):")
         else:
             self.transmissionReadback = QtEpicsPVLabel(
                 daq_utils.pvLookupDict["transmissionRBV"], self, 60, 3
@@ -534,13 +534,13 @@ class ControlMain(QtWidgets.QMainWindow):
             self.transmissionSetPoint = QtEpicsPVEntry(
                 daq_utils.pvLookupDict["transmissionSet"], self, 60, 3
             )
-            colTransmissionLabel = QtWidgets.QLabel("Transmission (0.0-1.0):")
+            self.colTransmissionLabel = QtWidgets.QLabel("Transmission (0.0-1.0):")
         self.transmissionReadback_ledit = self.transmissionReadback.getEntry()
 
-        colTransmissionLabel.setAlignment(QtCore.Qt.AlignCenter)
-        colTransmissionLabel.setFixedWidth(190)
+        self.colTransmissionLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.colTransmissionLabel.setFixedWidth(190)
 
-        transmisionSPLabel = QtWidgets.QLabel("SetPoint:")
+        self.transmisionSPLabel = QtWidgets.QLabel("SetPoint:")
 
         self.transmission_ledit = self.transmissionSetPoint.getEntry()
         self.transmission_ledit.setValidator(
@@ -556,7 +556,7 @@ class ControlMain(QtWidgets.QMainWindow):
             self.transmission_ledit.textChanged.connect(self.calcLifetimeCB)
         setTransButton = QtWidgets.QPushButton("Set Trans")
         setTransButton.clicked.connect(self.setTransCB)
-        beamsizeLabel = QtWidgets.QLabel("BeamSize:")
+        self.beamsizeLabel = QtWidgets.QLabel("BeamSize:")
         if daq_utils.beamline == "nyx":
             # beamSizeOptionList = self.aperture.get_diameter_list() PV not working, needs investigation
             beamSizeOptionList = ["10", "20", "30", "50", "100"]
@@ -570,55 +570,55 @@ class ControlMain(QtWidgets.QMainWindow):
         self.beamsizeComboBox.activated[str].connect(self.beamsizeComboActivatedCB)
         if daq_utils.beamline == "amx" or self.energy_pv.get() < 9000:
             self.beamsizeComboBox.setEnabled(False)
-        colEnergyLabel = QtWidgets.QLabel("Energy (eV):")
-        colEnergyLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.colEnergyLabel = QtWidgets.QLabel("Energy (eV):")
+        self.colEnergyLabel.setAlignment(QtCore.Qt.AlignCenter)
         self.energyMotorEntry = QtEpicsPVLabel(
             daq_utils.motor_dict["energy"] + ".RBV", self, 70, 2
         )
         self.energyReadback = self.energyMotorEntry.getEntry()
-        energySPLabel = QtWidgets.QLabel("SetPoint:")
+        self.energySPLabel = QtWidgets.QLabel("SetPoint:")
         self.energyMoveLedit = QtEpicsPVEntry(
             daq_utils.motor_dict["energy"] + ".VAL", self, 75, 2
         )
         self.energy_ledit = self.energyMoveLedit.getEntry()
         self.energy_ledit.setValidator(QtGui.QDoubleValidator())
         self.energy_ledit.returnPressed.connect(self.moveEnergyMaxDeltaCB)
-        moveEnergyButton = QtWidgets.QPushButton("Move Energy")
-        moveEnergyButton.clicked.connect(self.moveEnergyCB)
+        self.moveEnergyButton = QtWidgets.QPushButton("Move Energy")
+        self.moveEnergyButton.clicked.connect(self.moveEnergyCB)
         hBoxColParams4 = QtWidgets.QHBoxLayout()
-        colBeamWLabel = QtWidgets.QLabel("Beam Width:")
-        colBeamWLabel.setFixedWidth(140)
-        colBeamWLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.colBeamWLabel = QtWidgets.QLabel("Beam Width:")
+        self.colBeamWLabel.setFixedWidth(140)
+        self.colBeamWLabel.setAlignment(QtCore.Qt.AlignCenter)
         self.beamWidth_ledit = QtWidgets.QLineEdit()
         self.beamWidth_ledit.setFixedWidth(60)
-        colBeamHLabel = QtWidgets.QLabel("Beam Height:")
-        colBeamHLabel.setFixedWidth(140)
-        colBeamHLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.colBeamHLabel = QtWidgets.QLabel("Beam Height:")
+        self.colBeamHLabel.setFixedWidth(140)
+        self.colBeamHLabel.setAlignment(QtCore.Qt.AlignCenter)
         self.beamHeight_ledit = QtWidgets.QLineEdit()
         self.beamHeight_ledit.setFixedWidth(60)
         if daq_utils.beamline == 'nyx':
             self.beamWidth_ledit.setText(getBlConfig("screen_default_beamWidth"))
             self.beamHeight_ledit.setText(getBlConfig("screen_default_beamHeight"))
-        hBoxColParams4.addWidget(colBeamWLabel)
+        hBoxColParams4.addWidget(self.colBeamWLabel)
         hBoxColParams4.addWidget(self.beamWidth_ledit)
-        hBoxColParams4.addWidget(colBeamHLabel)
+        hBoxColParams4.addWidget(self.colBeamHLabel)
         hBoxColParams4.addWidget(self.beamHeight_ledit)
-        colResoLabel = QtWidgets.QLabel("Edge Resolution:")
-        colResoLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.colResoLabel = QtWidgets.QLabel("Edge Resolution:")
+        self.colResoLabel.setAlignment(QtCore.Qt.AlignCenter)
         self.resolution_ledit = QtWidgets.QLineEdit()
         self.resolution_ledit.setFixedWidth(60)
         self.resolution_ledit.setValidator(QtGui.QDoubleValidator())
         self.resolution_ledit.textEdited[str].connect(self.resoTextChanged)
         if daq_utils.beamline == "nyx":
             self.resolution_ledit.setEnabled(False)
-        detDistLabel = QtWidgets.QLabel("Detector Dist.")
-        #detDistLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.detDistLabel = QtWidgets.QLabel("Detector Dist.")
+        #self.detDistLabel.setAlignment(QtCore.Qt.AlignCenter)
         detDistRBLabel = QtWidgets.QLabel("Readback:")
         self.detDistRBVLabel = QtEpicsPVLabel(
             daq_utils.motor_dict["detectorDist"] + ".RBV", self, 70
         )
         self.detDistTextChanged(self.detDistRBVLabel.getEntry().text())
-        detDistSPLabel = QtWidgets.QLabel("SetPoint:")
+        self.detDistSPLabel = QtWidgets.QLabel("SetPoint:")
         self.detDistMotorEntry = QtEpicsPVEntry(
             daq_utils.motor_dict["detectorDist"] + ".VAL", self, 70, 2
         )
@@ -705,6 +705,9 @@ class ControlMain(QtWidgets.QMainWindow):
         hBoxColParams6.addWidget(self.protoComboBox)
         hBoxColParams7.addWidget(centeringLabel)
         hBoxColParams7.addWidget(self.centeringComboBox)
+        hBoxColParams7.addWidget(self.colResoLabel)
+        hBoxColParams7.addWidget(self.resolution_ledit)
+
         self.processingOptionsFrame = QFrame()
         self.hBoxProcessingLayout1 = QtWidgets.QHBoxLayout()
         self.hBoxProcessingLayout1.setAlignment(QtCore.Qt.AlignLeft)
@@ -882,59 +885,13 @@ class ControlMain(QtWidgets.QMainWindow):
         paramsGridGB = QtWidgets.QGroupBox()
         paramsGridGB.setTitle("Acquisition")
        
-        paramSubspace = QtWidgets.QGridLayout()    
-       
-       
-        # Parameter Collection Column 1, Labels
-        colStartLabel.setAlignment(QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(colStartLabel,1,0, alignment=QtCore.Qt.AlignLeft)
-        self.colEndLabel.setAlignment(QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(self.colEndLabel,2,0, alignment=QtCore.Qt.AlignLeft) 
-        colRangeLabel.setAlignment(QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(colRangeLabel,0,0, alignment=QtCore.Qt.AlignLeft)
-        colExptimeLabel.setAlignment(QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(colExptimeLabel,3,0, alignment=QtCore.Qt.AlignLeft)
-        totalExptimeLabel.setAlignment(QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(totalExptimeLabel,4,0, alignment=QtCore.Qt.AlignLeft)
-        if daq_utils.beamline in ['amx', 'fmx']:
-            paramSubspace.addWidget(sampleLifetimeLabel, 5, 0, alignment=QtCore.Qt.AlignLeft)
-        # Parameter Collection Column 2, Input Boxes  
-        paramSubspace.addWidget(self.osc_start_ledit,1,1, alignment=QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(self.osc_end_ledit,2,1, alignment=QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(self.osc_range_ledit,0,1, alignment=QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(self.exp_time_ledit,3,1, alignment=QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(self.totalExptime_ledit,4,1, alignment=QtCore.Qt.AlignLeft)
-        # Parameter Collection Column 3, Labels
-        paramSubspace.addWidget(detDistLabel,0,2, alignment=QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(colResoLabel,1,2, alignment=QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(colEnergyLabel,2,2, alignment=QtCore.Qt.AlignLeft)
-        colTransmissionLabel.setAlignment(QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(colTransmissionLabel,3,2, alignment=QtCore.Qt.AlignLeft)
-        transmisionSPLabel.setAlignment(QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(beamsizeLabel,4,2, alignment=QtCore.Qt.AlignLeft)
-        if daq_utils.beamline in ['amx', 'fmx']:
-            paramSubspace.addWidget(self.sampleLifetimeReadback_ledit, 5, 1, alignment=QtCore.Qt.AlignLeft)
-        
-        # Parameter Collection Column 4, Input Boxes
-        paramSubspace.addWidget(self.detDistMotorEntry.getEntry(),0,3, alignment=QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(self.resolution_ledit,1,3, alignment=QtCore.Qt.AlignLeft)
-        if daq_utils.beamline == "fmx":
-            if getBlConfig(SET_ENERGY_CHECK):
-                paramSubspace.addWidget(moveEnergyButton,2,3, alignment=QtCore.Qt.AlignLeft)
-            else:
-                paramSubspace.addWidget(self.energy_ledit,2,3, alignment=QtCore.Qt.AlignLeft)
+        if daq_utils.beamline == "nyx":
+            paramSubspace = self.nyx_parameter_layout()
         else:
-            paramSubspace.addWidget(self.energy_ledit,2,3, alignment=QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(self.transmission_ledit,3,3, alignment=QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(self.beamsizeComboBox,4,3, alignment=QtCore.Qt.AlignLeft)
-        
-        # Param Collection Column 5, RBV  
-        paramSubspace.addWidget(self.energyReadback,2,4, alignment=QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(self.detDistRBVLabel.getEntry(),0,4, alignment=QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(self.transmissionReadback_ledit,3,4, alignment=QtCore.Qt.AlignLeft)
+            paramSubspace = self.amx_fmx_parameter_layout()
 
         improvedParamSpacing = QtWidgets.QVBoxLayout()
-        improvedParamSpacing.addWidget(self.stillModeCheckBox)
+        # improvedParamSpacing.addWidget(self.stillModeCheckBox)
         improvedParamSpacing.addLayout(paramSubspace)
         improvedParamSpacing.addLayout(hBoxColParams7)
         improvedParamSpacing.addLayout(hBoxColParams6)
@@ -1594,6 +1551,112 @@ class ControlMain(QtWidgets.QMainWindow):
                 pixmapItem.setPixmap(frame)
         else:
             pixmapItem.setPixmap(frame)
+
+    def amx_fmx_parameter_layout(self):
+
+        hBoxColParams1 = QtWidgets.QHBoxLayout()
+        if daq_utils.beamline == "fmx":
+            self.osc_end_ledit.textChanged.connect(self.calcLifetimeCB)
+        hBoxColParams1.addWidget(self.colStartLabel)
+        hBoxColParams1.addWidget(self.osc_start_ledit)
+        hBoxColParams1.addWidget(self.colEndLabel)
+        hBoxColParams1.addWidget(self.osc_end_ledit)
+        hBoxColParams2 = QtWidgets.QHBoxLayout()
+        hBoxColParams2.addWidget(self.colRangeLabel)
+        hBoxColParams2.addWidget(self.osc_range_ledit)
+
+        hBoxColParams2.addWidget(self.colExptimeLabel)
+        hBoxColParams2.addWidget(self.exp_time_ledit)
+        hBoxColParams25 = QtWidgets.QHBoxLayout()
+        hBoxColParams25.addWidget(self.stillModeCheckBox)
+        hBoxColParams25.addWidget(self.totalExptimeLabel)
+        hBoxColParams25.addWidget(self.totalExptime_ledit)
+        # if (daq_utils.beamline == "fmx"):
+        #  hBoxColParams25.addWidget(calcLifetimeButton)
+        hBoxColParams25.addWidget(self.sampleLifetimeLabel)
+        hBoxColParams25.addWidget(self.sampleLifetimeReadback_ledit)
+        hBoxColParams22 = QtWidgets.QHBoxLayout()
+        hBoxColParams3 = QtWidgets.QHBoxLayout()
+
+        hBoxColParams3.addWidget(self.colEnergyLabel)
+        hBoxColParams3.addWidget(self.energyReadback)
+        hBoxColParams3.addWidget(self.energySPLabel)
+        if daq_utils.beamline == "fmx":
+            if getBlConfig(SET_ENERGY_CHECK):
+                hBoxColParams3.addWidget(self.moveEnergyButton)
+            else:
+                hBoxColParams3.addWidget(self.energy_ledit)
+        else:
+            hBoxColParams3.addWidget(self.energy_ledit)
+        
+        hBoxColParams22.addWidget(self.colTransmissionLabel)
+        hBoxColParams22.addWidget(self.transmissionReadback_ledit)
+        hBoxColParams22.addWidget(self.transmisionSPLabel)
+        hBoxColParams22.addWidget(self.transmission_ledit)
+        hBoxColParams22.insertSpacing(5, 100)
+        hBoxColParams22.addWidget(self.beamsizeLabel)
+        hBoxColParams22.addWidget(self.beamsizeComboBox)
+        hBoxColParams4 = QtWidgets.QHBoxLayout()
+        hBoxColParams4.addWidget(self.colBeamWLabel)
+        hBoxColParams4.addWidget(self.beamWidth_ledit)
+        hBoxColParams4.addWidget(self.colBeamHLabel)
+        hBoxColParams4.addWidget(self.beamHeight_ledit)
+        hBoxColParams3.addWidget(self.detDistLabel)
+        hBoxColParams3.addWidget(self.detDistRBVLabel.getEntry())
+        hBoxColParams3.addWidget(self.detDistSPLabel)
+        hBoxColParams3.addWidget(self.detDistMotorEntry.getEntry())
+
+        paramSubspace = QtWidgets.QVBoxLayout()
+        paramSubspace.addLayout(hBoxColParams1)
+        paramSubspace.addLayout(hBoxColParams2)
+        paramSubspace.addLayout(hBoxColParams25)
+        paramSubspace.addLayout(hBoxColParams22)
+        paramSubspace.addLayout(hBoxColParams3)
+        return paramSubspace
+
+    def nyx_parameter_layout(self):
+        paramSubspace = QtWidgets.QGridLayout()    
+       
+       
+        # Parameter Collection Column 1, Labels
+        self.colStartLabel.setAlignment(QtCore.Qt.AlignLeft)
+        paramSubspace.addWidget(self.colStartLabel,1,0, alignment=QtCore.Qt.AlignLeft)
+        self.colEndLabel.setAlignment(QtCore.Qt.AlignLeft)
+        paramSubspace.addWidget(self.colEndLabel,2,0, alignment=QtCore.Qt.AlignLeft) 
+        self.colRangeLabel.setAlignment(QtCore.Qt.AlignLeft)
+        paramSubspace.addWidget(self.colRangeLabel,0,0, alignment=QtCore.Qt.AlignLeft)
+        self.colExptimeLabel.setAlignment(QtCore.Qt.AlignLeft)
+        paramSubspace.addWidget(self.colExptimeLabel,3,0, alignment=QtCore.Qt.AlignLeft)
+        self.totalExptimeLabel.setAlignment(QtCore.Qt.AlignLeft)
+        paramSubspace.addWidget(self.totalExptimeLabel,4,0, alignment=QtCore.Qt.AlignLeft)
+        # Parameter Collection Column 2, Input Boxes  
+        paramSubspace.addWidget(self.osc_start_ledit,1,1, alignment=QtCore.Qt.AlignLeft)
+        paramSubspace.addWidget(self.osc_end_ledit,2,1, alignment=QtCore.Qt.AlignLeft)
+        paramSubspace.addWidget(self.osc_range_ledit,0,1, alignment=QtCore.Qt.AlignLeft)
+        paramSubspace.addWidget(self.exp_time_ledit,3,1, alignment=QtCore.Qt.AlignLeft)
+        paramSubspace.addWidget(self.totalExptime_ledit,4,1, alignment=QtCore.Qt.AlignLeft)
+        # Parameter Collection Column 3, Labels
+        paramSubspace.addWidget(self.detDistLabel,0,2, alignment=QtCore.Qt.AlignLeft)
+        paramSubspace.addWidget(self.colResoLabel,1,2, alignment=QtCore.Qt.AlignLeft)
+        paramSubspace.addWidget(self.colEnergyLabel,2,2, alignment=QtCore.Qt.AlignLeft)
+        self.colTransmissionLabel.setAlignment(QtCore.Qt.AlignLeft)
+        paramSubspace.addWidget(self.colTransmissionLabel,3,2, alignment=QtCore.Qt.AlignLeft)
+        self.transmisionSPLabel.setAlignment(QtCore.Qt.AlignLeft)
+        paramSubspace.addWidget(self.beamsizeLabel,4,2, alignment=QtCore.Qt.AlignLeft)
+        
+        # Parameter Collection Column 4, Input Boxes
+        paramSubspace.addWidget(self.detDistMotorEntry.getEntry(),0,3, alignment=QtCore.Qt.AlignLeft)
+        paramSubspace.addWidget(self.resolution_ledit,1,3, alignment=QtCore.Qt.AlignLeft)
+        paramSubspace.addWidget(self.energy_ledit,2,3, alignment=QtCore.Qt.AlignLeft)
+        paramSubspace.addWidget(self.transmission_ledit,3,3, alignment=QtCore.Qt.AlignLeft)
+        paramSubspace.addWidget(self.beamsizeComboBox,4,3, alignment=QtCore.Qt.AlignLeft)
+        
+        # Param Collection Column 5, RBV  
+        paramSubspace.addWidget(self.energyReadback,2,4, alignment=QtCore.Qt.AlignLeft)
+        paramSubspace.addWidget(self.detDistRBVLabel.getEntry(),0,4, alignment=QtCore.Qt.AlignLeft)
+        paramSubspace.addWidget(self.transmissionReadback_ledit,3,4, alignment=QtCore.Qt.AlignLeft)
+
+        return paramSubspace
 
     def annealButtonCB(self):
         try:
@@ -3853,11 +3916,19 @@ class ControlMain(QtWidgets.QMainWindow):
                 self.drawInteractiveRasterCB()
             return
         fov = self.getCurrentFOV()
-        correctedC2C_x = self.getBeamCenterX() + (
-            x_click - (self.centerMarker.x() - self.centerMarkerCharOffsetX) - 20
-        )
-        correctedC2C_y = self.getBeamCenterY() + (
-            y_click - (self.centerMarker.y() - self.centerMarkerCharOffsetY) - 40
+        if daq_utils.beamline == "nyx":
+            correctedC2C_x = self.getBeamCenterX() + (
+                x_click - (self.centerMarker.x() - self.centerMarkerCharOffsetX) - 20
+            )
+            correctedC2C_y = self.getBeamCenterY() + (
+                y_click - (self.centerMarker.y() - self.centerMarkerCharOffsetY) - 40
+            )
+        else:
+            correctedC2C_x = self.getBeamCenterX() + (
+                x_click - (self.centerMarker.x() + self.centerMarkerCharOffsetX)
+            )
+            correctedC2C_y = self.getBeamCenterY() + (
+            y_click - (self.centerMarker.y() + self.centerMarkerCharOffsetY)
         )
 
         current_viewangle = daq_utils.mag1ViewAngle
@@ -5101,7 +5172,7 @@ class ControlMain(QtWidgets.QMainWindow):
         self.ringCurrentSignal.emit(ringCurrentVal)
 
     def beamAvailableChangedCB(self, value=None, char_value=None, **kw):
-        threeClickVal = value
+        threeClickVal = char_value
         self.threeClickSignal.emit(threeClickVal)
 
     def sampleExposedChangedCB(self, value=None, char_value=None, **kw):
