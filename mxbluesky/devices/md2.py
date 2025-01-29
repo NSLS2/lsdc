@@ -336,7 +336,7 @@ class MD2Device(GonioDevice):
             start_z,
             start_cx,
             start_cy,
-            number_of_lines+1,
+            number_of_lines,
             frames_per_line,
             exposure_time,
             invert_direction,
