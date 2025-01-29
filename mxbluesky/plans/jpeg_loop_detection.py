@@ -115,8 +115,8 @@ def detect_loop(sample_detection: "Dict[str, float|int]"):
             yield from bps.mvr(gonio.o, -90)
             return 
 
-    delta_cam_y = (mean_y - 256) * 2*two_click_low.pix_per_um.get()
-    omega = gonio.o.user_readback.get()
+    delta_cam_y = (mean_y - 256) * 2 / camera.scale_y.get() / 1000
+    omega = gonio.omega.val()
     d = np.pi/180
 
     real_y = delta_cam_y * np.cos(omega * d)

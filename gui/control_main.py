@@ -2273,7 +2273,7 @@ class ControlMain(QtWidgets.QMainWindow):
         cryostreamVal = float(cryostreamVal)
         self.cryostreamTempLabel.setText(f"{cryostreamVal:.2f}")
         if cryostreamVal is not None:
-            if 99 < cryostreamVal < 102:
+            if 95 < cryostreamVal < 105:
                 self.cryostreamTempLabel.setStyleSheet("background-color: #99FF66;")
             else:
                 self.cryostreamTempLabel.setStyleSheet("background-color: red;")
