@@ -3334,11 +3334,15 @@ class ControlMain(QtWidgets.QMainWindow):
             color_ids = np.full(my_array.shape, color_id)
 
         index = 0
+        if daq_utils.beamline == "nyx":
+            is_raster_inverted = 1
+        else:
+            is_raster_inverted = 0
         for i in range(len(rasterDef["rowDefs"])):
             numsteps = rasterDef["rowDefs"][i]["numsteps"]
             rowStartIndex = cellCounter
             for j in range(numsteps):
-                if i % 2 == 0:  # this is trying to figure out row direction
+                if i % 2 == is_raster_inverted:  # this is trying to figure out row direction
                     index = cellCounter
                 else:
                     index = rowStartIndex + ((numsteps - 1) - j)
