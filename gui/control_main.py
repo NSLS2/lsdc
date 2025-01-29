@@ -4958,11 +4958,11 @@ class ControlMain(QtWidgets.QMainWindow):
                 self.gon.y.move(selectedSampleRequest["request_obj"]["rasterDef"]["y"])
                 self.gon.z.move(selectedSampleRequest["request_obj"]["rasterDef"]["z"])
 
-                self.processSampMove(self.gon.x.val(), "x")
-                self.processSampMove(self.gon.y.val(), "y")
-                self.processSampMove(self.gon.z.val(), "z")
-                self.processSampMove(self.gon.cx.val(), "fineX")
-                self.processSampMove(self.gon.cy.val(), "fineY")
+                #self.processSampMove(self.gon.x.val(), "x")
+                #self.processSampMove(self.gon.y.val(), "y")
+                #self.processSampMove(self.gon.z.val(), "z")
+                #self.processSampMove(self.gon.cx.val(), "fineX")
+                #self.processSampMove(self.gon.cy.val(), "fineY")
                 if (
                     abs(
                         selectedSampleRequest["request_obj"]["rasterDef"]["omega"]
