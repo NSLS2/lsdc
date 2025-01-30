@@ -379,7 +379,7 @@ class DewarTree(QtWidgets.QTreeView):
                         col_item.setBackground(QtGui.QColor("green"))
                         collectionRunning = True
                         self.parent.refreshCollectionParams(
-                            self.orderedRequests[k], validate_hdf5=False
+                            self.orderedRequests[k], validate_hdf5=False, collectionRunning=True
                         )
 
                     elif self.orderedRequests[k]["priority"] > 0:

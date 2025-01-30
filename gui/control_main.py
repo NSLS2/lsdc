@@ -4891,7 +4891,7 @@ class ControlMain(QtWidgets.QMainWindow):
         dist_s = str(reqObj["detDist"])
         self.detDistMotorEntry.getEntry().setText(str(dist_s))
 
-    def refreshCollectionParams(self, selectedSampleRequest, validate_hdf5=True):
+    def refreshCollectionParams(self, selectedSampleRequest, validate_hdf5=True, collectionRunning=False):
         reqObj = selectedSampleRequest["request_obj"]
         if (
             str(reqObj["protocol"]) == "characterize"
@@ -4948,6 +4948,7 @@ class ControlMain(QtWidgets.QMainWindow):
             if (
                 str(self.govStateMessagePV.get(as_string=True)) == "state SA"
                 and self.controlEnabled()  # Move only in SA (Any other way for GUI to detect governor state?)
+                and not collectionRunning
                 and self.selectedSampleRequest["sample"]  # with control enabled
                 == self.mountedPin_pv.get()
             ):  # And the sample of the selected request is mounted
@@ -5066,6 +5067,7 @@ class ControlMain(QtWidgets.QMainWindow):
                 self.selectedSampleRequest = daq_utils.createDefaultRequest(
                     itemData, createVisit=False
                 )
+                logger.info("refreshing while created default request")
                 self.refreshCollectionParams(self.selectedSampleRequest)
                 #if self.stillModeStatePV.get():
                 #    self.setGuiValues({"osc_range": "0.0"})
@@ -5127,6 +5129,7 @@ class ControlMain(QtWidgets.QMainWindow):
                     logger.error(
                         "KeyError - ignoring chooch-related items, perhaps from a bad energy scan"
                     )
+            logger.info ("refreshing collection parameters while row clicked")
             self.refreshCollectionParams(self.selectedSampleRequest)
 
     def processXrecRasterCB(self, value=None, char_value=None, **kw):
