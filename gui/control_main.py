@@ -4958,13 +4958,20 @@ class ControlMain(QtWidgets.QMainWindow):
                 self.fillPolyRaster(selectedSampleRequest)
                 logger.info("attempting to move to raster start")
                 self.md2.ready_status().wait()
-                self.gon.cx.move(selectedSampleRequest["request_obj"]["rasterDef"]["cx"])
-                self.gon.cy.move(selectedSampleRequest["request_obj"]["rasterDef"]["cy"])
+                self.send_to_server("gonMoveAll", 
+                                    [
+                                        selectedSampleRequest["request_obj"]["rasterDef"]["cx"], 
+                                        selectedSampleRequest["request_obj"]["rasterDef"]["cy"], 
+                                        selectedSampleRequest["request_obj"]["rasterDef"]["y"], 
+                                        selectedSampleRequest["request_obj"]["rasterDef"]["z"]
+                                    ])
+                #self.gon.cx.move(selectedSampleRequest["request_obj"]["rasterDef"]["cx"])
+                #self.gon.cy.move(selectedSampleRequest["request_obj"]["rasterDef"]["cy"])
                 logger.info(f"{selectedSampleRequest['request_obj']['rasterDef']['cx']} cx")
                 logger.info(f"{selectedSampleRequest['request_obj']['rasterDef']['y']} y")
                 logger.info(f"{selectedSampleRequest['request_obj']['rasterDef']['z']} z")
-                self.gon.y.move(selectedSampleRequest["request_obj"]["rasterDef"]["y"])
-                self.gon.z.move(selectedSampleRequest["request_obj"]["rasterDef"]["z"])
+                #self.gon.y.move(selectedSampleRequest["request_obj"]["rasterDef"]["y"])
+                #self.gon.z.move(selectedSampleRequest["request_obj"]["rasterDef"]["z"])
 
                 #self.processSampMove(self.gon.x.val(), "x")
                 #self.processSampMove(self.gon.y.val(), "y")
