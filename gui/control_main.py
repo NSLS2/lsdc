@@ -4943,10 +4943,7 @@ class ControlMain(QtWidgets.QMainWindow):
         ):
             #if not self.rasterIsDrawn(selectedSampleRequest):
             # always erase and then draw
-            logger.info("redrawing raster")
-            self.eraseRastersCB()
-            self.drawPolyRaster(selectedSampleRequest)
-            self.fillPolyRaster(selectedSampleRequest)
+           
 
             if (
                 str(self.govStateMessagePV.get(as_string=True)) == "state SA"
@@ -4954,6 +4951,10 @@ class ControlMain(QtWidgets.QMainWindow):
                 and self.selectedSampleRequest["sample"]  # with control enabled
                 == self.mountedPin_pv.get()
             ):  # And the sample of the selected request is mounted
+                logger.info("redrawing raster")
+                self.eraseRastersCB()
+                self.drawPolyRaster(selectedSampleRequest)
+                self.fillPolyRaster(selectedSampleRequest)
                 logger.info("attempting to move to raster start")
                 self.md2.ready_status().wait()
                 self.gon.cx.move(selectedSampleRequest["request_obj"]["rasterDef"]["cx"])
