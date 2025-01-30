@@ -2,6 +2,7 @@
 import os
 import sys
 import db_lib
+import time
 from daq_utils import getBlConfig
 import xmltodict
 import logging
@@ -36,12 +37,22 @@ ispybDCID = 1 #int(sys.argv[8])
 comm_s = f"ssh -q {node} \"{os.environ['MXPROCESSINGSCRIPTSDIR']}fast_dp.sh {request_id} {numstart}\""
 logger.info(comm_s)
 os.system(comm_s)
+fastDPResultFile = runningDir + "/fast_dp.xml"
+for attempt in range(3):
+  try:
+    with open(fastDPResultFile) as fd:
+      resultObj = xmltodict.parse(fd.read())
+    break
+  except FileNotFoundError as e:
+    if attempt < 2:
+      logger.warning(f"Attempt {attempt + 1} failed: {e}. Retrying in 5 seconds...")
+      time.sleep(5)
+    else:
+      logger.error(f"Failed to open {fastDPResultFile} after 3 attempts: {e}")
+      raise
 
-fastDPResultFile = runningDir+"/fast_dp.xml"
-fd = open(fastDPResultFile)
-resultObj = xmltodict.parse(fd.read())
 logger.info(f"finished fast_dp {request_id}")
-resultID = db_lib.addResultforRequest("fastDP",request_id,owner,resultObj,beamline=os.environ["BEAMLINE_ID"])
+resultID = db_lib.addResultforRequest("fastDP", request_id, owner, resultObj, beamline=os.environ["BEAMLINE_ID"])
 newResult = db_lib.getResult(resultID)
 visitName = getBlConfig("visitName")
 try:
