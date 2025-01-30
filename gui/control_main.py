@@ -2138,6 +2138,8 @@ class ControlMain(QtWidgets.QMainWindow):
             )
 
     def processSampMove(self, posRBV, motID):
+        if (daq_utils.beamline == "nyx"):
+            return
         #      print "new " + motID + " pos=" + str(posRBV)
         print(f"process samp move:   {posRBV}, {motID}")
         if not (daq_utils.exporter_enabled):
