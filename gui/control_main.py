@@ -697,7 +697,7 @@ class ControlMain(QtWidgets.QMainWindow):
         self.protoOtherRadio.setEnabled(False)
         self.protoRadioGroup.addButton(self.protoOtherRadio)
         if daq_utils.beamline == "nyx":
-            protoOptionList = ["standard","raster","vector"] # these should probably come from db
+            protoOptionList = ["standard","raster"] # these should probably come from db
 
         else:
             protoOptionList = [
@@ -4644,7 +4644,7 @@ class ControlMain(QtWidgets.QMainWindow):
             self.addRequestsToAllSelectedCB()
         logger.info("running queue")
         self.send_to_server("runDCQueue")
-        
+        self.eraseRastersCB() 
 
     def warmupGripperCB(self):
         self.send_to_server("warmupGripper")
