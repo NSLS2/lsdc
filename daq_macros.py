@@ -3846,6 +3846,19 @@ def rasterDaq(rasterReqID):
     processedRasterRowCount = 0
     rasterRequest = db_lib.getRequestByID(rasterReqID)
     reqObj = rasterRequest["request_obj"]
+    
+    md2.x.move(reqObj["rasterDef"]["x"])
+    md2.y.move(reqObj["rasterDef"]["y"])
+    md2.z.move(reqObj["rasterDef"]["z"])
+    md2.cx.move(reqObj["rasterDef"]["cx"])
+    md2.cy.move(reqObj["rasterDef"]["cy"])
+    try:
+        md2.ready_status().wait(timeout=10)
+    except:
+        logger.error("md2 failed to reach ready state, after moving to raster start positions")
+        return
+    logger.info(f"md2 ready status reached after moving to raster start positions")
+
     parentReqID = reqObj["parentReqID"]
     
     xbeam = getPvDesc("beamCenterX")
