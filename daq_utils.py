@@ -57,7 +57,7 @@ def init_environment():
   setBlConfig("highMagPixX", "1224")
   setBlConfig("highMagPixY", "1024")
   setBlConfig("highMagCamURL", "http://10.67.147.26:3908/video_feed2")
-  setBlConfig("fastdpComm", "/nsls2/software/mx/nyx/DIALS/dials-v3-16-1/build/bin/fast_dp -j 12 -k 8 -e 'titania-cpu002 titania-cpu003 titania-cpu004'")
+  setBlConfig("fastdpComm", "/nsls2/software/mx/nyx/DIALS/dials-current/build/bin/fast_dp -j 12 -k 8 -e 'titania-cpu002 titania-cpu003 titania-cpu004'")
   setBlConfig("redisCamUrl", '10.67.146.131')
   redis_raw_url = getBlConfig("redisCamUrl")
   setBlConfig("cryostream_online", True)
