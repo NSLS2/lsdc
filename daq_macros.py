@@ -3973,12 +3973,12 @@ def rasterDaq(rasterReqID):
     )
     db_lib.updateRequest(rasterRequest)
     db_lib.updatePriority(rasterRequestID,-1)
-    if (rasterRequest["request_obj"]["rasterDef"]["numCells"]
-          > getBlConfig(RASTER_NUM_CELLS_DELAY_THRESHOLD)):
+    #if (rasterRequest["request_obj"]["rasterDef"]["numCells"]
+         # > getBlConfig(RASTER_NUM_CELLS_DELAY_THRESHOLD)):
         #larger rasters can delay GUI scene update
-        time.sleep(getBlConfig(RASTER_LONG_SNAPSHOT_DELAY))
-    else:
-        time.sleep(getBlConfig(RASTER_SHORT_SNAPSHOT_DELAY))
+        #time.sleep(getBlConfig(RASTER_LONG_SNAPSHOT_DELAY))
+    #else:
+        #time.sleep(getBlConfig(RASTER_SHORT_SNAPSHOT_DELAY))
 
 
 
