@@ -3852,6 +3852,7 @@ def rasterDaq(rasterReqID):
     md2.z.move(reqObj["rasterDef"]["z"])
     md2.cx.move(reqObj["rasterDef"]["cx"])
     md2.cy.move(reqObj["rasterDef"]["cy"])
+    md2.omega.move(start_omega)
     try:
         md2.ready_status().wait(timeout=10)
     except:
