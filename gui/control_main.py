@@ -4962,6 +4962,7 @@ class ControlMain(QtWidgets.QMainWindow):
                                     [
                                         selectedSampleRequest["request_obj"]["rasterDef"]["cx"], 
                                         selectedSampleRequest["request_obj"]["rasterDef"]["cy"], 
+                                        selectedSampleRequest["request_obj"]["rasterDef"]["x"], 
                                         selectedSampleRequest["request_obj"]["rasterDef"]["y"], 
                                         selectedSampleRequest["request_obj"]["rasterDef"]["z"]
                                     ])

@@ -29,7 +29,7 @@ def backlightDimmer():
 def lib_init_diffractometer():
   beamline_support.initControlPVs()
 
-def gonMoveAll(cx, cy, y, z):
+def gonMoveAll(cx, cy, x, y, z):
   md2.cx.move(cx)
   md2.cy.move(cy)
   md2.y.move(y)

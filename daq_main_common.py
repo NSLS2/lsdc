@@ -86,7 +86,8 @@ functions = [
     enableMount,
     robotOn,
     set_energy,
-    run_loop_center_plan
+    run_loop_center_plan,
+    gonMoveAll
     ]
 
 if daq_utils.beamline != "nyx":
