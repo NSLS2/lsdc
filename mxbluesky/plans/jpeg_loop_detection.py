@@ -1,57 +1,42 @@
-from typing import Dict
-from logging import getLogger
-
 import numpy as np
 import bluesky.plan_stubs as bps
 import bluesky.plans as bp
+import daq_lib
+
+from typing import Dict
+from start_bs import db, sample_cam, loop_detector, gonio, camera
 from bluesky.utils import FailedStatus
 from bluesky.preprocessors import finalize_decorator
 from ophyd.utils.errors import WaitTimeoutError
-import daq_utils
-from start_bs import db, two_click_low, loop_detector, gonio, low_mag_cam_reset_signal
 from mxbluesky.plans.utils import mvr_with_retry, mv_with_retry
 
+from logging import getLogger
 logger = getLogger()
 
-def cleanup_two_click_low():
-    if daq_utils.beamline == "fmx":
-        logger.info("Cleaning up two_click_low")
-        yield from bps.abs_set(two_click_low.jpeg.file_write_mode, 2, wait=True)
-        yield from bps.abs_set(two_click_low.jpeg.file_template, "%s%s_%d.jpg", wait=True)
 
-def reset_low_mag_cam():
-    yield from bps.abs_set(two_click_low.cam.acquire, 0, wait=True)
-    yield from bps.sleep(3)
-    yield from bps.abs_set(low_mag_cam_reset_signal, 1, wait=True)
-    yield from bps.sleep(5)
-    yield from bps.abs_set(two_click_low.cam.acquire, 1, wait=True)
+def clean_up_url_cam(): # TODO: add clean up here
+    return []  # empty list is iterable and prevents error
 
-def trigger_two_click():
+def trigger_url_camera():
     tries = 0
     max_tries = 3
-    
+
     while tries < max_tries:
         try:
-            yield from bp.count([two_click_low], 1)
+            yield from bp.count([sample_cam], 1)
             break  # If trigger succeeds, exit the loop
         except (FailedStatus, WaitTimeoutError) as e:
             tries += 1
             logger.exception(f"Exception while triggering two click, retry #{tries} : {e}")
-            if tries == 3:
-                logger.exception("Resetting low mag camera")
-                yield from reset_low_mag_cam()
-                yield from bp.count([two_click_low], 1)
-                
-@finalize_decorator(cleanup_two_click_low)
+
+@finalize_decorator(clean_up_url_cam)
 def detect_loop(sample_detection: "Dict[str, float|int]"):
+    '''Detects the loop using a jpeg image from a camera url.'''
     # face on attempt, most features, should work
 
-    yield from bps.abs_set(two_click_low.cam_mode, "two_click", wait=True)
     logger.info("Starting loop centering")
-    yield from trigger_two_click()
-        
-    loop_detector.filename.set(two_click_low.jpeg.full_file_name.get())
-    loop_detector.filename.set(two_click_low.filename.get())
+    yield from trigger_url_camera()
+    loop_detector.filename.set(sample_cam.filename.get())
     scan_uid = yield from bp.count([loop_detector], 1)
     #box_coords_face: "list[int]" = db[scan_uid].table()['loop_detector_box'][1]
     box_coords_face: "list[int]" = loop_detector.box.get()
@@ -61,56 +46,54 @@ def detect_loop(sample_detection: "Dict[str, float|int]"):
         sample_detection["sample_detected"] = False
         return
     else:
-        sample_detection["large_box_width"] = (box_coords_face[2] - box_coords_face[0]) * 2 * two_click_low.pix_per_um.get()
-        sample_detection["large_box_height"] = (box_coords_face[3] - box_coords_face[1]) * 2 * two_click_low.pix_per_um.get()
+        sample_detection["large_box_width"] = (box_coords_face[2] - box_coords_face[0]) / camera.scale_x.get() / 1000
+        sample_detection["large_box_height"] = (box_coords_face[3] - box_coords_face[1]) / camera.scale_y.get() / 1000
 
         mean_x = (box_coords_face[0] + box_coords_face[2]) / 2
         mean_y = (box_coords_face[1] + box_coords_face[3]) / 2
 
-    mean_x = mean_x - 320
-    mean_y = mean_y - 256
+    # mean_x = mean_x - 320
+    # mean_y = mean_y - 256
 
-    delta_x = mean_x * 2*two_click_low.pix_per_um.get()
-    delta_cam_y = mean_y * 2*two_click_low.pix_per_um.get()
-    logger.info("Calculated delta")
-    
+    # delta_x = mean_x * 2*two_click_low.pix_per_um.get()
+    # delta_cam_y = mean_y * 2*two_click_low.pix_per_um.get()
 
-    omega: float = gonio.o.user_readback.get()
+    omega: float = gonio.omega.val()
     sample_detection["face_on_omega"] = omega
 
-    real_y = delta_cam_y * np.cos(np.deg2rad(omega))
-    real_z = delta_cam_y * np.sin(np.deg2rad(omega))
+    #real_y = delta_cam_y * np.cos(np.deg2rad(omega))
+    #real_z = delta_cam_y * np.sin(np.deg2rad(omega))
 
-    yield from mvr_with_retry(gonio.gx, delta_x)
-    yield from mvr_with_retry(gonio.py, -real_y)
-    yield from mvr_with_retry(gonio.pz, -real_z)
+    
+
     logger.info("Moving sample to center")
+    daq_lib.center_on_click(mean_x, mean_y, 0,0, source="unscaled")
+    gonio.task_status().wait(timeout=5)
+
     # The sample has moved to the center of the beam (hopefully), need to update co-ordinates
 
     # orthogonal face, use loop model only if predicted width matches face on
     # otherwise, threshold
-    yield from bps.mv(gonio.o, sample_detection["face_on_omega"]+90)
-    yield from trigger_two_click()
-
-    try:
-        yield from bp.count([two_click_low], 1)
-    except FailedStatus:
-        yield from bp.count([two_click_low], 1)
-    
+    logger.info(f"rotating omega to: {omega}")
+    #yield from bps.mv(gonio.omega.setpoint, sample_detection["face_on_omega"]+90)
+    gonio.task_status().wait(timeout=5)
+    #yield from bps.wait(gonio.task_status)
+    yield from trigger_url_camera()
+    '''
+    logger.info(f"second image triggered")
     loop_detector.get_threshold.set(True)
     loop_detector.x_start.set(int(box_coords_face[0]-mean_x))
     loop_detector.x_end.set(int(box_coords_face[2]-mean_x))
-    loop_detector.filename.set(two_click_low.jpeg.full_file_name.get())
-    
+    loop_detector.filename.set(sample_cam.filename.get())
+    logger.info(f"calling loop detector again")
     scan_uid = yield from bp.count([loop_detector], 1)
     box_coords_ortho = db[scan_uid].table()['loop_detector_box'][1]
     box_coords_ortho_threshold = db[scan_uid].table()['loop_detector_thresholded_box'][1]
     mean_y_threshold = (box_coords_ortho_threshold[1] + box_coords_ortho_threshold[3]) / 2
-    small_box_height_threshold = (box_coords_ortho_threshold[3] - box_coords_ortho_threshold[1]) * 2 * two_click_low.pix_per_um.get()
-
+    small_box_height_threshold = (box_coords_ortho_threshold[3] - box_coords_ortho_threshold[1]) * 2 / camera.scale_x.get() / 1000
     try:
         mean_y = (box_coords_ortho[1] + box_coords_ortho[3]) / 2
-        sample_detection["small_box_height"] = (box_coords_ortho[3] - box_coords_ortho[1]) * 2 * two_click_low.pix_per_um.get()
+        sample_detection["small_box_height"] = (box_coords_ortho[3] - box_coords_ortho[1]) * 2 / camera.scale_y.get() /1000
                 # sum of squared difference, face-on vs. ortho width similarity
         ssd_ratio = (
             ((box_coords_face[0]-mean_x - box_coords_ortho[0])**2 +
@@ -132,8 +115,8 @@ def detect_loop(sample_detection: "Dict[str, float|int]"):
             yield from bps.mvr(gonio.o, -90)
             return 
 
-    delta_cam_y = (mean_y - 256) * 2*two_click_low.pix_per_um.get()
-    omega = gonio.o.user_readback.get()
+    delta_cam_y = (mean_y - 256) * 2 / camera.scale_y.get() / 1000
+    omega = gonio.omega.val()
     d = np.pi/180
 
     real_y = delta_cam_y * np.cos(omega * d)
@@ -149,3 +132,5 @@ def detect_loop(sample_detection: "Dict[str, float|int]"):
     logger.info("Saving gonio x,y,z spositions")
 
     sample_detection["sample_detected"] = True
+    '''
+

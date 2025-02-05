@@ -154,6 +154,9 @@ class AlbulaController:
         self.albulaSubFrame.loadImage(dimage)
 
     def get_eiger_monitor_image(self):  # for EIGER1
+        if self.ip is None:
+            array = numpy.zeros((3110, 3269))
+            return array
         try:
             urlData = "http://{}/monitor/api/{}/images/monitor".format(
                 self.ip, self.api_version
@@ -163,8 +166,8 @@ class AlbulaController:
             img = Image.open(img_bytes)
             array = numpy.array(img)
             array[array == 65535] = 0
-        except UnidentifiedImageError:
-            logger.error("Could not get image from EIGER")
+        except Exception as e:
+            logger.error(f"Could not get image from EIGER : {e}")
             array = numpy.zeros((3110, 3269))
 
         return array

@@ -13,3 +13,4 @@ from .screen_defaults import ScreenDefaultsDialog
 from .resolution_calculator import Calculator
 from .resolution_dialog import CalculatorWindow
 from .set_energy import SetEnergyDialog
+from .process_monitor import ProcessPopup

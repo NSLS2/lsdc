@@ -10,6 +10,9 @@ from bluesky.utils import FailedStatus
 import daq_utils
 import os
 
+import logging
+logger = logging.getLogger(__name__)
+
 
 @register_plugin
 class CVPlugin(PluginBase):
@@ -43,6 +46,8 @@ class StandardProsilica(SingleTrigger, ProsilicaDetector):
     stats5 = Cpt(StatsPlugin, "Stats5:")
 
 class FileStoreJPEG(FileStorePluginBase):
+    delay = Cpt(Signal, value=1000)  # default delay in milliseconds
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.filestore_spec = "AD_JPEG"  # spec name stored in resource doc
@@ -102,23 +107,31 @@ class LoopDetector(Device):
         post_data = None
         if self.get_threshold.get():
             post_data = {"x_start": self.x_start.get(), "x_end": self.x_end.get()}
-        response = requests.post(self.url.get(), files=filename_dict, data=post_data)
-        response.raise_for_status()
-        json_response = response.json()
-        if json_response['pred_boxes']:
-            self.box.put(response.json()['pred_boxes'][0]['box'])
-        else:
-            self.box.put([])
-        if "threshold" in json_response:
-            self.thresholded_box.put(response.json()["threshold"])
-        else:
-            self.thresholded_box.put([])
-        
-        self.get_threshold.set(False)
-        response_status = DeviceStatus(self.box, timeout=10)
-        response_status.set_finished()
+        try:
+            response = requests.post(self.url.get(), files=filename_dict, data=post_data)
+            response.raise_for_status()
+            json_response = response.json()
+            if json_response['pred_boxes']:
+                self.box.put(response.json()['pred_boxes'][0]['box'])
+            else:
+                self.box.put([])
+            if "threshold" in json_response:
+                self.thresholded_box.put(response.json()["threshold"])
+            else:
+                self.thresholded_box.put([])
+            
+            self.get_threshold.set(False)
+            response_status = DeviceStatus(self.box, timeout=10)
+            response_status.set_finished()
 
-        return response_status
+            return response_status
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Request failed: {e}")
+            self.box.put([])
+            self.thresholded_box.put([])
+            response_status = DeviceStatus(self.box, timeout=10)
+            response_status.set_exception(e)
+            return response_status
 
 
 class TwoClickLowMag(StandardProsilica):
@@ -213,4 +226,3 @@ class TwoClickLowMag(StandardProsilica):
         except AttributeError:
             raise FailedStatus
         return status
-

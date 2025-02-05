@@ -1,11 +1,13 @@
-from qtpy.QtCore import QThread, QTimer, QEventLoop, Signal, QPoint, Qt, QObject
+from qtpy.QtCore import QSize, QByteArray, QThread, QTimer, QEventLoop, Signal, QPoint, Qt, QObject
 from qtpy import QtGui
 from PIL import Image, ImageQt
 import cv2
 import os
 import sys
 import urllib
+import struct
 from io import BytesIO
+#import redis
 import logging
 from config_params import SERVER_CHECK_DELAY
 import raddoseLib
@@ -27,6 +29,8 @@ class VideoThread(QThread):
                 img = Image.open(file)
                 qimage = ImageQt.ImageQt(img)
                 pixmap_orig = QtGui.QPixmap.fromImage(qimage)
+                pixmap_orig = pixmap_orig.copy()
+                
                 self.showing_error = False
             except Exception as e:
                 if not self.showing_error:
@@ -35,7 +39,7 @@ class VideoThread(QThread):
                     painter.drawText( QPoint(10, 10), "No image obtained from: " )
                     painter.drawText( QPoint(10, 30), f"{self.url}")
                     painter.end()
-                    self.frame_ready.emit(pixmap_orig)
+                    #self.frame_ready.emit(pixmap_orig)
                     self.showing_error = True
 
         if self.video_capture:
@@ -91,6 +95,120 @@ class VideoThread(QThread):
     def stop(self):
         self.is_running = False
         self.wait()
+
+
+class CV2VideoThread(VideoThread):
+    frame_ready = Signal(object)
+    def camera_refresh(self):
+        pixmap_orig = QtGui.QPixmap(320, 180)
+        if self.url:
+            try:
+                file = BytesIO(urllib.request.urlopen(self.url, timeout=self.delay/1000).read())
+                img = Image.open(file)
+                qimage = ImageQt.ImageQt(img)
+                pixmap_orig = QtGui.QPixmap.fromImage(qimage)
+                self.showing_error = False
+            except Exception as e:
+                if not self.showing_error:
+                    painter = QtGui.QPainter(pixmap_orig)
+                    painter.setPen(QtGui.QPen(Qt.white))
+                    painter.drawText( QPoint(10, 10), "No image obtained from: " )
+                    painter.drawText( QPoint(10, 30), f"{self.url}")
+                    painter.end()
+                    self.frame_ready.emit(pixmap_orig)
+                    self.showing_error = True
+        
+        if self.camera_object:
+            self.camera_object.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            # Initialize a variable to store the most recent frame
+            most_recent_frame = None
+
+            timeout = self.delay/1000.0
+            start_time = time.time()
+            if self.camera_object.grab():
+                retval, frame = self.camera_object.retrieve()
+                if retval:
+                    most_recent_frame = frame
+            self.currentFrame = most_recent_frame
+
+            if self.currentFrame is None:
+                #logger.debug('no frame read from stream URL - ensure the URL does not end with newline and that the filename is correct')
+                return
+            
+            height,width=self.currentFrame.shape[:2]
+            qimage= QtGui.QImage(self.currentFrame,width,height,3*width,QtGui.QImage.Format_RGB888)
+            qimage = qimage.rgbSwapped()
+            pixmap_orig = QtGui.QPixmap.fromImage(qimage)
+            if self.width and self.height:
+                pixmap_orig = pixmap_orig.scaled(self.width, self.height)
+        if not self.showing_error:
+            self.frame_ready.emit(pixmap_orig)
+    
+    def __init__(self, *args, delay=1000, url='', camera_object=None, width=None, height=None,**kwargs):
+        self.delay = delay
+        self.width = width
+        self.height = height
+        self.url = url
+        self.camera_object = camera_object
+        if self.camera_object:
+            self.camera_object = cv2.VideoCapture(camera_object)
+            self.camera_object.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+
+        self.showing_error = False
+        self.is_running = True
+        QThread.__init__(self, *args, **kwargs)
+    
+    def updateCam(self, camera_object):
+        self.camera_object = camera_object
+    
+    def stop(self):
+        self.is_running = False
+        
+
+class RedisVideoThread(VideoThread):
+    frame_ready = Signal(object)
+    def __init__(self, *args, host='localhost', port=6379, redis_channel='bzoom:RAW', **kwargs):
+        super().__init__(*args, **kwargs)
+        self.host = host
+        self.port = port
+        self.delay = 1000
+        self.redis_channel = redis_channel
+        self.redis_client = redis.Redis(host=self.host, port=self.port, decode_responses=False)
+        self.pubsub = self.redis_client.pubsub()
+        redis_args = {}
+        redis_args[redis_channel]=self.redis_onMessage
+        logger.info(f"host: {host} | port: {port} | rch: {redis_channel} | args: {redis_args}")
+        self.pubsub.subscribe(**redis_args)
+        self.image_struct = struct.Struct('<HiiHHqH')
+
+    def camera_refresh(self):
+        try:
+            message = self.pubsub.get_message()
+        except Exception as e:
+            logger.info(f"redis video thread error {e}")
+
+    def redis_onMessage(self,rimg):
+        pixmap_orig = QtGui.QPixmap(1224,1024)
+        if 'subscribe' in rimg['type']:
+            logger.info("subscribe")
+            return
+        try:
+            # decode image
+            a,w,h,b,c,n,d = self.image_struct.unpack(rimg['data'][:24])
+            logger.info(f'{a}, {w}, {h}, {b}, {c}, {n}, {d}, {len(rimg["data"])}')
+            img = Image.frombuffer("RGB", (1224, 1024), rimg['data'])
+            img = img.resize((640,512))
+            qt_img = QtGui.QImage(ImageQt.ImageQt(img))
+            pixmap_orig = QtGui.QPixmap.fromImage(qt_img)
+            if not pixmap_orig.isNull():
+                # update client image
+                self.frame_ready.emit(pixmap_orig)
+        except Exception as e:
+            logger.info('dropping frame with error:  {e}')
+            return #dropping frame
+
+    #def updateCam(self, url):
+        #self.redis_client.publish(self.redis_channel, url)
 
 class RaddoseThread(QThread):
     lifetime = Signal(float)

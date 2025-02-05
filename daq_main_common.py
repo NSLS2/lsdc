@@ -3,6 +3,7 @@ import atexit
 import json
 import logging
 import os
+import random
 import string
 import sys
 import time
@@ -84,7 +85,9 @@ functions = [
     backoffDetector,
     enableMount,
     robotOn,
-    set_energy
+    set_energy,
+    run_loop_center_plan,
+    gonMoveAll
     ]
 
 if daq_utils.beamline != "nyx":
@@ -115,7 +118,8 @@ def pybass_init():
   daq_lib.init_var_channels()
   if getBlConfig(config_params.DETECTOR_OBJECT_TYPE) != config_params.DETECTOR_OBJECT_TYPE_NO_INIT:
     det_lib.init_detector()  
-  daq_lib.message_string_pv = beamline_support.pvCreate(daq_utils.beamlineComm + "message_string")    
+  daq_lib.message_string_pv = beamline_support.pvCreate(daq_utils.beamlineComm + "message_string")
+  daq_lib.heartbeat = beamline_support.pvCreate('XF:19ID2-ES:NYX{Comm}server_heartbeat')    
   daq_lib.gui_popup_message_string_pv = beamline_support.pvCreate(daq_utils.beamlineComm + "gui_popup_message_string")    
   beamline_lib.read_db()
   logger.info("init mots")
@@ -166,11 +170,17 @@ def process_command_file(command_file_name):
 
 
 def process_immediate_commands(frequency):
+  memory_beat = beamline_support.pvGet(daq_lib.heartbeat)
   while (1):
     if (len(immediate_command_list) > 0):
       command = immediate_command_list.pop(0)
       logger.info('immediate command: %s' % command)
       process_input(command)
+    if memory_beat == beamline_support.pvGet(daq_lib.heartbeat):
+      memory_beat = random.randint(0, 1000)
+      beamline_support.pvPut(daq_lib.heartbeat, str(memory_beat))
+    else:
+      print('Heartbeat mismatch, possibility of multiple servers running.')
     time.sleep(frequency)      
 
 def process_commands(frequency):

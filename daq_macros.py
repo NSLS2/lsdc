@@ -1000,12 +1000,12 @@ def runDozorThread(directory,
         ID of raster collection
     """
     global rasterRowResultsList,processedRasterRowCount
-    file_writing_delay = 0.5
-    node = getNodeName("spot", rowIndex, 8)
-    if daq_utils.beamline == 'nyx':
-      file_writing_delay = 10
-      node = "titania-cpu00"+str((rowIndex%4)+1)
-    time.sleep(file_writing_delay) #allow for file writing
+
+    time.sleep(0.1) #allow for file writing
+     
+    #node = getNodeName("spot", rowIndex, 8)
+    node = RASTER_DOZOR_PREFIX + str((rowIndex%RASTER_DOZOR_NODE_COUNT)+1).zfill(3)
+    logger.info(f"distributing row {rowIndex} to {node}")
 
     if (seqNum>-1): #eiger
         dozorRowDir = makeDozorInputFile(directory,
@@ -3846,6 +3846,20 @@ def rasterDaq(rasterReqID):
     processedRasterRowCount = 0
     rasterRequest = db_lib.getRequestByID(rasterReqID)
     reqObj = rasterRequest["request_obj"]
+    
+    md2.x.move(reqObj["rasterDef"]["x"])
+    md2.y.move(reqObj["rasterDef"]["y"])
+    md2.z.move(reqObj["rasterDef"]["z"])
+    md2.cx.move(reqObj["rasterDef"]["cx"])
+    md2.cy.move(reqObj["rasterDef"]["cy"])
+    md2.omega.move(start_omega)
+    try:
+        md2.ready_status().wait(timeout=10)
+    except:
+        logger.error("md2 failed to reach ready state, after moving to raster start positions")
+        return
+    logger.info(f"md2 ready status reached after moving to raster start positions")
+
     parentReqID = reqObj["parentReqID"]
     
     xbeam = getPvDesc("beamCenterX")
@@ -3866,7 +3880,10 @@ def rasterDaq(rasterReqID):
     stepsize /= 1000 # MD2 wants mm
     logger.info(f"move calculations:  {xMotAbsoluteMove}, {xEnd}, {yMotAbsoluteMove}, {yEnd}, {zMotAbsoluteMove}, {zEnd}")
     line_range = stepsize * numsteps
-    total_uturn_range = stepsize * number_of_lines
+    if number_of_lines > 1:
+        total_uturn_range = stepsize * (number_of_lines - 1)
+    else:
+        total_uturn_range = stepsize * number_of_lines
     start_y = start_y - (xEnd / 1000)
     start_z = start_z - (yMotAbsoluteMove / 1000)
     #start_z = start_z - (xEnd / 1000)
@@ -3912,10 +3929,11 @@ def rasterDaq(rasterReqID):
         logger.warning("Detector was in the armed state prior to this attempted collection.")
         return 0
     start_time = time.time()
+    detDistM = detDist / 1000 # det metadata wants meters
     raster_flyer.configure_detector(rasterFilePrefix, data_directory_name)
     raster_flyer.detector_arm(start_omega, img_width_per_cell, frames_per_line, exposure_per_image, 
                      file_prefix, data_directory_name, file_number_start, xbeam, ybeam, 
-                     wavelength, detDist, num_triggers=number_of_lines)
+                     wavelength, detDistM, num_triggers=number_of_lines)
     def armed_callback(value, old_value, **kwargs):
         return (old_value == 0 and value == 1)
     arm_status = SubscriptionStatus(raster_flyer.detector.cam.armed, armed_callback, run=False)
@@ -3948,7 +3966,7 @@ def rasterDaq(rasterReqID):
     rasterFilePrefix = rasterFilePrefix.split("/")[-1]
     logger.info(f"raster prefix {rasterFilePrefix}")
     for i in range(0, number_of_lines):
-        time.sleep(1.0)
+        time.sleep(0.1)
         row_index = i
         logger.info(f'spot finding for row {i}')
         seqNum = raster_flyer.detector.cam.sequence_id.get()
@@ -3970,12 +3988,12 @@ def rasterDaq(rasterReqID):
     )
     db_lib.updateRequest(rasterRequest)
     db_lib.updatePriority(rasterRequestID,-1)
-    if (rasterRequest["request_obj"]["rasterDef"]["numCells"]
-          > getBlConfig(RASTER_NUM_CELLS_DELAY_THRESHOLD)):
+    #if (rasterRequest["request_obj"]["rasterDef"]["numCells"]
+         # > getBlConfig(RASTER_NUM_CELLS_DELAY_THRESHOLD)):
         #larger rasters can delay GUI scene update
-        time.sleep(getBlConfig(RASTER_LONG_SNAPSHOT_DELAY))
-    else:
-        time.sleep(getBlConfig(RASTER_SHORT_SNAPSHOT_DELAY))
+        #time.sleep(getBlConfig(RASTER_LONG_SNAPSHOT_DELAY))
+    #else:
+        #time.sleep(getBlConfig(RASTER_SHORT_SNAPSHOT_DELAY))
 
 
 

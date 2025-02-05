@@ -176,7 +176,10 @@ class VectorWidget(QtWidgets.QWidget):
         center: "tuple[float, float]",
         length=40,
     ) -> None:
-        offset = int(length / 2)
+        factor = 1.0
+        if daq_utils.beamline == "nyx":
+            factor = 0.001 # NYX gonio reports mm, calculations assume microns
+        offset = (length * factor) / 2
         gonio_coords_start = {
             "x": gonio_coords["x"] - offset,
             "y": gonio_coords["y"],
@@ -189,6 +192,11 @@ class VectorWidget(QtWidgets.QWidget):
             "z": gonio_coords["z"],
             "omega": gonio_coords["omega"],
         }
+        if "finex" and "finey" in gonio_coords:
+            gonio_coords_start["finex"] = gonio_coords["finex"]
+            gonio_coords_start["finey"] = gonio_coords["finey"]
+            gonio_coords_end["finex"] = gonio_coords["finex"]
+            gonio_coords_end["finey"] = gonio_coords["finey"]
         self.set_vector_point("vector_start", scene, gonio_coords_start, center)
         self.set_vector_point("vector_end", scene, gonio_coords_end, center)
 
@@ -278,6 +286,10 @@ class VectorWidget(QtWidgets.QWidget):
             vectorCoords = {
                 k: v for k, v in gonio_coords.items() if k in ["x", "y", "z"]
             }
+        if "finex" and "finey" in gonio_coords:
+            vectorCoords["finex"] = gonio_coords["finex"]
+            vectorCoords["finey"] = gonio_coords["finey"]
+            
 
         vecMarker = VectorMarker(
             marker_x,
@@ -320,6 +332,8 @@ class VectorWidget(QtWidgets.QWidget):
             "x": self.main_window.sampx_pv.get() + gonio_offset_x,
             "y": self.main_window.sampy_pv.get() + gonio_offset_y,
             "z": self.main_window.sampz_pv.get() + gonio_offset_z,
+            "finex": self.main_window.gon.cx.val(),
+            "finey": self.main_window.gon.cy.val(),
             "omega": omega,
         }
         vectorCoords = self.transform_vector_coords(point.coords, gonio_coords)
@@ -377,11 +391,15 @@ class VectorWidget(QtWidgets.QWidget):
         _, yTweakedCurrent, zTweakedCurrent, _ = daq_utils.lab2gonio(
             prev_coords["x"], yLabCurrent, zLabPrev, current_raw_coords["omega"]
         )
-        return {
+        final_coords =  {
             "x": current_raw_coords["x"],
             "y": yTweakedCurrent,
             "z": zTweakedCurrent,
         }
+        if "finex" and "finey" in prev_coords:
+            final_coords["finex"] = prev_coords["finex"]
+            final_coords["finey"] = prev_coords["finey"]
+        return final_coords
 
     def hide_nodes(self):
         if self.vector_start:

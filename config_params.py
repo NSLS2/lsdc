@@ -12,6 +12,8 @@ RASTER_TUNE_RESO_FLAG = "rasterTuneResoFlag"
 RASTER_TUNE_ICE_RING_WIDTH = "rasterTuneIceRingWidth"
 RASTER_DOZOR_SPOT_LEVEL = "rasterDozorSpotLevel"
 RASTER_NUM_CELLS_DELAY_THRESHOLD = "rasterNumCellsThresholdDelay"
+RASTER_DOZOR_PREFIX = "titania-cpu"
+RASTER_DOZOR_NODE_COUNT = 2
 
 # timing delays
 ISPYB_RESULT_ENTRY_DELAY = "ispybResultEntryDelay"
@@ -67,6 +69,8 @@ HUTCH_TIMER_DELAY = 500
 SAMPLE_TIMER_DELAY = 100
 SERVER_CHECK_DELAY = 2000
 
+AUTO_CENTER_PROTOCOL = 0 # 0 for LoopDetector, 1 for Lucid
+
 FAST_DP_MIN_NODES = 4
 SPOT_MIN_NODES = 8
 MOUNT_SUCCESSFUL = 1
@@ -88,7 +92,7 @@ DETECTOR_OBJECT_TYPE = "detectorObjectType"
 DETECTOR_SAFE_DISTANCE = {"fmx": 200.0, "amx": 180.0, "nyx": 200.0}
 GOVERNOR_TIMEOUT = 120  # seconds for a governor move
 
-DEWAR_SECTORS = {'amx':8, 'fmx':8, 'nyx':8}
+DEWAR_SECTORS = {'amx':8, 'fmx':8, 'nyx':5}
 PUCKS_PER_DEWAR_SECTOR = {'amx':3, 'fmx':3, 'nyx':3}
 
 cryostreamTempPV = {"amx": "XF:17IDB-ES:AMX{CS:1}SAMPLE_TEMP_RBV", "fmx": "FMX:cs700:gasT-I", "nyx":"XF:19ID2:CS700:TEMP"}

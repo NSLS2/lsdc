@@ -304,7 +304,7 @@ class DewarTree(QtWidgets.QTreeView):
         if request["priority"] == 99999:
             col_item.setCheckState(Qt.CheckState.Checked)
             col_item.setBackground(QtGui.QColor("green"))
-            self.parent.refreshCollectionParams(request, validate_hdf5=False)
+            self.parent.refreshCollectionParams(request, validate_hdf5=False, collectionRunning=True)
         elif request["priority"] > 0:
             col_item.setCheckState(Qt.CheckState.Checked)
             col_item.setBackground(QtGui.QColor("white"))
@@ -379,7 +379,7 @@ class DewarTree(QtWidgets.QTreeView):
                         col_item.setBackground(QtGui.QColor("green"))
                         collectionRunning = True
                         self.parent.refreshCollectionParams(
-                            self.orderedRequests[k], validate_hdf5=False
+                            self.orderedRequests[k], validate_hdf5=False, collectionRunning=True
                         )
 
                     elif self.orderedRequests[k]["priority"] > 0:

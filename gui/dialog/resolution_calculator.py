@@ -11,7 +11,7 @@ class Calculator:
 		self.r = None
 		self.d = None
 		self.L = None
-		self.theta = None
+		self.theta = 0
 		self.wavelength = None
 
 	def set_all_variables(self, variable_dict):

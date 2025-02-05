@@ -13,17 +13,22 @@ from queue import Queue
 import cv2
 import numpy as np
 from epics import PV
+
+# suppresses the absurd logging from PyMca5 imports
+logging.basicConfig(level="INFO")
+mlogger = logging.getLogger("PyMca5")
+mlogger.setLevel(logging.WARNING)
 from PyMca5.PyMcaGui.physics.xrf.McaAdvancedFit import McaAdvancedFit
 from PyMca5.PyMcaGui.pymca.McaWindow import McaWindow, ScanWindow
 from PyMca5.PyMcaPhysics.xrf import Elements
+
 from qt_epics.QtEpicsPVEntry import QtEpicsPVEntry
 from qt_epics.QtEpicsPVLabel import QtEpicsPVLabel
 from qtpy import QtCore, QtGui, QtWidgets
-from qtpy.QtCore import QModelIndex, QRectF, Qt, QTimer, QMutex, QMutexLocker
+from qtpy.QtCore import QModelIndex, QRectF, Qt, QTimer, QMutex, QMutexLocker, QProcess
 from qtpy.QtGui import QIntValidator
-from qtpy.QtWidgets import QCheckBox, QFrame, QGraphicsPixmapItem, QApplication
+from qtpy.QtWidgets import QCheckBox, QFrame, QGraphicsPixmapItem, QApplication, QMessageBox
 from devices import GonioDevice, CameraDevice, MD2Device, LightDevice, MD2ApertureDevice
-
 import daq_utils
 if daq_utils.beamline == 'nyx':
     from mxbluesky.devices.md2 import GonioDevice, CameraDevice, MD2Device, LightDevice, MD2ApertureDevice
@@ -46,6 +51,7 @@ from config_params import (
     VALID_TRANSMISSION,
     RasterStatus,
     cryostreamTempPV,
+    AUTO_CENTER_PROTOCOL
 )
 from daq_utils import getBlConfig, setBlConfig
 from element_info import element_info
@@ -61,12 +67,13 @@ from gui.dialog import (
     SnapCommentDialog,
     StaffScreenDialog,
     UserScreenDialog,
-    CalculatorWindow
+    CalculatorWindow,
+    ProcessPopup
 )
 from gui.raster import RasterCell, RasterGroup
 from gui.vector import VectorMarker, VectorWidget
 from QPeriodicTable import QPeriodicTable
-from threads import RaddoseThread, ServerCheckThread, VideoThread
+from threads import RaddoseThread, ServerCheckThread, VideoThread, RedisVideoThread, CV2VideoThread
 from utils import validation
 
 logger = logging.getLogger()
@@ -172,12 +179,13 @@ class ControlMain(QtWidgets.QMainWindow):
         self.centerMarkerCharSize = 20
         self.centerMarkerCharOffsetX = 12
         self.centerMarkerCharOffsetY = 18
+        self.raster_output = None
         self.currentRasterCellList = []
         self.redPen = QtGui.QPen(QtCore.Qt.red)
         self.bluePen = QtGui.QPen(QtCore.Qt.blue)
         self.yellowPen = QtGui.QPen(QtCore.Qt.yellow)
-        if daq_utils.beamline != "nyx":
-          self.albulaInterface = AlbulaInterface(ip=os.environ["EIGER_DCU_IP"], 
+        #if daq_utils.beamline != "nyx":
+        self.albulaInterface = AlbulaInterface(ip=os.environ.get("EIGER_DCU_IP"), 
                                                  gov_message_pv_name=daq_utils.pvLookupDict["governorMessage"],)
         self.initUI()
         self.initOphyd()
@@ -209,6 +217,8 @@ class ControlMain(QtWidgets.QMainWindow):
 
         self.beamSize_pv = PV(daq_utils.beamlineComm + "size_mode")
         self.energy_pv = PV(daq_utils.motor_dict["energy"] + ".RBV")
+        self.heartbeat_pv = PV(daq_utils.beamlineComm + "server_heartbeat")
+        self.last_heartbeat = time.time()
         self.rasterStepDefs = {"Coarse": 30.0, "Fine": 20.0, "VFine": 10.0}
 
         # Timer that waits for a second before calling raddose 3d
@@ -270,6 +280,7 @@ class ControlMain(QtWidgets.QMainWindow):
         elif event.type() == QtCore.QEvent.KeyRelease and event.key() == QtCore.Qt.Key.Key_Shift:
             self.vector_widget.show_nodes()
         return QtWidgets.QWidget.eventFilter(self, obj, event)
+
 
 
     def setGuiValues(self, values):
@@ -382,11 +393,11 @@ class ControlMain(QtWidgets.QMainWindow):
         )
         warmupButton = QtWidgets.QPushButton("Warmup Gripper")
         warmupButton.clicked.connect(self.warmupGripperCB)
-        endVisitButton = QtWidgets.QPushButton("End Visit")
-        endVisitButton.clicked.connect(self.endVisitCB)
-        restartServerButton = QtWidgets.QPushButton("Restart Server")
-        restartServerButton.clicked.connect(self.restartServerCB)
-        restartServerButton.hide()
+        self.endVisitButton = QtWidgets.QPushButton("End Visit")
+        self.endVisitButton.clicked.connect(self.endVisitCB)
+        self.restartServerButton = QtWidgets.QPushButton("Restart Server")
+        self.restartServerButton.clicked.connect(self.restartServerCB)
+        self.restartServerButton.hide()
         self.openShutterButton = QtWidgets.QPushButton("Open Photon Shutter")
         self.openShutterButton.clicked.connect(self.openPhotonShutterCB)
         self.popUserScreen = QtWidgets.QPushButton("User Screen...")
@@ -411,8 +422,8 @@ class ControlMain(QtWidgets.QMainWindow):
         vBoxTreeButtsLayoutRight.addWidget(self.parkRobotButton)
         vBoxTreeButtsLayoutRight.addWidget(deQueueSelectedButton)
         vBoxTreeButtsLayoutRight.addWidget(emptyQueueButton)
-        vBoxTreeButtsLayoutRight.addWidget(endVisitButton)
-        #vBoxTreeButtsLayoutRight.addWidget(restartServerButton)
+        vBoxTreeButtsLayoutRight.addWidget(self.endVisitButton)
+        vBoxTreeButtsLayoutRight.addWidget(self.restartServerButton)
         hBoxTreeButtsLayout.addLayout(vBoxTreeButtsLayoutLeft)
         hBoxTreeButtsLayout.addLayout(vBoxTreeButtsLayoutRight)
         vBoxDFlayout.addLayout(hBoxTreeButtsLayout)
@@ -686,7 +697,7 @@ class ControlMain(QtWidgets.QMainWindow):
         self.protoOtherRadio.setEnabled(False)
         self.protoRadioGroup.addButton(self.protoOtherRadio)
         if daq_utils.beamline == "nyx":
-            protoOptionList = ["standard","raster","vector"] # these should probably come from db
+            protoOptionList = ["standard","raster"] # these should probably come from db
 
         else:
             protoOptionList = [
@@ -1451,7 +1462,11 @@ class ControlMain(QtWidgets.QMainWindow):
             highlight_on_change=False,
         )
         ringCurrentMessageLabel = QtWidgets.QLabel("Ring (mA):")
-        self.ringCurrentMessage = QtWidgets.QLabel(str(self.ringCurrent_pv.get()))
+        try:
+            self.ringCurrentMessage = QtWidgets.QLabel(str(self.ringCurrent_pv.get()))
+        except Exception as e:
+            print(f'failed to get ring current PV:  {e}')
+            self.ringCurrentMessage = QtWidgets.QLabel(str("no signal"))
         beamAvailable = self.beamAvailable_pv.get()
 
         '''
@@ -1526,7 +1541,8 @@ class ControlMain(QtWidgets.QMainWindow):
             self.dimpleCheckBox.setVisible(False)
             self.centeringComboBox.setVisible(False)
             annealButton.setVisible(False)
-            centerLoopButton.setVisible(False)
+            #unhiding center loop button
+            #centerLoopButton.setVisible(False)
             clearGraphicsButton.setVisible(False)
             saveCenteringButton.setVisible(False)
             selectAllCenteringButton.setVisible(False)
@@ -1538,6 +1554,10 @@ class ControlMain(QtWidgets.QMainWindow):
             self.vidActionC2CRadio.setEnabled(True)
             self.vidActionRasterExploreRadio.setEnabled(True)
             self.vidActionRasterDefRadio.setEnabled(True)
+            self.endVisitButton.setEnabled(False)
+            self.endVisitButton.setVisible(False)
+            self.restartServerButton.setEnabled(False)
+            self.restartServerButton.setVisible(False)
             
 
         
@@ -1545,13 +1565,14 @@ class ControlMain(QtWidgets.QMainWindow):
         #self.captureLowMag.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         self.captureLowMag = daq_utils.lowMagCamURL
         self.capture = self.captureLowMag
+
         
         if daq_utils.beamline == "nyx":
             #self.sampleCameraThread = RedisVideoThread(
             #    parent=self, delay=HUTCH_TIMER_DELAY, host=daq_utils.redis_raw_url
             #)
             self.sampleCameraThread = VideoThread(
-                parent=self, delay=HUTCH_TIMER_DELAY, url=daq_utils.highMagCamURL
+                parent=self, delay=SAMPLE_TIMER_DELAY, url=getBlConfig("highMagCamURL")
             )
         else:
             self.sampleCameraThread = VideoThread(
@@ -1585,6 +1606,8 @@ class ControlMain(QtWidgets.QMainWindow):
         serverCheckThread.visit_dir_changed.connect(QApplication.instance().quit)
         serverCheckThread.start()
 
+        self.heartbeat_thread = _thread.start_new_thread(self.monitorHeartbeat, ())
+
     def updateCam(self, pixmapItem: "QGraphicsPixmapItem", frame):
         if pixmapItem == self.pixmap_item:
             with QMutexLocker(self.sampleCameraMutex):
@@ -1603,6 +1626,22 @@ class ControlMain(QtWidgets.QMainWindow):
                 )
         except:
             pass
+
+    def heartbeatCB(self, **kwargs):
+        self.last_heartbeat = time.time()
+
+    def monitorHeartbeat(self):
+        '''
+        This monitors the frequency of changes to the heartbeat PV.
+        After 10 seconds of no changes, it reports the issue to the
+        user, and waits 30 more seconds to keep from spamming.
+        '''
+        while True:
+            time.sleep(1)
+            if time.time() - self.last_heartbeat > 10:
+                self.popup_message_string_pv.put("Server not responding")
+                time.sleep(30)
+                #self.popupServerMessage("Server not responding")
 
     def hideRastersCB(self, state):
         if state == QtCore.Qt.Checked:
@@ -2099,8 +2138,14 @@ class ControlMain(QtWidgets.QMainWindow):
             )
 
     def processSampMove(self, posRBV, motID):
+        if (daq_utils.beamline == "nyx"):
+            return
         #      print "new " + motID + " pos=" + str(posRBV)
-        self.motPos[motID] = posRBV
+        print(f"process samp move:   {posRBV}, {motID}")
+        if not (daq_utils.exporter_enabled):
+            self.motPos[motID] = posRBV
+        else:
+            posRBV*=1000
         if self.centeringMarksList:
             for mark in self.centeringMarksList:
                 if mark is None:
@@ -2234,7 +2279,7 @@ class ControlMain(QtWidgets.QMainWindow):
         cryostreamVal = float(cryostreamVal)
         self.cryostreamTempLabel.setText(f"{cryostreamVal:.2f}")
         if cryostreamVal is not None:
-            if 99 < cryostreamVal < 102:
+            if 95 < cryostreamVal < 105:
                 self.cryostreamTempLabel.setStyleSheet("background-color: #99FF66;")
             else:
                 self.cryostreamTempLabel.setStyleSheet("background-color: red;")
@@ -2488,7 +2533,7 @@ class ControlMain(QtWidgets.QMainWindow):
         try:
             if float(str(self.osc_range_ledit.text())) == 0:
                 if text == "oscRange":
-                    if self.controlEnabled():
+                    if self.controlEnabled() and daq_utils.beamline != "nyx":
                         self.stillMode_pv.put(1)
                 self.colEndLabel.setText("Number of Images: ")
                 if (
@@ -2511,7 +2556,7 @@ class ControlMain(QtWidgets.QMainWindow):
                 return
             else:
                 if text == "oscRange":
-                    if self.controlEnabled():
+                    if self.controlEnabled() and daq_utils.beamline != "nyx":
                         self.standardMode_pv.put(1)
                 self.colEndLabel.setText("Oscillation Range:")
         except ValueError:
@@ -2974,14 +3019,14 @@ class ControlMain(QtWidgets.QMainWindow):
     def omegaTweakNegCB(self):
         tv = float(self.omegaTweakVal_ledit.text())
         if self.controlEnabled():
-            mv_status = self.gon.omega.move(self.gon.omega.val() + tv)
+            mv_status = self.gon.omega.move(self.gon.omega.val() - tv, wait=False)
         else:
             self.popupServerMessage("You don't have control")
 
     def omegaTweakPosCB(self):
         tv = float(self.omegaTweakVal_ledit.text())
         if self.controlEnabled():
-            mv_status = self.gon.omega.move(self.gon.omega.val() + tv)
+            mv_status = self.gon.omega.move(self.gon.omega.val() + tv, wait=False)
         else:
             self.popupServerMessage("You don't have control")
 
@@ -3017,13 +3062,64 @@ class ControlMain(QtWidgets.QMainWindow):
 
     def omegaTweakCB(self, tv):
         if self.controlEnabled():
-            status = self.gon.omega.move(self.gon.omega.val() + float(tv))
-            status.wait()
+            tvf = float(tv)
+            status = self.gon.omega.move(self.gon.omega.val() + tvf)
         else:
             self.popupServerMessage("You don't have control")
 
     def autoCenterLoopCB(self):
-        self.send_to_server("loop_center_xrec")
+        #self.send_to_server("loop_center_xrec")
+        if(AUTO_CENTER_PROTOCOL == 1): # protocol 1 for lucid3
+            logger.info("auto center loop")
+            autocenter_call = '/nsls2/data/nyx/legacy/Rudra/lsdcSpoofer/run_auto_center'
+            popup_info = ProcessPopup(parent = self, window_title='AutoCenter Info', main_text="Waiting for auto center, view detailed text for more info")
+            popup_info.setIcon(QMessageBox.Information)
+            x = popup_info.open()
+            self.autocenter_process = QProcess(parent=self)
+            self.autocenter_process.readyReadStandardOutput.connect(lambda: popup_info.setDetailedText(bytes(self.autocenter_process.readAllStandardOutput()).decode("utf8")))
+            self.autocenter_process.finished.connect(lambda: popup_info.setText("AUTO CENTERING FINISHED\n\nopen details for more information"))
+            self.autocenter_process.finished.connect(lambda: popup_info.setWindowTitle("Done"))
+    
+            self.autocenter_process.start(autocenter_call)
+        
+            # with subprocess.Popen(autocenter_call, stdout=subprocess.PIPE, bufsize=1, universal_newlines=True) as p:
+            #     for line in p.stdout:
+                
+            #         popup_info.setText(line + "")
+
+            # if p.returncode != 0:
+            #     raise subprocess.CalledProcessError(p.returncode, p.args)
+        elif(AUTO_CENTER_PROTOCOL == 0): # protocol 0 for LoopDetector
+            self.send_to_server("run_loop_center_plan")
+
+
+    def handle_raster_output(self, data):
+        self.raster_output = data
+
+
+
+
+
+    def get_raster_coords(self):
+        logger.info("getting raster coordinates")
+        raster_call = '/nsls2/data/nyx/legacy/Rudra/lsdcSpoofer/get_raster_box'
+        self.raster_output = None
+        self.raster_process = QProcess(parent=self)
+        
+        self.raster_process.finished.connect(lambda: self.handle_raster_output(self.raster_process.readAllStandardOutput().data().decode('utf-8')))
+        #self.raster_process.finished.connect(lambda: self.raster_process.close())
+        self.raster_process.start(raster_call)
+        self.raster_process.waitForFinished()
+        return self.raster_output
+    
+
+        
+    
+
+
+
+
+
 
     def autoRasterLoopCB(self):
         self.selectedSampleID = self.selectedSampleRequest["sample"]
@@ -3240,11 +3336,15 @@ class ControlMain(QtWidgets.QMainWindow):
             color_ids = np.full(my_array.shape, color_id)
 
         index = 0
+        if daq_utils.beamline == "nyx":
+            is_raster_inverted = 1
+        else:
+            is_raster_inverted = 0
         for i in range(len(rasterDef["rowDefs"])):
             numsteps = rasterDef["rowDefs"][i]["numsteps"]
             rowStartIndex = cellCounter
             for j in range(numsteps):
-                if i % 2 == 0:  # this is trying to figure out row direction
+                if i % 2 == is_raster_inverted:  # this is trying to figure out row direction
                     index = cellCounter
                 else:
                     index = rowStartIndex + ((numsteps - 1) - j)
@@ -3898,7 +3998,8 @@ class ControlMain(QtWidgets.QMainWindow):
         Three click centering will update self.threeClickSignal.emit(self.threeClickCount)
         
         '''
-        if self.threeClickCount > 0:  # 3-click centering
+        md2_value = self.md2.task_info.get()
+        if md2_value[0] == 'Manual Centring' and md2_value[3] == 'null':  # 3-click centering
             self.threeClickCount = self.threeClickCount + 1
             self.threeClickSignal.emit('{} more clicks'.format(str(4-self.threeClickCount)))
             #adding drawing for three click centering
@@ -3958,7 +4059,7 @@ class ControlMain(QtWidgets.QMainWindow):
             )
         if not self.vidActionRasterExploreRadio.isChecked():
             self.aux_send_to_server(*comm_s)
-        if self.threeClickCount == 4:
+        if md2_value[0] == 'Manual Centring' and md2_value[3] != 'null' and self.threeClickCount != 0:
             self.threeClickCount = 0
             self.threeClickSignal.emit('0')
             self.click3Button.setStyleSheet("background-color: None")
@@ -4543,7 +4644,7 @@ class ControlMain(QtWidgets.QMainWindow):
             self.addRequestsToAllSelectedCB()
         logger.info("running queue")
         self.send_to_server("runDCQueue")
-        
+        self.eraseRastersCB() 
 
     def warmupGripperCB(self):
         self.send_to_server("warmupGripper")
@@ -4628,7 +4729,7 @@ class ControlMain(QtWidgets.QMainWindow):
         if pointName == "full_vector":
             self.vector_widget.set_vector(
                 scene=self.scene,
-                gonio_coords=gonio_coords,
+                gonio_coords=gonioCoords,
                 center=(center_x, center_y),
                 length=int(self.vector_length_ledit.text())
             )
@@ -4636,12 +4737,12 @@ class ControlMain(QtWidgets.QMainWindow):
             self.vector_widget.set_vector_point(
                 point_name=pointName,
                 scene=self.scene,
-                gonio_coords=gonio_coords,
+                gonio_coords=gonioCoords,
                 center=(center_x, center_y),
             )
-        self.processSampMove(self.sampx_pv.get(), "x")
-        self.processSampMove(self.sampy_pv.get(), "y")
-        self.processSampMove(self.sampz_pv.get(), "z")
+        self.processSampMove(self.gon.x.val(), "x")
+        self.processSampMove(self.gon.y.val(), "y")
+        self.processSampMove(self.gon.z.val(), "z")
 
     def drawVector(self):
         self.protoVectorRadio.setChecked(True)
@@ -4790,7 +4891,7 @@ class ControlMain(QtWidgets.QMainWindow):
         dist_s = str(reqObj["detDist"])
         self.detDistMotorEntry.getEntry().setText(str(dist_s))
 
-    def refreshCollectionParams(self, selectedSampleRequest, validate_hdf5=True):
+    def refreshCollectionParams(self, selectedSampleRequest, validate_hdf5=True, collectionRunning=False):
         reqObj = selectedSampleRequest["request_obj"]
         if (
             str(reqObj["protocol"]) == "characterize"
@@ -4817,8 +4918,8 @@ class ControlMain(QtWidgets.QMainWindow):
                     firstFilename = daq_utils.create_filename(prefix_long, fnumstart)
                     if validate_hdf5:
                         if validation.validate_master_HDF5_file(firstFilename):
-                            if daq_utils.beamline != "nyx":
-                                self.albulaInterface.open_file(firstFilename)
+                            #if daq_utils.beamline != "nyx":
+                            self.albulaInterface.open_file(firstFilename)
                         else:
                             QtWidgets.QMessageBox.information(
                                 self,
@@ -4842,32 +4943,42 @@ class ControlMain(QtWidgets.QMainWindow):
         ):
             #if not self.rasterIsDrawn(selectedSampleRequest):
             # always erase and then draw
-            logger.info("redrawing raster")
-            self.eraseRastersCB()
-            self.drawPolyRaster(selectedSampleRequest)
-            self.fillPolyRaster(selectedSampleRequest)
+           
 
             if (
                 str(self.govStateMessagePV.get(as_string=True)) == "state SA"
                 and self.controlEnabled()  # Move only in SA (Any other way for GUI to detect governor state?)
+                and not collectionRunning
                 and self.selectedSampleRequest["sample"]  # with control enabled
                 == self.mountedPin_pv.get()
             ):  # And the sample of the selected request is mounted
+                logger.info("redrawing raster")
+                self.eraseRastersCB()
+                self.drawPolyRaster(selectedSampleRequest)
+                self.fillPolyRaster(selectedSampleRequest)
                 logger.info("attempting to move to raster start")
                 self.md2.ready_status().wait()
-                self.gon.cx.move(selectedSampleRequest["request_obj"]["rasterDef"]["cx"])
-                self.gon.cy.move(selectedSampleRequest["request_obj"]["rasterDef"]["cy"])
+                self.send_to_server("gonMoveAll", 
+                                    [
+                                        selectedSampleRequest["request_obj"]["rasterDef"]["cx"], 
+                                        selectedSampleRequest["request_obj"]["rasterDef"]["cy"], 
+                                        selectedSampleRequest["request_obj"]["rasterDef"]["x"], 
+                                        selectedSampleRequest["request_obj"]["rasterDef"]["y"], 
+                                        selectedSampleRequest["request_obj"]["rasterDef"]["z"]
+                                    ])
+                #self.gon.cx.move(selectedSampleRequest["request_obj"]["rasterDef"]["cx"])
+                #self.gon.cy.move(selectedSampleRequest["request_obj"]["rasterDef"]["cy"])
                 logger.info(f"{selectedSampleRequest['request_obj']['rasterDef']['cx']} cx")
                 logger.info(f"{selectedSampleRequest['request_obj']['rasterDef']['y']} y")
                 logger.info(f"{selectedSampleRequest['request_obj']['rasterDef']['z']} z")
-                self.gon.y.move(selectedSampleRequest["request_obj"]["rasterDef"]["y"])
-                self.gon.z.move(selectedSampleRequest["request_obj"]["rasterDef"]["z"])
+                #self.gon.y.move(selectedSampleRequest["request_obj"]["rasterDef"]["y"])
+                #self.gon.z.move(selectedSampleRequest["request_obj"]["rasterDef"]["z"])
 
-                self.processSampMove(self.gon.x.val(), "x")
-                self.processSampMove(self.gon.y.val(), "y")
-                self.processSampMove(self.gon.z.val(), "z")
-                self.processSampMove(self.gon.cx.val(), "fineX")
-                self.processSampMove(self.gon.cy.val(), "fineY")
+                #self.processSampMove(self.gon.x.val(), "x")
+                #self.processSampMove(self.gon.y.val(), "y")
+                #self.processSampMove(self.gon.z.val(), "z")
+                #self.processSampMove(self.gon.cx.val(), "fineX")
+                #self.processSampMove(self.gon.cy.val(), "fineY")
                 if (
                     abs(
                         selectedSampleRequest["request_obj"]["rasterDef"]["omega"]
@@ -4964,9 +5075,10 @@ class ControlMain(QtWidgets.QMainWindow):
                 self.selectedSampleRequest = daq_utils.createDefaultRequest(
                     itemData, createVisit=False
                 )
+                logger.info("refreshing while created default request")
                 self.refreshCollectionParams(self.selectedSampleRequest)
-                if self.stillModeStatePV.get():
-                    self.setGuiValues({"osc_range": "0.0"})
+                #if self.stillModeStatePV.get():
+                #    self.setGuiValues({"osc_range": "0.0"})
                 reqObj = self.selectedSampleRequest["request_obj"]
                 self.dataPathGB.setFilePrefix_ledit(str(reqObj["file_prefix"]))
                 self.dataPathGB.setBasePath_ledit(reqObj["basePath"])
@@ -5025,6 +5137,7 @@ class ControlMain(QtWidgets.QMainWindow):
                     logger.error(
                         "KeyError - ignoring chooch-related items, perhaps from a bad energy scan"
                     )
+            logger.info ("refreshing collection parameters while row clicked")
             self.refreshCollectionParams(self.selectedSampleRequest)
 
     def processXrecRasterCB(self, value=None, char_value=None, **kw):
@@ -5329,6 +5442,7 @@ class ControlMain(QtWidgets.QMainWindow):
         self.beamSizeSignal.connect(self.processBeamSize)
         self.beamSize_pv.add_callback(self.beamSizeChangedCB)
 
+        self.heartbeat_pv.add_callback(self.heartbeatCB)
         self.treeChanged_pv = PV(daq_utils.beamlineComm + "live_q_change_flag")
         self.refreshTreeSignal.connect(self.dewarTree.refreshTree)
         self.treeChanged_pv.add_callback(self.treeChangedCB)
@@ -5468,8 +5582,11 @@ class ControlMain(QtWidgets.QMainWindow):
         if getBlConfig(CRYOSTREAM_ONLINE):
             self.cryostreamTempSignal.connect(self.processCryostreamTemp)
             self.cryostreamTemp_pv.add_callback(self.cryostreamTempChangedCB)
-        self.ringCurrentSignal.connect(self.processRingCurrent)
-        self.ringCurrent_pv.add_callback(self.ringCurrentChangedCB)
+        try:
+            self.ringCurrentSignal.connect(self.processRingCurrent)
+            self.ringCurrent_pv.add_callback(self.ringCurrentChangedCB)
+        except Exception as e:
+            print(f'Failed to get ring current PV from facility:  {e}')
         self.threeClickSignal.connect(self.processThreeClickCentering)
         self.beamAvailable_pv.add_callback(self.beamAvailableChangedCB)
         self.sampleExposedSignal.connect(self.processSampleExposed)
