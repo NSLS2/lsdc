@@ -1,5 +1,3 @@
-import Gen_Commands
-import Gen_Traj_Square
 import beamline_support
 from beamline_support import getPvValFromDescriptor as getPvDesc, setPvValFromDescriptor as setPvDesc
 import beamline_lib #did this really screw me if I imported b/c of daq_utils import??
@@ -614,10 +612,6 @@ def autoVector(currentRequest): #12/19 - not tested!
   return 1
 
 def rasterScreen(currentRequest):
-  if (daq_utils.beamline == "fmx" and getBlConfig("scannerType") == "PI"):
-    gridRaster(currentRequest)
-    return
-  
   daq_lib.set_field("xrecRasterFlag","100")      
   sampleID = currentRequest["sample"]
   reqObj = currentRequest["request_obj"]
@@ -717,65 +711,6 @@ def loop_center_xrec_slow():
   beamline_lib.mvaDescriptor("omega",face_on)
   #now try to get the loopshape starting from here
   return 1
-
-
-def generateRasterCoords4Traj(rasterRequest):
-
-  reqObj = rasterRequest["request_obj"]
-  exptimePerCell = reqObj["exposure_time"]  
-  rasterDef = reqObj["rasterDef"]
-  stepsize = float(rasterDef["stepsize"])
-  omega = float(rasterDef["omega"])
-  rasterStartX = float(rasterDef["x"])
-  rasterStartY = float(rasterDef["y"])
-  rasterStartZ = float(rasterDef["z"])
-  omegaRad = math.radians(omega)
-  rasterCellMap = {}
-  numsteps = float(rasterDef["rowDefs"][0]["numsteps"])
-  columns = numsteps
-  rows = len(rasterDef["rowDefs"])
-  firstRow = rasterDef["rowDefs"][0]
-  sx1 = firstRow["start"]["x"] #startX
-  sy1 = firstRow["start"]["y"]
-  logger.info("start x,y")
-  logger.info(sx1)
-  logger.info(sy1)
-
-#9/18 - I think these are crap, but will leave them  
-  xRelativeMove = sx1
-  yzRelativeMove = sy1*math.sin(omegaRad)
-  yyRelativeMove = sy1*cos(omegaRad)
-  xMotAbsoluteMove1 = xRelativeMove    
-  yMotAbsoluteMove1 = yyRelativeMove
-  zMotAbsoluteMove1 = yzRelativeMove
-
-
-  lastRow= rasterDef["rowDefs"][-1]
-  ex1 = lastRow["end"]["x"]   #endX
-  ey1 = lastRow["end"]["y"]
-  logger.info("end x,y")  
-  logger.info(ex1)
-  logger.info(ey1)  
-  deltax = ex1-sx1
-  deltay = ey1-sy1
-  xMotAbsoluteMove1 = -(deltax/2.0)
-  xMotAbsoluteMove2 = (deltax/2.0)  
-  yMotAbsoluteMove1 = -(deltay/2.0)*math.cos(omegaRad)
-  yMotAbsoluteMove2 = (deltay/2.0)*math.cos(omegaRad)
-  zMotAbsoluteMove1 = -(deltay/2.0)*math.sin(omegaRad)
-  zMotAbsoluteMove2 = (deltay/2.0)*math.sin(omegaRad)
-
-  logger.info(xMotAbsoluteMove1)
-  logger.info(yMotAbsoluteMove1)
-  logger.info(zMotAbsoluteMove1)
-  logger.info(xMotAbsoluteMove2)
-  logger.info(yMotAbsoluteMove2)
-  logger.info(zMotAbsoluteMove2)
-  logger.info(stepsize)  
-  genTraj = Gen_Traj_Square.gen_traj_square(xMotAbsoluteMove1, xMotAbsoluteMove2, yMotAbsoluteMove2, yMotAbsoluteMove1, zMotAbsoluteMove2, zMotAbsoluteMove1, columns,rows)
-  Gen_Commands.gen_commands(genTraj,exptimePerCell)
-
-
 
 def generateGridMap(rasterRequest,rasterEncoderMap=None): #12/19 - there's some dials vs dozor stuff in here
   global rasterRowResultsList
@@ -1293,363 +1228,11 @@ def getNodeName(node_type, row_index, num_nodes=8): #calculate node name based o
     return getBlConfig(node_config_name)
 
 def snakeRaster(rasterReqID,grain=""):
-  scannerType = getBlConfig("scannerType")
-  if (scannerType == "PI"):
-    snakeRasterFine(rasterReqID,grain)
+  if daq_utils.beamline == "nyx":
+    yield from raster_plan_wrapped(rasterReqID)
   else:
-    if daq_utils.beamline == "nyx":
-      yield from raster_plan_wrapped(rasterReqID)
-    else:
-      finalize_plan = finalize_wrapper(snakeRasterBluesky(rasterReqID,grain), bps.mv(raster_flyer.detector.cam.acquire, 0))
-      yield from finalize_plan
-    #RE(snakeRasterBluesky(rasterReqID,grain))
-
-def snakeRasterNoTile(rasterReqID,grain=""):
-  global dialsResultDict,rasterRowResultsList,processedRasterRowCount
-
-  gov_status = gov_lib.setGovRobot(gov_robot, 'DA')
-  if not gov_status.success:
-    return
-  
-  rasterRequest = db_lib.getRequestByID(rasterReqID)
-  reqObj = rasterRequest["request_obj"]
-  parentReqID = reqObj["parentReqID"]
-  parentReqProtocol = ""
-  
-  if (parentReqID != -1):
-    parentRequest = db_lib.getRequestByID(parentReqID)
-    parentReqObj = parentRequest["request_obj"]
-    parentReqProtocol = parentReqObj["protocol"]
-    detDist = parentReqObj["detDist"]    
-  data_directory_name = str(reqObj["directory"])
-  os.system("mkdir -p " + data_directory_name)
-  filePrefix = str(reqObj["file_prefix"])
-  file_number_start = reqObj["file_number_start"]  
-  dataFilePrefix = reqObj["directory"]+"/"+reqObj["file_prefix"]  
-  exptimePerCell = reqObj["exposure_time"]
-  img_width_per_cell = reqObj["img_width"]
-  wave = reqObj["wavelength"]
-  xbeam = getPvDesc("beamCenterX") * 0.075
-  ybeam = getPvDesc("beamCenterY") * 0.075
-  rasterDef = reqObj["rasterDef"]
-  stepsize = float(rasterDef["stepsize"])
-  omega = float(rasterDef["omega"])
-  rasterStartX = float(rasterDef["x"]) #these are real sample motor positions
-  rasterStartY = float(rasterDef["y"])
-  rasterStartZ = float(rasterDef["z"])
-  omegaRad = math.radians(omega)
-  rowCount = len(rasterDef["rowDefs"])
-  rasterRowResultsList = [{} for i in range(0,rowCount)]    
-  processedRasterRowCount = 0
-  rasterEncoderMap = {}
-  totalImages = 0
-#get the center of the raster, in screen view, mm, relative to center
-  rows = rasterDef["rowDefs"]
-  numrows = len(rows)
-  rasterCenterScreenX = (rows[0]["start"]["x"]+rows[0]["end"]["x"])/2.0
-  rasterCenterScreenY = ((rows[-1]["start"]["y"]+rows[0]["start"]["y"])/2.0)+(stepsize/2.0)
-  xRelativeMove = rasterCenterScreenX
-  yzRelativeMove = -(rasterCenterScreenY*math.sin(omegaRad))
-  yyRelativeMove = -(rasterCenterScreenY*math.cos(omegaRad))
-
-  xMotAbsoluteMove = rasterStartX+xRelativeMove #note we convert relative to absolute moves, using the raster center that was saved in x,y,z
-  yMotAbsoluteMove = rasterStartY+yyRelativeMove
-  zMotAbsoluteMove = rasterStartZ+yzRelativeMove
-  
-
-  beamline_lib.mvaDescriptor("sampleX",xMotAbsoluteMove,"sampleY",yMotAbsoluteMove,"sampleZ",zMotAbsoluteMove)
-  
-  #raster centered, now zero motors
-  beamline_lib.mvaDescriptor("fineX",0,"fineY",0,"fineZ",0)  
-  for i in range(len(rasterDef["rowDefs"])):
-    numsteps = int(rasterDef["rowDefs"][i]["numsteps"])
-    totalImages = totalImages+numsteps
-  rasterFilePrefix = dataFilePrefix + "_Raster"
-
-  det_lib.detector_set_num_triggers(totalImages)
-  det_lib.detector_set_trigger_mode(3)
-  det_lib.detector_setImagesPerFile(numsteps)  
-  daq_lib.detectorArm(omega,img_width_per_cell,totalImages,exptimePerCell,rasterFilePrefix,data_directory_name,file_number_start) #this waits
-
-  zebraVecDaqSetup(omega,img_width_per_cell,exptimePerCell,totalImages,rasterFilePrefix,data_directory_name,file_number_start)
-  procFlag = int(getBlConfig("rasterProcessFlag"))  
-  generateRasterCoords4Traj(rasterRequest)
-  total_exposure_time = exptimePerCell*totalImages    
-    
-  setPvDesc("zebraPulseMax",totalImages) 
-  vectorSync()    
-  setPvDesc("vectorStartOmega",omega)
-  setPvDesc("vectorEndOmega",(img_width_per_cell*totalImages)+omega)
-  setPvDesc("vectorframeExptime",exptimePerCell*1000.0)
-  setPvDesc("vectorNumFrames",totalImages)
-  rasterFilePrefix = dataFilePrefix + "_Raster_" + str(i)
-  Gen_Commands.go_all()
-  setPvDesc("vectorGo",1)
-  vectorActiveWait()    
-  vectorWait()
-  zebraWait()
-  #delete these
-  time.sleep(2.0)
-  det_lib.detector_stop_acquire()
-  det_lib.detector_wait()
-  beamline_lib.mvaDescriptor("fineX",0,"fineY",0,"fineZ",0)
-  if (daq_utils.beamline == "amxz"):  
-    setPvDesc("zebraReset",1)      
-  
-  if (procFlag):
-    if (daq_utils.beamline == "amx"):
-      rasterRowEncoderVals = {"x":getPvDesc("zebraEncX"),"y":getPvDesc("zebraEncY"),"z":getPvDesc("zebraEncZ"),"omega":getPvDesc("zebraEncOmega")}
-      for j in range (0,numsteps):
-        dataFileName = "%s_%06d.cbf" % (reqObj["directory"]+"/cbf/"+reqObj["file_prefix"]+"_Raster_"+str(i),(i*numsteps)+j+1)
-        imIndexStr = str((i*numsteps)+j+1)
-        rasterEncoderMap[dataFileName[:-4]] = {"x":rasterRowEncoderVals["x"][j],"y":rasterRowEncoderVals["y"][j],"z":rasterRowEncoderVals["z"][j],"omega":rasterRowEncoderVals["omega"][j]}
-    seqNum = int(det_lib.detector_get_seqnum())
-    for i in range(len(rasterDef["rowDefs"])):  
-      _thread.start_new_thread(runDialsThread,(rasterRequest["uid"], data_directory_name,filePrefix+"_Raster",i,numsteps,seqNum))
-  else:
-    rasterRequestID = rasterRequest["uid"]
-    db_lib.updateRequest(rasterRequest)    
-    db_lib.updatePriority(rasterRequestID,-1)  
-    if (lastOnSample()):  
-      gov_lib.setGovRobot(gov_robot, 'SA')
-    return 1
-      
-  rasterTimeout = 600
-  timerCount = 0
-  while (1):
-    timerCount +=1
-    if (timerCount>rasterTimeout):
-      break
-    time.sleep(1)
-    logger.info('rastering row processed: %s' % processedRasterRowCount)
-    if (processedRasterRowCount == rowCount):
-      break
-  if (daq_utils.beamline == "amx"):                
-    rasterResult = generateGridMap(rasterRequest,rasterEncoderMap) #I think rasterRequest is entire request, of raster type    
-  else:
-    rasterResult = generateGridMap(rasterRequest)     
-  rasterRequest["request_obj"]["rasterDef"]["status"] = 2
-  protocol = reqObj["protocol"]
-  logger.info("protocol = " + protocol)
-  if (protocol == "multiCol" or parentReqProtocol == "multiColQ"):
-    if (parentReqProtocol == "multiColQ"):    
-      multiColThreshold  = parentReqObj["diffCutoff"]
-    else:
-      multiColThreshold  = reqObj["diffCutoff"]         
-    gotoMaxRaster(rasterResult,multiColThreshold=multiColThreshold) 
-  rasterRequestID = rasterRequest["uid"]
-  db_lib.updateRequest(rasterRequest)
-  
-  db_lib.updatePriority(rasterRequestID,-1)  
-  daq_lib.set_field("xrecRasterFlag",rasterRequest["uid"])
-  if (lastOnSample()):    
-    gov_lib.setGovRobot(gov_robot, 'SA')
-  return 1
-
-    
-
-def snakeRasterFine(rasterReqID,grain=""): #12/19 - This is for the PI scanner. It was challenging to write. It was working the last time the scanner was on. 
-  global dialsResultDict,rasterRowResultsList,processedRasterRowCount
-
-  gov_status = gov_lib.setGovRobot(gov_robot, 'DA')
-  if not gov_status.success:
-    return
-  
-  rasterRequest = db_lib.getRequestByID(rasterReqID)
-  reqObj = rasterRequest["request_obj"]
-  rasterDef = reqObj["rasterDef"]
-  stepsize = float(rasterDef["stepsize"])  
-  data_directory_name = str(reqObj["directory"])
-  filePrefix = str(reqObj["file_prefix"])
-  file_number_start = reqObj["file_number_start"]  
-  dataFilePrefix = reqObj["directory"]+"/"+reqObj["file_prefix"]  
-  wave = reqObj["wavelength"]
-  xbeam = getPvDesc("beamCenterX")
-  ybeam = getPvDesc("beamCenterY")
-  processedRasterRowCount = 0
-  totalImages = 0
-#get the center of the raster, in screen view, mm, relative to center
-  rows = rasterDef["rowDefs"]
-  numrows = len(rows)
-  origRasterCenterScreenX = (rows[0]["start"]["x"]+rows[0]["end"]["x"])/2.0
-  origRasterCenterScreenY = ((rows[-1]["start"]["y"]+rows[0]["start"]["y"])/2.0)+(stepsize/2.0)
-  beamline_lib.mvaDescriptor("fineX",0,"fineY",0,"fineZ",0)  
-  exptimePerCell = reqObj["exposure_time"]
-  img_width_per_cell = reqObj["img_width"]  
-  omega = float(rasterDef["omega"])
-  rasterStartX = float(rasterDef["x"])
-  rasterStartY = float(rasterDef["y"])
-  rasterStartZ = float(rasterDef["z"])
-  omegaRad = math.radians(omega)
-  firstRow = rasterDef["rowDefs"][0]
-  lastRow= rasterDef["rowDefs"][-1]
-  sx1 = firstRow["start"]["x"] #startX
-  sy1 = firstRow["start"]["y"]
-  ex1 = lastRow["end"]["x"]   #endX
-  ey1 = lastRow["end"]["y"]
-  rasterLenX = ex1-sx1
-  rasterLenY = ey1-sy1
-  omegaLimit = 40.0
-  xLimit = 180.0
-  yLimit = 120.0
-  if (rasterLenX<xLimit and rasterLenY<yLimit): #no need for tiling. Just do what was done before so we can have a heatmap
-    snakeRasterNoTile(rasterReqID)
-    return
-  maxFramesOmega = int(omegaLimit/img_width_per_cell)
-  maxFramesX = int(xLimit/stepsize)
-  maxFramesY = int(yLimit/stepsize)  
-  columnsOfSubrasters = int(math.ceil(rasterLenX/xLimit))
-  subrasterLenX = rasterLenX/columnsOfSubrasters
-  subrasterColumns = int(subrasterLenX/stepsize)
-  
-  maxRowsPerSubraster1 = int(maxFramesOmega/subrasterColumns) # we want this one to come up short, no ceil, worry about omega
-  maxRowsPerSubraster2 = maxFramesY #worry about Y,Z travel
-  maxRowsPerSubraster = min(maxRowsPerSubraster1,maxRowsPerSubraster2)
-  
-  totalRowsY = int(rasterLenY/stepsize)
-  rowsOfSubrasters = int(math.ceil(float(totalRowsY)/float(maxRowsPerSubraster)))
-  rowsPerSubraster = int(totalRowsY/rowsOfSubrasters)  
-  subrasterLenY = rowsPerSubraster*stepsize
-  newRasterLenX = columnsOfSubrasters*subrasterLenX
-  newRasterLenY = subrasterLenY*rowsOfSubrasters
-  numsteps_h = columnsOfSubrasters*subrasterColumns
-  numsteps_v = rowsPerSubraster*rowsOfSubrasters
-  newRasterDef = defineTiledRaster(rasterDef,numsteps_h,numsteps_v,origRasterCenterScreenX,origRasterCenterScreenY)
-  reqObj["rasterDef"] = newRasterDef
-  rasterDef = reqObj["rasterDef"]
-  rasterRequest["request_obj"]  = reqObj
-
-
-  daq_lib.set_field("xrecRasterFlag","100")
-  db_lib.updateRequest(rasterRequest) #define new dimensions  
-  time.sleep(1.0)
-  daq_lib.set_field("xrecRasterFlag",rasterRequest["uid"]) #draw the raster
-
-  
-  deltax = subrasterLenX
-  deltay = subrasterLenY
-  logger.info("omega start " + str(omega))
-  logger.info("orig raster Len X = " + str(rasterLenX))
-  logger.info("orig raster Len Y = " + str(rasterLenY))  
-
-  xMotAbsoluteMove1 = -(deltax/2.0)
-  xMotAbsoluteMove2 = deltax/2.0
-  yMotAbsoluteMove1 = -(deltay*math.cos(omegaRad))/2.0
-  yMotAbsoluteMove2 = (deltay*math.cos(omegaRad))/2.0
-  zMotAbsoluteMove1 = -(deltay*math.sin(omegaRad))/2.0
-  zMotAbsoluteMove2 = (deltay*math.sin(omegaRad))/2.0
-  
-
-  logger.info("columns of subrasters " + str(columnsOfSubrasters))
-  logger.info("rows of subrasters " + str(rowsOfSubrasters))  
-  logger.info("subraster columns " + str(subrasterColumns))
-  logger.info("sub rows " + str(rowsPerSubraster))  
-  logger.info("individual subraster vectors, all same for all subs (start xyz, end xyz")
-  
-  logger.info(xMotAbsoluteMove1)
-  logger.info(yMotAbsoluteMove1)
-  logger.info(zMotAbsoluteMove1)
-  logger.info(xMotAbsoluteMove2)
-  logger.info(yMotAbsoluteMove2)
-  logger.info(zMotAbsoluteMove2)
-  logger.info(stepsize)
-  
-  numberOfSubrasters = rowsOfSubrasters*columnsOfSubrasters
-  rasterRowResultsList = [{} for i in range(0,numberOfSubrasters)]      
-  cellsPerSubraster = rowsPerSubraster*subrasterColumns
-  totalImages = numberOfSubrasters*cellsPerSubraster
-  rasterFilePrefix = dataFilePrefix + "_Raster"
-  logger.info("number of subrasters " + str(numberOfSubrasters))
-  logger.info("cells per subrasters " + str(cellsPerSubraster))
-
-  os.system("mkdir -p " + data_directory_name)
-  
-  det_lib.detector_set_num_triggers(totalImages)
-  det_lib.detector_set_trigger_mode(3)
-  det_lib.detector_setImagesPerFile(cellsPerSubraster)  
-
-#this could be tricky, b/c omega is angle start that ends up in header, so if you want to arm once, this won't be right
-  daq_lib.detectorArm(omega,img_width_per_cell,totalImages,exptimePerCell,rasterFilePrefix,data_directory_name,file_number_start) #this waits
-  procFlag = int(getBlConfig("rasterProcessFlag"))  
-  
-  subrasters = []
-
-  for i in range (0,rowsOfSubrasters): #this is very misleading, "end" not used? these are really the start coords of each sub?
-    for j in range (0,columnsOfSubrasters): #for now, just make a list of subraster start, end coords.      
-      subrasterStartX = sx1+(j*subrasterLenX)+(subrasterLenX/2.0)
-      subrasterStartY = sy1+(i*subrasterLenY)+(subrasterLenY/2.0)
-      subraster = {"startX":subrasterStartX,"startY":subrasterStartY,"endX":subrasterStartX+(subrasterLenX/2.0),"endy":subrasterStartY+(subrasterLenY/2.0)}
-      subrasters.append(subraster)
-      logger.info(subraster)
-  
-#assume we now have list of first row start, last row end of subs
-
-#from the upper left hand corner of every subraster
-  logger.info("main raster center " + str(rasterStartX) + " " + str(rasterStartY) + " " + str(rasterStartZ))  
-  for i in range (0,len(subrasters)): # coarse move and go? but the zebra needs to be reset b/c it controls omega
-#hey - these are all the same - just need to move the coarse stages, then every subraster is the same damn thing as far as the PI is concerned!
-    genTraj = Gen_Traj_Square.gen_traj_square(xMotAbsoluteMove1, xMotAbsoluteMove2, yMotAbsoluteMove2, yMotAbsoluteMove1, zMotAbsoluteMove2, zMotAbsoluteMove1, subrasterColumns,rowsPerSubraster)
-    Gen_Commands.gen_commands(genTraj,exptimePerCell)
-
-    xRelativeMove = subrasters[i]["startX"]
-    yzRelativeMove = subrasters[i]["startY"]*math.sin(omegaRad)
-    yyRelativeMove = subrasters[i]["startY"]*math.cos(omegaRad)
-    xMotAbsoluteMove = rasterStartX+xRelativeMove
-    yMotAbsoluteMove = rasterStartY-yyRelativeMove
-    zMotAbsoluteMove = rasterStartZ-yzRelativeMove
-    logger.info("absolute corner moves " + str(xMotAbsoluteMove) + " " + str(yMotAbsoluteMove) + " " + str(zMotAbsoluteMove))    
-    beamline_lib.mvaDescriptor("sampleX",xMotAbsoluteMove,"sampleY",yMotAbsoluteMove,"sampleZ",zMotAbsoluteMove)
-    beamline_lib.mvaDescriptor("fineX",0,"fineY",0,"fineZ",0)
-#file_number_start not used
-    rasterFilePrefix = dataFilePrefix + "_Raster_" + str(i)
-    zebraVecDaqSetup(omega,img_width_per_cell,exptimePerCell,cellsPerSubraster,rasterFilePrefix,data_directory_name,file_number_start)
-    total_exposure_time = exptimePerCell*cellsPerSubraster
-    setPvDesc("zebraPulseMax",cellsPerSubraster) 
-    vectorSync()    
-    setPvDesc("vectorStartOmega",omega)
-    setPvDesc("vectorEndOmega",(img_width_per_cell*cellsPerSubraster)+omega)
-    setPvDesc("vectorframeExptime",exptimePerCell*1000.0)
-    setPvDesc("vectorNumFrames",cellsPerSubraster)
-    Gen_Commands.go_all()
-    setPvDesc("vectorGo",1)
-    vectorActiveWait()    
-    vectorWait()
-    zebraWait()
-    seqNum = int(det_lib.detector_get_seqnum())
-    if (procFlag):    
-      _thread.start_new_thread(runDialsThread,(rasterRequest["uid"], data_directory_name,filePrefix+"_Raster",i,cellsPerSubraster,seqNum))    
-  #delete these
-  time.sleep(2.0)
-  det_lib.detector_stop_acquire()
-  det_lib.detector_wait()
-  if (daq_utils.beamline == "amxz"):  
-    setPvDesc("zebraReset",1)        
-  beamline_lib.mvaDescriptor("fineX",0,"fineY",0,"fineZ",0)
-  
-  if not (procFlag):
-    return 1
-  rasterTimeout = 60
-  timerCount = 0
-  while (1):
-    timerCount +=1
-    if (timerCount>rasterTimeout):
-      break
-    time.sleep(1)
-    logger.info(processedRasterRowCount)
-    if (processedRasterRowCount == numberOfSubrasters):
-      break
-  rasterResult = generateGridMapFine(rasterRequest,rowsOfSubrasters=rowsOfSubrasters,columnsOfSubrasters=columnsOfSubrasters,rowsPerSubraster=rowsPerSubraster,cellsPerSubrasterRow=subrasterColumns)
-    
-  rasterRequest["request_obj"]["rasterDef"]["status"] = 2
-  rasterRequestID = rasterRequest["uid"]
-  db_lib.updateRequest(rasterRequest) #so that it will fill heatmap?
-  db_lib.updatePriority(rasterRequestID,-1)
-  daq_lib.set_field("xrecRasterFlag",rasterRequest["uid"])
-  if (lastOnSample()):    
-    gov_lib.setGovRobot(gov_robot, 'SA')
-  return 1
-
-  
+    finalize_plan = finalize_wrapper(snakeRasterBluesky(rasterReqID,grain), bps.mv(raster_flyer.detector.cam.acquire, 0))
+    yield from finalize_plan
 
 def snakeRasterNormal(rasterReqID,grain=""):
   global rasterRowResultsList,processedRasterRowCount
@@ -2404,57 +1987,6 @@ def snakeStepRaster(rasterReqID,grain=""): #12/19 - only tested recently, but ap
   return 1
 
 
-def setGridRasterParams(xsep,ysep,xstep,ystep,sizex,sizey,stepsize):
-  """setGridRasterParams(xsep,ysep,xstep,ystep,sizex,sizey,stepsize)"""
-  db_lib.setBeamlineConfigParam("fmx","gridRasterXSep",float(xsep))
-  db_lib.setBeamlineConfigParam("fmx","gridRasterYSep",float(ysep))
-  db_lib.setBeamlineConfigParam("fmx","gridRasterXStep",int(xstep))
-  db_lib.setBeamlineConfigParam("fmx","gridRasterYStep",int(ystep))
-  db_lib.setBeamlineConfigParam("fmx","gridRasterSizeX",float(sizex))
-  db_lib.setBeamlineConfigParam("fmx","gridRasterSizeY",float(sizey))
-  db_lib.setBeamlineConfigParam("fmx","gridRasterStepsize",float(stepsize))
-
-def printGridRasterParams():
-  """printGridRasterParams()"""
-
-  logger.info(db_lib.getBeamlineConfigParam("fmx","gridRasterXSep"))
-  logger.info(db_lib.getBeamlineConfigParam("fmx","gridRasterYSep"))
-  logger.info(db_lib.getBeamlineConfigParam("fmx","gridRasterXStep"))
-  logger.info(db_lib.getBeamlineConfigParam("fmx","gridRasterYStep"))
-  logger.info(db_lib.getBeamlineConfigParam("fmx","gridRasterSizeX"))
-  logger.info(db_lib.getBeamlineConfigParam("fmx","gridRasterSizeY"))
-  logger.info(db_lib.getBeamlineConfigParam("fmx","gridRasterStepsize"))
-  
-
-def gridRaster(currentRequest):
-  gov_status = gov_lib.setGovRobot(gov_robot, 'DA')
-  if not gov_status.success:
-    return
-  
-  sampleID = currentRequest["sample"]  
-  reqObj = currentRequest["request_obj"]
-  omega = beamline_lib.motorPosFromDescriptor("omega")
-  omegaRad = math.radians(omega)
-  xwells = int(db_lib.getBeamlineConfigParam("fmx","gridRasterXStep"))
-  ywells = int(db_lib.getBeamlineConfigParam("fmx","gridRasterYStep"))        
-  xsep = float(db_lib.getBeamlineConfigParam("fmx","gridRasterXSep"))
-  ysep = float(db_lib.getBeamlineConfigParam("fmx","gridRasterYSep"))
-  sizex = float(db_lib.getBeamlineConfigParam("fmx","gridRasterSizeX"))
-  sizey = float(db_lib.getBeamlineConfigParam("fmx","gridRasterSizeY"))        
-  stepsize = float(db_lib.getBeamlineConfigParam("fmx","gridRasterStepsize"))
-  rasterStartX = beamline_lib.motorPosFromDescriptor("sampleX") #these are real sample motor positions
-  rasterStartY = beamline_lib.motorPosFromDescriptor("sampleY")
-  rasterStartZ = beamline_lib.motorPosFromDescriptor("sampleZ")
-  yzRelativeMove = ysep*math.sin(omegaRad)
-  yyRelativeMove = ysep*math.cos(omegaRad)
-  for i in range (0,ywells):
-    for j in range (0,xwells):
-      beamline_lib.mvaDescriptor("sampleX",rasterStartX+(j*xsep),"sampleY",rasterStartY+(i*yyRelativeMove),"sampleZ",rasterStartZ+(i*yzRelativeMove))
-      beamline_lib.mvaDescriptor("omega",omega)      
-      rasterReqID = defineRectRaster(currentRequest,sizex,sizey,stepsize)      
-      RE(snakeRaster(rasterReqID))
-
-
 def runRasterScan(currentRequest,rasterType="", width=0, height=0, step_size=10, omega_rel=0): #this actually defines and runs
   sampleID = currentRequest["sample"]
   if (rasterType=="Fine"):
@@ -2996,113 +2528,10 @@ def eScan(energyScanRequest):
     daq_lib.set_field("choochResultFlag",choochResultID)
 
 def vectorZebraScan(vecRequest):
-  scannerType = getBlConfig("scannerType")
-  if (scannerType == "PI"):
-    vectorZebraScanFine(vecRequest)
-  else:
-    finalize_plan = finalize_wrapper(vectorZebraScanNormal(vecRequest), bps.mv(flyer.detector.cam.acquire, 0))
-    yield from finalize_plan
+  finalize_plan = finalize_wrapper(vectorZebraScanNormal(vecRequest), bps.mv(flyer.detector.cam.acquire, 0))
+  yield from finalize_plan
 
     
-def vectorZebraScanFine(vecRequest):
-  gov_status = gov_lib.setGovRobot(gov_robot, 'DA')
-  if not gov_status.success:
-    return
-  
-  reqObj = vecRequest["request_obj"]
-  file_prefix = str(reqObj["file_prefix"])
-  data_directory_name = str(reqObj["directory"])
-  file_number_start = reqObj["file_number_start"]
-  
-  sweep_start_angle = reqObj["sweep_start"]
-  sweep_end_angle = reqObj["sweep_end"]
-  imgWidth = reqObj["img_width"]
-  expTime = reqObj["exposure_time"]
-  numImages = int((sweep_end_angle - sweep_start_angle) / imgWidth)
-  x_vec_start=reqObj["vectorParams"]["vecStart"]["x"]
-  y_vec_start=reqObj["vectorParams"]["vecStart"]["y"]
-  z_vec_start=reqObj["vectorParams"]["vecStart"]["z"]
-  x_vec_end=reqObj["vectorParams"]["vecEnd"]["x"]
-  y_vec_end=reqObj["vectorParams"]["vecEnd"]["y"]
-  z_vec_end=reqObj["vectorParams"]["vecEnd"]["z"]
-
-  xCenterCoarse = (x_vec_end+x_vec_start)/2.0
-  yCenterCoarse = (y_vec_end+y_vec_start)/2.0
-  zCenterCoarse = (z_vec_end+z_vec_start)/2.0
-  beamline_lib.mvaDescriptor("sampleX",xCenterCoarse,"sampleY",yCenterCoarse,"sampleZ",zCenterCoarse)
-  xRelLen = x_vec_end-x_vec_start
-  xRelStart = -xRelLen/2.0
-  xRelEnd = -xRelStart
-  yRelLen = y_vec_end-y_vec_start
-  yRelStart = -yRelLen/2.0
-  yRelEnd = -yRelStart
-  zRelLen = z_vec_end-z_vec_start
-  zRelStart = -zRelLen/2.0
-  zRelEnd = -zRelStart
-
-  det_lib.detector_set_num_triggers(numImages)
-  det_lib.detector_set_trigger_mode(3)
-  det_lib.detector_setImagesPerFile(1000)  
-  daq_lib.detectorArm(sweep_start_angle,imgWidth,numImages,expTime,file_prefix,data_directory_name,file_number_start) #this waits
-
-  zebraVecDaqSetup(sweep_start_angle,imgWidth,expTime,numImages,file_prefix,data_directory_name,file_number_start)  
-  
-
-  total_exposure_time=expTime*numImages
-  trajPoints = int(total_exposure_time/.005)
-  totalScanWidthX = xRelLen
-  totalScanWidthY = yRelLen
-  totalScanWidthZ = zRelLen
-  xRelativeMoveFine = xRelStart
-  yRelativeMoveFine = yRelStart
-  zRelativeMoveFine = zRelStart
-  beamline_lib.mvaDescriptor("fineX",xRelativeMoveFine,"fineY",yRelativeMoveFine,"fineZ",zRelativeMoveFine)      
-  setPvDesc("fineXPoints",trajPoints)
-  setPvDesc("fineYPoints",trajPoints)
-  setPvDesc("fineZPoints",trajPoints)
-  setPvDesc("fineXAmp",totalScanWidthX)
-  setPvDesc("fineYAmp",totalScanWidthY)
-  setPvDesc("fineZAmp",totalScanWidthZ)
-  setPvDesc("fineXOffset",xRelativeMoveFine)
-  setPvDesc("fineYOffset",yRelativeMoveFine)
-  setPvDesc("fineZOffset",zRelativeMoveFine)
-  setPvDesc("fineXSendWave",1)
-  time.sleep(0.1)    
-  setPvDesc("fineYSendWave",1)
-  time.sleep(0.1)    
-  setPvDesc("fineZSendWave",1)
-  time.sleep(0.1)    
-  #move xyz fine mots to relative from centered raster
-  setPvDesc("fineXVecGo",1)
-  time.sleep(0.1)            
-  setPvDesc("fineYVecGo",1)
-  time.sleep(0.1)            
-  setPvDesc("fineZVecGo",1)    
-  time.sleep(0.1)        
-  setPvDesc("zebraPulseMax",numImages) #moved this
-  vectorSync()
-  setPvDesc("vectorStartOmega",sweep_start_angle)
-  setPvDesc("vectorEndOmega",sweep_end_angle)
-  setPvDesc("vectorframeExptime",expTime*1000.0)
-  setPvDesc("vectorNumFrames",numImages)
-  setPvDesc("vectorGo",1)
-  vectorActiveWait()    
-  vectorWait()
-  zebraWait()
-  zebraWaitDownload(numImages)
-  time.sleep(2.0)
-  det_lib.detector_stop_acquire()
-  det_lib.detector_wait()
-  if (daq_utils.beamline == "amxz"):  
-    setPvDesc("zebraReset",1)      
-  
-  #raster centered, now zero motors
-  beamline_lib.mvaDescriptor("fineX",0,"fineY",0,"fineZ",0)  
-  
-  if (lastOnSample()):  
-    gov_lib.setGovRobot(gov_robot, 'SA')
-    
-
 def vectorZebraScanNormal(vecRequest): 
   reqObj = vecRequest["request_obj"]
   file_prefix = str(reqObj["file_prefix"])
@@ -4491,10 +3920,6 @@ def fastDPNodes(*args):
 def setVisitName(vname):
   setBlConfig("visitName",str(vname))
 
-def setScannerType(s_type): #either "PI" or "Normal"
-  """setScannerType(s_type): #either PI or Normal"""
-  setBlConfig("scannerType",str(s_type))
-
 def getVisitName(beamline):
   return db_lib.getBeamlineConfigParam(beamline,"visitName")
 
@@ -4651,8 +4076,6 @@ def HePathOn():
   
 
 def lsdcHelp():
-  print(setGridRasterParams.__doc__)
-  print(printGridRasterParams.__doc__)                   
   print(robotOn.__doc__)
   print(robotOff.__doc__)
   print(procOn.__doc__)
@@ -4673,7 +4096,6 @@ def lsdcHelp():
   print(setAttenRI.__doc__)
   print(unlockGUI.__doc__)
   print(collectSpec.__doc__)
-  print(setScannerType.__doc__)            
   print("recoverRobot()")
   print("setFastDPNode(nodeName)")
   print("setDimpleNode(nodeName)")
