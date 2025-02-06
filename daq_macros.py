@@ -1,5 +1,3 @@
-import Gen_Commands
-import Gen_Traj_Square
 import beamline_support
 from beamline_support import getPvValFromDescriptor as getPvDesc, setPvValFromDescriptor as setPvDesc
 import beamline_lib #did this really screw me if I imported b/c of daq_utils import??
@@ -503,10 +501,6 @@ def autoRasterLoop(currentRequest):
       return 0
 
 def rasterScreen(currentRequest):
-  if (daq_utils.beamline == "fmx" and getBlConfig("scannerType") == "PI"):
-    gridRaster(currentRequest)
-    return
-  
   daq_lib.set_field("xrecRasterFlag","100")      
   sampleID = currentRequest["sample"]
   reqObj = currentRequest["request_obj"]
@@ -1299,57 +1293,6 @@ def snakeStepRaster(rasterReqID,grain=""): #12/19 - only tested recently, but ap
   return 1
 
 
-def setGridRasterParams(xsep,ysep,xstep,ystep,sizex,sizey,stepsize):
-  """setGridRasterParams(xsep,ysep,xstep,ystep,sizex,sizey,stepsize)"""
-  db_lib.setBeamlineConfigParam("fmx","gridRasterXSep",float(xsep))
-  db_lib.setBeamlineConfigParam("fmx","gridRasterYSep",float(ysep))
-  db_lib.setBeamlineConfigParam("fmx","gridRasterXStep",int(xstep))
-  db_lib.setBeamlineConfigParam("fmx","gridRasterYStep",int(ystep))
-  db_lib.setBeamlineConfigParam("fmx","gridRasterSizeX",float(sizex))
-  db_lib.setBeamlineConfigParam("fmx","gridRasterSizeY",float(sizey))
-  db_lib.setBeamlineConfigParam("fmx","gridRasterStepsize",float(stepsize))
-
-def printGridRasterParams():
-  """printGridRasterParams()"""
-
-  logger.info(db_lib.getBeamlineConfigParam("fmx","gridRasterXSep"))
-  logger.info(db_lib.getBeamlineConfigParam("fmx","gridRasterYSep"))
-  logger.info(db_lib.getBeamlineConfigParam("fmx","gridRasterXStep"))
-  logger.info(db_lib.getBeamlineConfigParam("fmx","gridRasterYStep"))
-  logger.info(db_lib.getBeamlineConfigParam("fmx","gridRasterSizeX"))
-  logger.info(db_lib.getBeamlineConfigParam("fmx","gridRasterSizeY"))
-  logger.info(db_lib.getBeamlineConfigParam("fmx","gridRasterStepsize"))
-  
-
-def gridRaster(currentRequest):
-  gov_status = gov_lib.setGovRobot(gov_robot, 'DA')
-  if not gov_status.success:
-    return
-  
-  sampleID = currentRequest["sample"]  
-  reqObj = currentRequest["request_obj"]
-  omega = beamline_lib.motorPosFromDescriptor("omega")
-  omegaRad = math.radians(omega)
-  xwells = int(db_lib.getBeamlineConfigParam("fmx","gridRasterXStep"))
-  ywells = int(db_lib.getBeamlineConfigParam("fmx","gridRasterYStep"))        
-  xsep = float(db_lib.getBeamlineConfigParam("fmx","gridRasterXSep"))
-  ysep = float(db_lib.getBeamlineConfigParam("fmx","gridRasterYSep"))
-  sizex = float(db_lib.getBeamlineConfigParam("fmx","gridRasterSizeX"))
-  sizey = float(db_lib.getBeamlineConfigParam("fmx","gridRasterSizeY"))        
-  stepsize = float(db_lib.getBeamlineConfigParam("fmx","gridRasterStepsize"))
-  rasterStartX = beamline_lib.motorPosFromDescriptor("sampleX") #these are real sample motor positions
-  rasterStartY = beamline_lib.motorPosFromDescriptor("sampleY")
-  rasterStartZ = beamline_lib.motorPosFromDescriptor("sampleZ")
-  yzRelativeMove = ysep*math.sin(omegaRad)
-  yyRelativeMove = ysep*math.cos(omegaRad)
-  for i in range (0,ywells):
-    for j in range (0,xwells):
-      beamline_lib.mvaDescriptor("sampleX",rasterStartX+(j*xsep),"sampleY",rasterStartY+(i*yyRelativeMove),"sampleZ",rasterStartZ+(i*yzRelativeMove))
-      beamline_lib.mvaDescriptor("omega",omega)      
-      rasterReqID = defineRectRaster(currentRequest,sizex,sizey,stepsize)      
-      RE(snakeRaster(rasterReqID))
-
-
 def runRasterScan(currentRequest,rasterType="", width=0, height=0, step_size=10, omega_rel=0): #this actually defines and runs
   sampleID = currentRequest["sample"]
   params = {
@@ -1825,113 +1768,10 @@ def eScan(energyScanRequest):
     daq_lib.set_field("choochResultFlag",choochResultID)
 
 def vectorZebraScan(vecRequest):
-  scannerType = getBlConfig("scannerType")
-  if (scannerType == "PI"):
-    vectorZebraScanFine(vecRequest)
-  else:
-    finalize_plan = finalize_wrapper(vectorZebraScanNormal(vecRequest), bps.mv(flyer.detector.cam.acquire, 0))
-    yield from finalize_plan
+  finalize_plan = finalize_wrapper(vectorZebraScanNormal(vecRequest), bps.mv(flyer.detector.cam.acquire, 0))
+  yield from finalize_plan
 
     
-def vectorZebraScanFine(vecRequest):
-  gov_status = gov_lib.setGovRobot(gov_robot, 'DA')
-  if not gov_status.success:
-    return
-  
-  reqObj = vecRequest["request_obj"]
-  file_prefix = str(reqObj["file_prefix"])
-  data_directory_name = str(reqObj["directory"])
-  file_number_start = reqObj["file_number_start"]
-  
-  sweep_start_angle = reqObj["sweep_start"]
-  sweep_end_angle = reqObj["sweep_end"]
-  imgWidth = reqObj["img_width"]
-  expTime = reqObj["exposure_time"]
-  numImages = int((sweep_end_angle - sweep_start_angle) / imgWidth)
-  x_vec_start=reqObj["vectorParams"]["vecStart"]["x"]
-  y_vec_start=reqObj["vectorParams"]["vecStart"]["y"]
-  z_vec_start=reqObj["vectorParams"]["vecStart"]["z"]
-  x_vec_end=reqObj["vectorParams"]["vecEnd"]["x"]
-  y_vec_end=reqObj["vectorParams"]["vecEnd"]["y"]
-  z_vec_end=reqObj["vectorParams"]["vecEnd"]["z"]
-
-  xCenterCoarse = (x_vec_end+x_vec_start)/2.0
-  yCenterCoarse = (y_vec_end+y_vec_start)/2.0
-  zCenterCoarse = (z_vec_end+z_vec_start)/2.0
-  beamline_lib.mvaDescriptor("sampleX",xCenterCoarse,"sampleY",yCenterCoarse,"sampleZ",zCenterCoarse)
-  xRelLen = x_vec_end-x_vec_start
-  xRelStart = -xRelLen/2.0
-  xRelEnd = -xRelStart
-  yRelLen = y_vec_end-y_vec_start
-  yRelStart = -yRelLen/2.0
-  yRelEnd = -yRelStart
-  zRelLen = z_vec_end-z_vec_start
-  zRelStart = -zRelLen/2.0
-  zRelEnd = -zRelStart
-
-  det_lib.detector_set_num_triggers(numImages)
-  det_lib.detector_set_trigger_mode(3)
-  det_lib.detector_setImagesPerFile(1000)  
-  daq_lib.detectorArm(sweep_start_angle,imgWidth,numImages,expTime,file_prefix,data_directory_name,file_number_start) #this waits
-
-  zebraVecDaqSetup(sweep_start_angle,imgWidth,expTime,numImages,file_prefix,data_directory_name,file_number_start)  
-  
-
-  total_exposure_time=expTime*numImages
-  trajPoints = int(total_exposure_time/.005)
-  totalScanWidthX = xRelLen
-  totalScanWidthY = yRelLen
-  totalScanWidthZ = zRelLen
-  xRelativeMoveFine = xRelStart
-  yRelativeMoveFine = yRelStart
-  zRelativeMoveFine = zRelStart
-  beamline_lib.mvaDescriptor("fineX",xRelativeMoveFine,"fineY",yRelativeMoveFine,"fineZ",zRelativeMoveFine)      
-  setPvDesc("fineXPoints",trajPoints)
-  setPvDesc("fineYPoints",trajPoints)
-  setPvDesc("fineZPoints",trajPoints)
-  setPvDesc("fineXAmp",totalScanWidthX)
-  setPvDesc("fineYAmp",totalScanWidthY)
-  setPvDesc("fineZAmp",totalScanWidthZ)
-  setPvDesc("fineXOffset",xRelativeMoveFine)
-  setPvDesc("fineYOffset",yRelativeMoveFine)
-  setPvDesc("fineZOffset",zRelativeMoveFine)
-  setPvDesc("fineXSendWave",1)
-  time.sleep(0.1)    
-  setPvDesc("fineYSendWave",1)
-  time.sleep(0.1)    
-  setPvDesc("fineZSendWave",1)
-  time.sleep(0.1)    
-  #move xyz fine mots to relative from centered raster
-  setPvDesc("fineXVecGo",1)
-  time.sleep(0.1)            
-  setPvDesc("fineYVecGo",1)
-  time.sleep(0.1)            
-  setPvDesc("fineZVecGo",1)    
-  time.sleep(0.1)        
-  setPvDesc("zebraPulseMax",numImages) #moved this
-  vectorSync()
-  setPvDesc("vectorStartOmega",sweep_start_angle)
-  setPvDesc("vectorEndOmega",sweep_end_angle)
-  setPvDesc("vectorframeExptime",expTime*1000.0)
-  setPvDesc("vectorNumFrames",numImages)
-  setPvDesc("vectorGo",1)
-  vectorActiveWait()    
-  vectorWait()
-  zebraWait()
-  zebraWaitDownload(numImages)
-  time.sleep(2.0)
-  det_lib.detector_stop_acquire()
-  det_lib.detector_wait()
-  if (daq_utils.beamline == "amxz"):  
-    setPvDesc("zebraReset",1)      
-  
-  #raster centered, now zero motors
-  beamline_lib.mvaDescriptor("fineX",0,"fineY",0,"fineZ",0)  
-  
-  if (lastOnSample()):  
-    gov_lib.setGovRobot(gov_robot, 'SA')
-    
-
 def vectorZebraScanNormal(vecRequest): 
   reqObj = vecRequest["request_obj"]
   file_prefix = str(reqObj["file_prefix"])
@@ -2922,10 +2762,6 @@ def fastDPNodes(*args):
 def setVisitName(vname):
   setBlConfig("visitName",str(vname))
 
-def setScannerType(s_type): #either "PI" or "Normal"
-  """setScannerType(s_type): #either PI or Normal"""
-  setBlConfig("scannerType",str(s_type))
-
 def getVisitName(beamline):
   return db_lib.getBeamlineConfigParam(beamline,"visitName")
 
@@ -3090,8 +2926,6 @@ def HePathOn():
   
 
 def lsdcHelp():
-  print(setGridRasterParams.__doc__)
-  print(printGridRasterParams.__doc__)                   
   print(robotOn.__doc__)
   print(robotOff.__doc__)
   print(procOn.__doc__)
