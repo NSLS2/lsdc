@@ -22,6 +22,7 @@ from bluesky.preprocessors import finalize_wrapper
 import bluesky.plan_stubs as bps
 import logging
 from utils import validation
+import requests
 logger = logging.getLogger(__name__)
 
 try:
@@ -446,6 +447,14 @@ def runDCQueue(): #maybe don't run rasters from here???
   logger.info("running queue in daq server")
   while (1):
     currentRequest = db_lib.popNextRequest(daq_utils.beamline)
+    if (currentRequest == {}):
+      break
+    elif currentRequest is None:
+      gui_message("Queue contains collection requests from different proposals" 
+                  "and not using commissioning directory."
+                  "Please remove invalid requests or switch to" 
+                  "commissioning directory to continue")
+      break
     if (getBlConfig("queueCollect") == 1): 
       if (getBlConfig(BEAM_CHECK) == 1):
         waitBeam()
@@ -462,14 +471,6 @@ def runDCQueue(): #maybe don't run rasters from here???
     if (abort_flag):
       abort_flag =  0 #careful about when to reset this
       return
-    if (currentRequest == {}):
-      break
-    elif currentRequest is None:
-      gui_message("Queue contains collection requests from different proposals" 
-                  "and not using commissioning directory."
-                  "Please remove invalid requests or switch to" 
-                  "commissioning directory to continue")
-      break
     logger.info("processing request " + str(time.time()))
     reqObj = currentRequest["request_obj"]
     gov_lib.set_detz_in(gov_robot, reqObj["detDist"])
@@ -753,8 +754,19 @@ def collectData(currentRequest):
           node = getBlConfig(nodeName)      
           dimpleNode = getBlConfig("dimpleNode")      
           if (daq_utils.detector_id == "EIGER-16"):
+            run_autoproc = 0
+            try:
+              r = requests.get(f"{os.environ['NSLS2_API_URL']}/v1/proposal/{currentRequest['proposalID']}")
+              r.raise_for_status()
+              response = r.json()['proposal']
+              if "proprietary" in response["type"].lower():
+                run_autoproc = 0
+              else:
+                run_autoproc = 1
+            except Exception as e:
+              run_autoproc = 0
             seqNum = flyer.detector.cam.sequence_id.get()
-            comm_s = os.environ["LSDCHOME"] + "/runFastDPH5.py " + data_directory_name + " " + str(seqNum) + " " + str(currentRequest["uid"]) + " " + str(fastEPFlag) + " " + node + " " + str(dimpleFlag) + " " + dimpleNode + " " + str(currentIspybDCID)+ "&"
+            comm_s = os.environ["LSDCHOME"] + "/runFastDPH5.py " + data_directory_name + " " + str(seqNum) + " " + str(currentRequest["uid"]) + " " + str(fastEPFlag) + " " + node + " " + str(dimpleFlag) + " " + dimpleNode + " " + str(currentIspybDCID)+ " " + str(run_autoproc) + " &"
           else:
             comm_s = os.environ["LSDCHOME"] + "/runFastDP.py " + data_directory_name + " " + file_prefix + " " + str(file_number_start) + " " + str(int(round(range_degrees/img_width))) + " " + str(currentRequest["uid"]) + " " + str(fastEPFlag) + " " + node + " " + str(dimpleFlag) + " " + dimpleNode + "&"
           logger.info(f'Running fastdp command: {comm_s}')
