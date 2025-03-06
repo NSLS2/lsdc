@@ -52,7 +52,7 @@ if runAutoProc:
       start_in_proc = proc_num
       break
   if start_in_proc:
-    comm_s = f"ssh {start_in_proc} \"nohup {os.environ['MXPROCESSINGSCRIPTSDIR']}autoproc.sh {start_in_proc} amx & \" "
+    comm_s = f"ssh {start_in_proc} \"nohup {os.environ['MXPROCESSINGSCRIPTSDIR']}autoproc.sh {start_in_proc} {os.environ['BEAMLINE_ID']} & \" "
     # comm_s = f"ssh {start_in_proc} \"{os.environ['MXPROCESSINGSCRIPTSDIR']}autoproc.sh {start_in_proc} amx & \" "
     logger.info(f"Initializing AUTO-AUTOPROC {comm_s} \n In ({directory}, {request_id})")
     # os.system(comm_s)
