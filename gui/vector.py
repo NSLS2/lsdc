@@ -155,8 +155,6 @@ class VectorWidget(QtWidgets.QWidget):
 
             vec_diff = vec_end - vec_start
             trans_total = np.linalg.norm(vec_diff)
-            if daq_utils.beamline == "nyx":
-                trans_total *= 1000
 
         return x_vec, y_vec, z_vec, trans_total
 
