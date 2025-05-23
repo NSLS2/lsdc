@@ -49,11 +49,9 @@ def waitGovNoSleep(timeout=GOVERNOR_TIMEOUT):
   pass
 
 def toggleLowMagCameraSettings(stateCode):
-
-  if daq_utils.beamline != "nyx":
-    if (stateCode == "DA"):
-      setPvDesc("lowMagGain", getBlConfig(LOW_MAG_GAIN_DA))
-      setPvDesc("lowMagAcquireTime",getBlConfig(LOW_MAG_EXP_TIME_DA))
-    else:
-      setPvDesc("lowMagGain", getBlConfig(LOW_MAG_GAIN))
-      setPvDesc("lowMagAcquireTime",getBlConfig(LOW_MAG_EXP_TIME))
+  if (stateCode == "DA"):
+    setPvDesc("lowMagGain", getBlConfig(LOW_MAG_GAIN_DA))
+    setPvDesc("lowMagAcquireTime",getBlConfig(LOW_MAG_EXP_TIME_DA))
+  else:
+    setPvDesc("lowMagGain", getBlConfig(LOW_MAG_GAIN))
+    setPvDesc("lowMagAcquireTime",getBlConfig(LOW_MAG_EXP_TIME))

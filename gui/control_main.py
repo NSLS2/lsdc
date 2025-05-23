@@ -26,10 +26,7 @@ from qtpy.QtGui import QIntValidator
 from qtpy.QtWidgets import QCheckBox, QFrame, QGraphicsPixmapItem, QApplication, QHBoxLayout
 
 import daq_utils
-if daq_utils.beamline == 'nyx':
-    from mxbluesky.devices.md2 import GonioDevice, CameraDevice, MD2Device, LightDevice, MD2ApertureDevice
-else:
-    from mxbluesky.devices.generic import GoniometerStack as GonioDevice
+from mxbluesky.devices.generic import GoniometerStack as GonioDevice
 import db_lib
 import lsdcOlog
 from config_params import (
@@ -180,8 +177,7 @@ class ControlMain(QtWidgets.QMainWindow):
         self.redPen = QtGui.QPen(QtCore.Qt.red)
         self.bluePen = QtGui.QPen(QtCore.Qt.blue)
         self.yellowPen = QtGui.QPen(QtCore.Qt.yellow)
-        if daq_utils.beamline != "nyx":
-          self.albulaInterface = AlbulaInterface(ip=os.environ["EIGER_DCU_IP"], 
+        self.albulaInterface = AlbulaInterface(ip=os.environ["EIGER_DCU_IP"], 
                                                  gov_message_pv_name=daq_utils.pvLookupDict["governorMessage"],)
         self.initUI()
         self.initOphyd()
@@ -244,8 +240,6 @@ class ControlMain(QtWidgets.QMainWindow):
                 "fineZ": self.sampFineZ_pv.get(),
             }
         self.staffScreenDialog = StaffScreenDialog(self, show=False)
-        if daq_utils.beamline == "nyx":  # requires staffScreenDialog to be present
-            self.staffScreenDialog.fastDPCheckBox.setDisabled(True)
 
         if self.mountedPin_pv.get() == "":
             mountedPin = db_lib.beamlineInfo(daq_utils.beamline, "mountedSample")[
@@ -520,7 +514,7 @@ class ControlMain(QtWidgets.QMainWindow):
             calcLifetimeButton.clicked.connect(self.calcLifetimeCB)
             self.sampleLifetimeReadback_ledit = QtWidgets.QLabel()
             self.calcLifetimeCB()
-        if daq_utils.beamline in ("fmx", "nyx"):
+        if daq_utils.beamline in ("fmx"):
             if getBlConfig("attenType") == "RI":
                 self.transmissionReadback = QtEpicsPVLabel(
                     daq_utils.pvLookupDict["RI_Atten_SP"], self, 60, 3
@@ -566,14 +560,9 @@ class ControlMain(QtWidgets.QMainWindow):
             self.transmission_ledit.textChanged.connect(self.calcLifetimeCB)
         setTransButton = QtWidgets.QPushButton("Set Trans")
         setTransButton.clicked.connect(self.setTransCB)
-        beamsizeLabel = QtWidgets.QLabel("BeamSize:")
-        if daq_utils.beamline == "nyx":
-            # beamSizeOptionList = self.aperture.get_diameter_list() PV not working, needs investigation
-            beamSizeOptionList = ["10", "20", "30", "50", "100"]
-            current_index = self.aperture.current_index.get()
-        else:
-            beamSizeOptionList = BEAMSIZE_OPTIONS.keys()
-            current_index = int(self.beamSize_pv.get())
+        self.beamsizeLabel = QtWidgets.QLabel("BeamSize:")
+        beamSizeOptionList = BEAMSIZE_OPTIONS.keys()
+        current_index = int(self.beamSize_pv.get())
         self.beamsizeComboBox = QtWidgets.QComboBox(self)
         self.beamsizeComboBox.addItems(beamSizeOptionList)
         self.beamsizeComboBox.setCurrentIndex(current_index)
@@ -606,10 +595,7 @@ class ControlMain(QtWidgets.QMainWindow):
         colBeamHLabel.setAlignment(QtCore.Qt.AlignCenter)
         self.beamHeight_ledit = QtWidgets.QLineEdit()
         self.beamHeight_ledit.setFixedWidth(60)
-        if daq_utils.beamline == 'nyx':
-            self.beamWidth_ledit.setText(getBlConfig("screen_default_beamWidth"))
-            self.beamHeight_ledit.setText(getBlConfig("screen_default_beamHeight"))
-        hBoxColParams4.addWidget(colBeamWLabel)
+        hBoxColParams4.addWidget(self.colBeamWLabel)
         hBoxColParams4.addWidget(self.beamWidth_ledit)
         hBoxColParams4.addWidget(colBeamHLabel)
         hBoxColParams4.addWidget(self.beamHeight_ledit)
@@ -619,10 +605,8 @@ class ControlMain(QtWidgets.QMainWindow):
         self.resolution_ledit.setFixedWidth(60)
         self.resolution_ledit.setValidator(QtGui.QDoubleValidator())
         self.resolution_ledit.textEdited[str].connect(self.resoTextChanged)
-        if daq_utils.beamline == "nyx":
-            self.resolution_ledit.setEnabled(False)
-        detDistLabel = QtWidgets.QLabel("Detector Dist.")
-        #detDistLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.detDistLabel = QtWidgets.QLabel("Detector Dist.")
+        #self.detDistLabel.setAlignment(QtCore.Qt.AlignCenter)
         detDistRBLabel = QtWidgets.QLabel("Readback:")
         self.detDistRBVLabel = QtEpicsPVLabel(
             daq_utils.motor_dict["detectorDist"] + ".RBV", self, 70
@@ -879,56 +863,7 @@ class ControlMain(QtWidgets.QMainWindow):
         paramsGridGB = QtWidgets.QGroupBox()
         paramsGridGB.setTitle("Acquisition")
        
-        paramSubspace = QtWidgets.QGridLayout()    
-       
-       
-        # Parameter Collection Column 1, Labels
-        colStartLabel.setAlignment(QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(colStartLabel,1,0, alignment=QtCore.Qt.AlignLeft)
-        self.colEndLabel.setAlignment(QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(self.colEndLabel,2,0, alignment=QtCore.Qt.AlignLeft) 
-        colRangeLabel.setAlignment(QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(colRangeLabel,0,0, alignment=QtCore.Qt.AlignLeft)
-        colExptimeLabel.setAlignment(QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(colExptimeLabel,3,0, alignment=QtCore.Qt.AlignLeft)
-        totalExptimeLabel.setAlignment(QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(totalExptimeLabel,4,0, alignment=QtCore.Qt.AlignLeft)
-        if daq_utils.beamline in ['amx', 'fmx']:
-            paramSubspace.addWidget(sampleLifetimeLabel, 5, 0, alignment=QtCore.Qt.AlignLeft)
-        # Parameter Collection Column 2, Input Boxes  
-        paramSubspace.addWidget(self.osc_start_ledit,1,1, alignment=QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(self.osc_end_ledit,2,1, alignment=QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(self.osc_range_ledit,0,1, alignment=QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(self.exp_time_ledit,3,1, alignment=QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(self.totalExptime_ledit,4,1, alignment=QtCore.Qt.AlignLeft)
-        # Parameter Collection Column 3, Labels
-        paramSubspace.addWidget(detDistLabel,0,2, alignment=QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(colResoLabel,1,2, alignment=QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(colEnergyLabel,2,2, alignment=QtCore.Qt.AlignLeft)
-        colTransmissionLabel.setAlignment(QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(colTransmissionLabel,3,2, alignment=QtCore.Qt.AlignLeft)
-        transmisionSPLabel.setAlignment(QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(beamsizeLabel,4,2, alignment=QtCore.Qt.AlignLeft)
-        if daq_utils.beamline in ['amx', 'fmx']:
-            paramSubspace.addWidget(self.sampleLifetimeReadback_ledit, 5, 1, alignment=QtCore.Qt.AlignLeft)
-        
-        # Parameter Collection Column 4, Input Boxes
-        paramSubspace.addWidget(self.detDistMotorEntry.getEntry(),0,3, alignment=QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(self.resolution_ledit,1,3, alignment=QtCore.Qt.AlignLeft)
-        if daq_utils.beamline == "fmx":
-            if getBlConfig(SET_ENERGY_CHECK):
-                paramSubspace.addWidget(moveEnergyButton,2,3, alignment=QtCore.Qt.AlignLeft)
-            else:
-                paramSubspace.addWidget(self.energy_ledit,2,3, alignment=QtCore.Qt.AlignLeft)
-        else:
-            paramSubspace.addWidget(self.energy_ledit,2,3, alignment=QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(self.transmission_ledit,3,3, alignment=QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(self.beamsizeComboBox,4,3, alignment=QtCore.Qt.AlignLeft)
-        
-        # Param Collection Column 5, RBV  
-        paramSubspace.addWidget(self.energyReadback,2,4, alignment=QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(self.detDistRBVLabel.getEntry(),0,4, alignment=QtCore.Qt.AlignLeft)
-        paramSubspace.addWidget(self.transmissionReadback_ledit,3,4, alignment=QtCore.Qt.AlignLeft)
+        paramSubspace = self.amx_fmx_parameter_layout()
 
         improvedParamSpacing = QtWidgets.QVBoxLayout()
         improvedParamSpacing.addWidget(self.stillModeCheckBox)
@@ -1486,10 +1421,7 @@ class ControlMain(QtWidgets.QMainWindow):
             self.sampleExposedLabel = QtWidgets.QLabel("Sample Not Exposed")
             self.sampleExposedLabel.setStyleSheet("background-color: #99FF66;")
         gripperLabel = QtWidgets.QLabel("Gripper Temp (K):")
-        if daq_utils.beamline == "nyx":
-            self.gripperTempLabel = QtWidgets.QLabel("N/A")
-        else:
-            self.gripperTempLabel = QtWidgets.QLabel("%.1f" % self.gripTemp_pv.get())
+        self.gripperTempLabel = QtWidgets.QLabel("%.1f" % self.gripTemp_pv.get())
         cryostreamLabel = QtWidgets.QLabel("Cryostream Temp (K):")
         if getBlConfig(CRYOSTREAM_ONLINE):
             self.cryostreamTempLabel = QtWidgets.QLabel(
@@ -1524,45 +1456,13 @@ class ControlMain(QtWidgets.QMainWindow):
         # 12/19 - uncomment this to expose the PyMCA XRF interface. It's not connected to anything.
         self.zoomLevelToggledCB("Zoom1")
 
-        if daq_utils.beamline == "nyx":  # hiding unused GUI elements
-            self.protoRasterRadio.setVisible(False)
-            self.protoStandardRadio.setVisible(False)
-            self.protoVectorRadio.setVisible(False)
-            self.protoOtherRadio.setVisible(False)
-            self.autoProcessingCheckBox.setVisible(False)
-            self.fastEPCheckBox.setVisible(False)
-            self.dimpleCheckBox.setVisible(False)
-            self.centeringComboBox.setVisible(False)
-            annealButton.setVisible(False)
-            centerLoopButton.setVisible(False)
-            clearGraphicsButton.setVisible(False)
-            saveCenteringButton.setVisible(False)
-            selectAllCenteringButton.setVisible(False)
-            snapshotButton.setVisible(False)
-            annealTimeLabel.setVisible(False)
-            self.annealTime_ledit.setVisible(False)
-            self.vidActionDefineCenterRadio.setVisible(False)
-            self.hideRastersCheckBox.setEnabled(True)
-            self.vidActionC2CRadio.setEnabled(True)
-            self.vidActionRasterExploreRadio.setEnabled(True)
-            self.vidActionRasterDefRadio.setEnabled(True)
-            
-
-        
-        #self.captureLowMag = cv2.VideoCapture(daq_utils.lowMagCamURL)
-        #self.captureLowMag.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         self.captureLowMag = daq_utils.lowMagCamURL
         self.capture = self.captureLowMag
         
-        if daq_utils.beamline == "nyx":
-            self.sampleCameraThread = VideoThread(
-                parent=self, delay=HUTCH_TIMER_DELAY, url=daq_utils.highMagCamURL
-            )
-        else:
-            self.sampleCameraThread = VideoThread(
-                parent=self, delay=SAMPLE_TIMER_DELAY, mjpg_url=self.capture
-            )
-            self.sampleZoomChangeSignal.connect(self.sampleCameraThread.updateCam)
+        self.sampleCameraThread = VideoThread(
+            parent=self, delay=SAMPLE_TIMER_DELAY, mjpg_url=self.capture
+        )
+        self.sampleZoomChangeSignal.connect(self.sampleCameraThread.updateCam)
             
         self.sampleCameraThread.frame_ready.connect(
             lambda frame: self.updateCam(self.pixmap_item, frame)
@@ -1596,6 +1496,68 @@ class ControlMain(QtWidgets.QMainWindow):
                 pixmapItem.setPixmap(frame)
         else:
             pixmapItem.setPixmap(frame)
+
+    def amx_fmx_parameter_layout(self):
+
+        hBoxColParams1 = QtWidgets.QHBoxLayout()
+        if daq_utils.beamline == "fmx":
+            self.osc_end_ledit.textChanged.connect(self.calcLifetimeCB)
+        hBoxColParams1.addWidget(self.colStartLabel)
+        hBoxColParams1.addWidget(self.osc_start_ledit)
+        hBoxColParams1.addWidget(self.colEndLabel)
+        hBoxColParams1.addWidget(self.osc_end_ledit)
+        hBoxColParams2 = QtWidgets.QHBoxLayout()
+        hBoxColParams2.addWidget(self.colRangeLabel)
+        hBoxColParams2.addWidget(self.osc_range_ledit)
+
+        hBoxColParams2.addWidget(self.colExptimeLabel)
+        hBoxColParams2.addWidget(self.exp_time_ledit)
+        hBoxColParams25 = QtWidgets.QHBoxLayout()
+        hBoxColParams25.addWidget(self.stillModeCheckBox)
+        hBoxColParams25.addWidget(self.totalExptimeLabel)
+        hBoxColParams25.addWidget(self.totalExptime_ledit)
+        # if (daq_utils.beamline == "fmx"):
+        #  hBoxColParams25.addWidget(calcLifetimeButton)
+        hBoxColParams25.addWidget(self.sampleLifetimeLabel)
+        hBoxColParams25.addWidget(self.sampleLifetimeReadback_ledit)
+        hBoxColParams22 = QtWidgets.QHBoxLayout()
+        hBoxColParams3 = QtWidgets.QHBoxLayout()
+
+        hBoxColParams3.addWidget(self.colEnergyLabel)
+        hBoxColParams3.addWidget(self.energyReadback)
+        hBoxColParams3.addWidget(self.energySPLabel)
+        if daq_utils.beamline == "fmx":
+            if getBlConfig(SET_ENERGY_CHECK):
+                hBoxColParams3.addWidget(self.moveEnergyButton)
+            else:
+                hBoxColParams3.addWidget(self.energy_ledit)
+        else:
+            hBoxColParams3.addWidget(self.energy_ledit)
+        
+        hBoxColParams22.addWidget(self.colTransmissionLabel)
+        hBoxColParams22.addWidget(self.transmissionReadback_ledit)
+        hBoxColParams22.addWidget(self.transmisionSPLabel)
+        hBoxColParams22.addWidget(self.transmission_ledit)
+        hBoxColParams22.insertSpacing(5, 100)
+        hBoxColParams22.addWidget(self.beamsizeLabel)
+        hBoxColParams22.addWidget(self.beamsizeComboBox)
+        hBoxColParams4 = QtWidgets.QHBoxLayout()
+        hBoxColParams4.addWidget(self.colBeamWLabel)
+        hBoxColParams4.addWidget(self.beamWidth_ledit)
+        hBoxColParams4.addWidget(self.colBeamHLabel)
+        hBoxColParams4.addWidget(self.beamHeight_ledit)
+        hBoxColParams3.addWidget(self.detDistLabel)
+        hBoxColParams3.addWidget(self.detDistRBVLabel.getEntry())
+        hBoxColParams3.addWidget(self.detDistSPLabel)
+        hBoxColParams3.addWidget(self.detDistMotorEntry.getEntry())
+
+        paramSubspace = QtWidgets.QVBoxLayout()
+        paramSubspace.addLayout(hBoxColParams1)
+        paramSubspace.addLayout(hBoxColParams2)
+        paramSubspace.addLayout(hBoxColParams25)
+        paramSubspace.addLayout(hBoxColParams22)
+        paramSubspace.addLayout(hBoxColParams3)
+        return paramSubspace
 
     def annealButtonCB(self):
         try:
@@ -2232,20 +2194,12 @@ class ControlMain(QtWidgets.QMainWindow):
     function is processThreClickCentering
     '''
     def processThreeClickCentering(self, beamAvailVal):
-        if daq_utils.beamline == 'nyx':
-            if beamAvailVal == '0':
-                self.beamAvailLabel.setText("Beam Available")
-                self.beamAvailLabel.setStyleSheet("background-color: #99FF66;")
-            else:
-                self.beamAvailLabel.setText(beamAvailVal)
-                self.beamAvailLabel.setStyleSheet("background-color: yellow")
-        else:
-            if beamAvailVal == "1":
-                self.beamAvailLabel.setText("Beam Available")
-                self.beamAvailLabel.setStyleSheet("background-color: #99FF66;")
-            elif beamAvailVal == "0":
-                self.beamAvailLabel.setText("No Beam")
-                self.beamAvailLabel.setStyleSheet("background-color: red")
+        if beamAvailVal == "1":
+            self.beamAvailLabel.setText("Beam Available")
+            self.beamAvailLabel.setStyleSheet("background-color: #99FF66;")
+        elif beamAvailVal == "0":
+            self.beamAvailLabel.setText("No Beam")
+            self.beamAvailLabel.setStyleSheet("background-color: red")
 
     def processSampleExposed(self, sampleExposedVal):
         if int(sampleExposedVal) == 1:
@@ -2638,11 +2592,7 @@ class ControlMain(QtWidgets.QMainWindow):
             pass
 
     def beamsizeComboActivatedCB(self, text):
-        if daq_utils.beamline == "nyx":
-            index = self.beamsizeComboBox.findText(str(text))
-            self.aperture.current_index.put(index)
-        else:
-            self.send_to_server("set_beamsize", BEAMSIZE_OPTIONS[text])
+        self.send_to_server("set_beamsize", BEAMSIZE_OPTIONS[text])
 
     def protoComboActivatedCB(self, text):
         self.showProtParams()
@@ -3095,10 +3045,7 @@ class ControlMain(QtWidgets.QMainWindow):
         self.threeClickSignal.emit('{} more clicks'.format(str(4-self.threeClickCount)))
         #time.sleep(0.3)
         self.click3Button.setStyleSheet("background-color: yellow")
-        if(daq_utils.exporter_enabled):
-            self.md2.exporter.cmd("startManualSampleCentring", "")
-        else:
-            self.send_to_server("mvaDescriptor", ["omega", 0])
+        self.send_to_server("mvaDescriptor", ["omega", 0])
 
     def fillPolyRaster(
         self, rasterReq
@@ -3166,10 +3113,7 @@ class ControlMain(QtWidgets.QMainWindow):
                     )
                     return  # means a raster failure, and not enough data to cover raster, caused a gui crash
                 
-
-                if (
-                    lenX > 180 and self.scannerType == "PI"
-                ):  # this is trying to figure out row direction
+                if i % 2 == 0:  # this is trying to figure out row direction
                     cellIndex = spotLineCounter
                 else:
                     if daq_utils.beamline == "nyx":
@@ -3440,70 +3384,30 @@ class ControlMain(QtWidgets.QMainWindow):
         return fov
 
     def screenXPixels2microns(self, pixels):
-        if daq_utils.beamline == 'nyx':
-            img_scale_factor = self.getMD2ImageXRatio()
-            pixels_per_mm = 1 / self.camera.scale_x.get()
-            pixels_per_micron = pixels_per_mm / 1000.0
-            return float(pixels * img_scale_factor) / pixels_per_micron
-        else:
-            fov = self.getCurrentFOV()
-            fovX = fov["x"]
-            return float(pixels) * (fovX / daq_utils.screenPixX)
+        fov = self.getCurrentFOV()
+        fovX = fov["x"]
+        return float(pixels) * (fovX / daq_utils.screenPixX)
 
     def screenYPixels2microns(self, pixels):
-        if daq_utils.beamline == 'nyx':
-            pixels_per_mm = 1 / self.camera.scale_y.get()
-            pixels_per_micron = pixels_per_mm / 1000.0
-            img_scale_factor = self.getMD2ImageYRatio()
-            return float(pixels * img_scale_factor) / pixels_per_micron
-        else:
-            fov = self.getCurrentFOV()
-            fovY = fov["y"]
-            return float(pixels) * (fovY / daq_utils.screenPixY)
+        fov = self.getCurrentFOV()
+        fovY = fov["y"]
+        return float(pixels) * (fovY / daq_utils.screenPixY)
 
     def screenXmicrons2pixels(self, microns):
-        if daq_utils.beamline == 'nyx':
-            pixels_per_mm = 1 / self.camera.scale_x.get()
-            pixels_per_micron = pixels_per_mm / 1000.0
-            img_scale_factor = self.getMD2ImageXRatio()
-            return float(microns * pixels_per_micron) / img_scale_factor
-        else:
-            fov = self.getCurrentFOV()
-            fovX = fov["x"]
-            return int(round(microns * (daq_utils.screenPixX / fovX)))
+        fov = self.getCurrentFOV()
+        fovX = fov["x"]
+        return int(round(microns * (daq_utils.screenPixX / fovX)))
 
     def screenYmicrons2pixels(self, microns):
-        if daq_utils.beamline == 'nyx':
-            pixels_per_mm = 1 / self.camera.scale_y.get()
-            pixels_per_micron = pixels_per_mm / 1000.0
-            img_scale_factor = self.getMD2ImageYRatio()
-            return float(microns * pixels_per_micron) / img_scale_factor
-        else:
-            fov = self.getCurrentFOV()
-            fovY = fov["y"]
-            return int(round(microns * (daq_utils.screenPixY / fovY)))
+        fov = self.getCurrentFOV()
+        fovY = fov["y"]
+        return int(round(microns * (daq_utils.screenPixY / fovY)))
 
-    def getMD2ImageXRatio(self):
-        md2_img_width = daq_utils.highMagPixX
-        lsdc_img_width = daq_utils.screenPixX
-        return float(md2_img_width) / float(lsdc_img_width)
-    
-    def getMD2ImageYRatio(self):
-        md2_img_height = daq_utils.highMagPixY
-        lsdc_img_height = daq_utils.screenPixY
-        return float(md2_img_height) / float(lsdc_img_height)
-    
     def getBeamCenterX(self):
-        if daq_utils.beamline == 'nyx':
-            return self.md2.center_pixel_x.get() / self.getMD2ImageXRatio()
-        else:
-            return daq_utils.screenPixCenterX
+        return daq_utils.screenPixCenterX
     
     def getBeamCenterY(self):
-        if daq_utils.beamline == 'nyx':
-            return self.md2.center_pixel_y.get() / self.getMD2ImageYRatio()
-        else:
-            return daq_utils.screenPixCenterY
+        return daq_utils.screenPixCenterY
 
     def definePolyRaster(
         self, raster_w, raster_h, stepsizeXPix, stepsizeYPix, point_x, point_y, stepsize
@@ -3816,15 +3720,7 @@ class ControlMain(QtWidgets.QMainWindow):
         penRed = QtGui.QPen(QtCore.Qt.red)
         '''
         For three click centering, this if statement checks the omega state of the motor.
-        This ideally gives feedback on wether the MD2 is in the rotation portion of the three click centering
-        
         '''
-        if daq_utils.beamline == 'nyx':
-            state = self.md2.exporter.read('OmegaState')
-            if state != 'Ready':
-                logger.info('waiting for motor rotation')
-                logger.info('Click not registered')
-                return
         if self.vidActionDefineCenterRadio.isChecked():
             self.vidActionC2CRadio.setChecked(
                 True
@@ -3856,10 +3752,10 @@ class ControlMain(QtWidgets.QMainWindow):
             return
         fov = self.getCurrentFOV()
         correctedC2C_x = self.getBeamCenterX() + (
-            x_click - (self.centerMarker.x() - self.centerMarkerCharOffsetX) - 20
+            x_click - (self.centerMarker.x() + self.centerMarkerCharOffsetX)
         )
         correctedC2C_y = self.getBeamCenterY() + (
-            y_click - (self.centerMarker.y() - self.centerMarkerCharOffsetY) - 40
+        y_click - (self.centerMarker.y() + self.centerMarkerCharOffsetY)
         )
 
         current_viewangle = daq_utils.mag1ViewAngle
@@ -3881,36 +3777,7 @@ class ControlMain(QtWidgets.QMainWindow):
             self.threeClickLines.append(
                 self.scene.addLine(x_click, 0, x_click, 512, penGreen)
             )
-
-            
-            if daq_utils.exporter_enabled: 
-                correctedC2C_x = x_click + 5 + ((daq_utils.screenPixX/2) - (self.centerMarker.x() + self.centerMarkerCharOffsetX))
-                correctedC2C_y = y_click - 35 + ((daq_utils.screenPixY/2) - (self.centerMarker.y() + self.centerMarkerCharOffsetY))
-                lsdc_x = daq_utils.screenPixX
-                lsdc_y = daq_utils.screenPixY
-                md2_x = self.md2.center_pixel_x.get() * 2
-                md2_y = self.md2.center_pixel_y.get() * 2
-                scale_x = md2_x / lsdc_x
-                scale_y = md2_y / lsdc_y
-                correctedC2C_x = correctedC2C_x * scale_x
-                correctedC2C_y = correctedC2C_y * scale_y
-                self.md2.centring_click.put(f"{correctedC2C_x} {correctedC2C_y}")
-                #logger.info('waiting for motor rotation')
-                #time.sleep(0.2)
-                #self.omegaMoveCheck(0.02,'OmegaState')
-            
-                if self.threeClickCount == 4:
-                    self.threeClickCount = 0
-                    self.threeClickSignal.emit('0')
-                    self.click3Button.setStyleSheet("background-color: None")
-                    #removing drawing for three click centering
-                    logger.info('Removing 3 click lines')
-                    for i in range(len(self.threeClickLines)):
-                        self.scene.removeItem(self.threeClickLines[i])
-                    self.threeClickLines = []
-                return
-            else:
-                comm_s = (
+            comm_s = (
                 "center_on_click",
                 [
                     correctedC2C_x,
@@ -3945,24 +3812,6 @@ class ControlMain(QtWidgets.QMainWindow):
             self.threeClickLines = []
 
         return
-
-    '''
-    Function to check if MD motors are rotating or not
-    '''
-    def omegaMoveCheck(self, sleeptime,call='OmegaState'):
-        state = self.md2.exporter.read(call)
-        while(state == 'Moving'):
-            time.sleep(sleeptime)
-            state = self.md2.exporter.read(call)
-            #logger.info('\nIn Moving\n{}\n'.format(state))
-        if state == 'Ready':
-            logger.info('ready for next click')
-            return state
-        else:
-            logger.info('\ndone moving, current state is: {}'.format(state))
-            return state
-
-
 
     def editScreenParamsCB(self):
         self.screenDefaultsDialog = ScreenDefaultsDialog(self)
@@ -4613,10 +4462,7 @@ class ControlMain(QtWidgets.QMainWindow):
             self.popupServerMessage("You don't have control")
 
     def parkRobotCB(self):
-        if daq_utils.beamline == "nyx":
-            self.send_to_server("parkRobot()")
-        else:
-            self.send_to_server("parkGripper")
+        self.send_to_server("parkGripper")
 
     def closePhotonShutterCB(self):
         self.photonShutterClose_pv.put(1)
@@ -4804,8 +4650,7 @@ class ControlMain(QtWidgets.QMainWindow):
                     firstFilename = daq_utils.create_filename(prefix_long, fnumstart)
                     if validate_hdf5:
                         if validation.validate_master_HDF5_file(firstFilename):
-                            if daq_utils.beamline != "nyx":
-                                self.albulaInterface.open_file(firstFilename)
+                            self.albulaInterface.open_file(firstFilename)
                         else:
                             QtWidgets.QMessageBox.information(
                                 self,
@@ -5132,18 +4977,11 @@ class ControlMain(QtWidgets.QMainWindow):
         self.pauseButtonStateSignal.emit(pauseButtonStateVar)
 
     def initOphyd(self):
-        if daq_utils.beamline == "nyx":
-            # initialize devices
-            self.gon = GonioDevice("XF:19IDC-ES{MD2}:", name="gonio")
-            self.camera = CameraDevice("XF:19IDC-ES{MD2}:", name="camera")
-            self.md2 = MD2Device("XF:19IDC-ES{MD2}:", name="md2")
-            self.front_light = LightDevice("XF:19IDC-ES{MD2}:Front", name="front_light")
-            self.back_light = LightDevice("XF:19IDC-ES{MD2}:Back", name="back_light")
-            self.aperture = MD2ApertureDevice("XF:19IDC-ES{MD2}:", name="aperture")
-        elif daq_utils.beamline == "amx":
-            self.gon = GonioDevice("XF:17IDB-ES:AMX{Gon:1", name="gonio")
-        elif daq_utils.beamline == "fmx":
-            self.gon = GonioDevice("XF:17IDC-ES:FMX{Gon:1", name="gonio")
+        if daq_utils.beamline = "amx":
+            ophyd_prefix = "XF:17IDB-ES:AMX"
+        else:
+            ophyd_prefix = "XF:17IDC-ES:FMX"
+        self.gon = GonioDevice(f"{ophyd_prefix}{{Gon:1", name="gonio")
 
     def initUI(self):
         self.tabs = QtWidgets.QTabWidget()
@@ -5416,9 +5254,6 @@ class ControlMain(QtWidgets.QMainWindow):
         self.omega_pv = PV(self.gon.omega.setpoint.pvname)
         self.omegaTweak_pv = PV(self.gon.omega.setpoint.pvname)
         self.sampyTweak_pv = PV(self.gon.y.setpoint.pvname)
-        #if daq_utils.beamline == "nyx":
-        #    self.sampzTweak_pv = PV(self.gon.x.setpoint.pvname + ".RLV")
-        #else:
         self.sampzTweak_pv = PV(self.gon.z.setpoint.pvname)
         self.omegaRBV_pv = PV(self.gon.omega.readback.pvname)
         self.omegaRBV_pv.add_callback(

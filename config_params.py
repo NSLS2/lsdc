@@ -85,40 +85,36 @@ DETECTOR_OBJECT_TYPE_NO_INIT = "no init" # skip epics detector init
 DETECTOR_OBJECT_TYPE_OPHYD = "ophyd"  # instantiated in start_bs, using Bluesky scans
 DETECTOR_OBJECT_TYPE = "detectorObjectType"
 
-DETECTOR_SAFE_DISTANCE = {"fmx": 200.0, "amx": 180.0, "nyx": 200.0}
+DETECTOR_SAFE_DISTANCE = {"fmx": 200.0, "amx": 180.0}
 GOVERNOR_TIMEOUT = 120  # seconds for a governor move
 
-DEWAR_SECTORS = {'amx':8, 'fmx':8, 'nyx':8}
-PUCKS_PER_DEWAR_SECTOR = {'amx':3, 'fmx':3, 'nyx':3}
+DEWAR_SECTORS = {'amx':8, 'fmx':8}
+PUCKS_PER_DEWAR_SECTOR = {'amx':3, 'fmx':3}
 
-cryostreamTempPV = {"amx": "XF:17ID1:CS700:TEMP", "fmx": "XF:17ID2:CS700:TEMP", "nyx":"XF:19ID2:CS700:TEMP"}
+cryostreamTempPV = {"amx": "XF:17ID1:CS700:TEMP", "fmx": "XF:17ID2:CS700:TEMP"}
 
 VALID_EXP_TIMES = {
     "amx": {"min": 0.005, "max": 1, "digits": 3},
     "fmx": {"min": 0.01, "max": 10, "digits": 3},
-    "nyx": {"min": 0.002, "max": 10, "digits": 4},
 }
 VALID_DET_DIST = {
     "amx": {"min": 100, "max": 500, "digits": 3},
     "fmx": {"min": 137, "max": 2000, "digits": 2},
-    "nyx": {"min": 100, "max": 500, "digits": 3},
 }
 VALID_TOTAL_EXP_TIMES = {
     "amx": {"min": 0.005, "max": 300, "digits": 3},
     "fmx": {"min": 0.01, "max": 300, "digits": 3},
-    "nyx": {"min": 0.01, "max": 1000, "digits": 3},
 }
 VALID_PREFIX_LENGTH = 25  # TODO centralize with spreadsheet validation?
 VALID_PREFIX_NAME = "[0-9a-zA-Z-_]{0,%s}" % VALID_PREFIX_LENGTH
 VALID_TRANSMISSION = {
     "amx": {"min": 0.001, "max": 1.0, "digits": 3},
     "fmx": {"min": 0.001, "max": 1.0, "digits": 3},
-    "nyx": {"min": 0.001, "max": 0.999, "digits": 3},
 }
 
-MINIMUM_RASTER_SIZE = {"amx": 6, "fmx": 6, "nyx": 2}
+MINIMUM_RASTER_SIZE = {"amx": 6, "fmx": 6}
 
-LSDC_SERVICE_USERS = ("lsdc-amx", "lsdc-fmx", "lsdc-nyx")
+LSDC_SERVICE_USERS = ("lsdc-amx", "lsdc-fmx")
 IS_STAFF = (
     True
     if os.environ.get("STAFF_GROUP") is not None and os.environ["STAFF_GROUP"] in [grp.getgrgid(g).gr_name for g in os.getgroups()]
@@ -154,8 +150,6 @@ class MountState(Enum):
         }
         return text_values.get(enum_value, "\n(Unknown State)")
 
-OPHYD_COLLECTIONS = {"amx": False, "fmx": False, "nyx": True}
-
 class CollectionProtocols(str, Enum):
     STANDARD = "standard"
     RASTER = "raster"
@@ -176,7 +170,6 @@ class CollectionProtocols(str, Enum):
                          cls.STEP_RASTER, cls.STEP_VECTOR, cls.MULTI_COL, cls.CHARACTERIZE,
                          cls.EDNA_COL)
         beamline_options = {
-            "nyx": (cls.STANDARD, cls.RASTER, cls.VECTOR),
             "amx": all_protocols,
             "fmx": all_protocols
         }

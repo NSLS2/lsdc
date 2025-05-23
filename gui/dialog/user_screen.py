@@ -193,17 +193,6 @@ class UserScreenDialog(QtWidgets.QFrame):
         )
         self.buttons.buttons()[0].clicked.connect(self.userScreenOKCB)
 
-        if daq_utils.beamline == "nyx":
-            self.openShutterButton.setDisabled(True)
-            self.unmountWarmButton.setDisabled(True)
-            self.testRobotButton.setDisabled(True)
-            self.recoverRobotButton.setDisabled(True)
-            self.dryGripperButton.setDisabled(True)
-            self.resetZebraButton.setDisabled(True)
-            self.rebootZebraButton.setDisabled(True)
-            self.stopDetButton.setDisabled(True)
-            self.rebootDetIocButton.setDisabled(True)
-
         vBoxColParams1.addLayout(hBoxColParams1)
         vBoxColParams1.addLayout(hBoxColParams2)
         vBoxColParams1.addLayout(hBoxColParams25)
