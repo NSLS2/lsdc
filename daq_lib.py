@@ -754,12 +754,15 @@ def collectData(currentRequest):
           node = getBlConfig(nodeName)      
           dimpleNode = getBlConfig("dimpleNode")      
           if (daq_utils.detector_id == "EIGER-16"):
+            with open(f"{os.environ['CONFIGDIR']}/autoproc_blacklist.json") as autoproc_blacklist_file:
+              autoproc_proposal_data = json.load(autoproc_blacklist_file)
             run_autoproc = 0
             try:
               r = requests.get(f"{os.environ['NSLS2_API_URL']}/v1/proposal/{currentRequest['proposalID']}")
               r.raise_for_status()
               response = r.json()['proposal']
-              if "proprietary" in response["type"].lower():
+              if ("proprietary" in response["type"].lower() 
+              or int(currentRequest["proposalID"]) in autoproc_proposal_data["blacklist"]):
                 run_autoproc = 0
               else:
                 run_autoproc = 1
