@@ -83,8 +83,12 @@ functions = [
     unlatchGov,
     backoffDetector,
     enableMount,
+    disableMount,
     robotOn,
-    set_energy
+    robotOff,
+    set_energy,
+    insertRasterResult,
+    anneal,
     ]
 
 if daq_utils.beamline != "nyx":

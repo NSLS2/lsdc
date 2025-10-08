@@ -5455,7 +5455,28 @@ class ControlMain(QtWidgets.QMainWindow):
         if message_s == "killMessage":
             return
         else:
-            self.popupMessage.showMessage(message_s)
+            try:
+                broadcast_command = json.loads(message_s)
+                self.processServerCommand(broadcast_command)
+            except json.JSONDecodeError:
+                self.popupMessage.showMessage(message_s)
+            except Exception as e:
+                logger.error(f"Could not process command: {e}")
+
+    def processServerCommand(self, command: "dict[str, Any]"):
+        """
+        Process a command broadcasted from the server
+        """
+        if "highlight_cells" in command:
+            if self.rasterList:
+                raster_item: RasterGroup = self.rasterList[-1]["graphicsItem"]
+                raster_item.set_highlighted_cells(command["highlight_cells"])
+        elif "update_robot_settings" in command:
+            self.staffScreenDialog.update_robot_state_checkbox()
+        elif "update_enable_mount_setting" in command:
+            self.staffScreenDialog.update_enable_mount_state_checkbox()
+        else:
+            raise ValueError(f"Command not found: {command}")
 
     def printServerMessage(self, message_s):
         if self.textWindowMessageInit:

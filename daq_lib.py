@@ -237,14 +237,14 @@ def flocoUnlock():
   unlockGUI()
   govMonOn()
 
-def flocoStopOperations():
+def floco_stop_operations():
   try:
     daq_macros.run_recovery_procedure(stop=True)
     lockGUI()
   except Exception as e:
     logger.exception("Error encountered while running flocoStopOperations. Stopping...")
 
-def flocoContinueOperations():
+def floco_continue_operations():
   try:
     daq_macros.run_recovery_procedure(stop=False)
     flocoUnlock()
