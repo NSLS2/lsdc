@@ -43,11 +43,8 @@ class StaffScreenDialog(QtWidgets.QFrame):
         hBoxColParams0.addWidget(puckToDewarButton)
         hBoxColParams0.addWidget(removePuckButton)
         self.robotOnCheckBox = QCheckBox("Robot (On)")
-        if getBlConfig("robot_online") == 1:
-            self.robotOnCheckBox.setChecked(True)
-        else:
-            self.robotOnCheckBox.setChecked(False)
-        self.robotOnCheckBox.stateChanged.connect(self.robotOnCheckCB)
+        self.update_robot_state_checkbox()
+        self.robotOnCheckBox.clicked.connect(self.robotOnCheckCB)
         self.topViewCheckOnCheckBox = QCheckBox("TopViewCheck (On)")
         if getBlConfig(TOP_VIEW_CHECK) == 1:
             self.topViewCheckOnCheckBox.setChecked(True)
@@ -112,11 +109,8 @@ class StaffScreenDialog(QtWidgets.QFrame):
         hBoxColParams1.addWidget(self.albulaDispCheckBox)
 
         self.enableMountCheckBox = QCheckBox("Enable Mount")
-        if getBlConfig("mountEnabled") == 1:
-            self.enableMountCheckBox.setChecked(True)
-        else:
-            self.enableMountCheckBox.setChecked(False)
-        self.enableMountCheckBox.stateChanged.connect(self.enableMountCheckCB)
+        self.update_enable_mount_state_checkbox()
+        self.enableMountCheckBox.clicked.connect(self.enableMountCheckCB)
         self.unmountColdButton = QtWidgets.QPushButton("Unmount Cold")
         self.unmountColdButton.clicked.connect(self.unmountColdCB)
         self.openPort1Button = QtWidgets.QPushButton("Open Port 1")
@@ -301,10 +295,36 @@ class StaffScreenDialog(QtWidgets.QFrame):
         self.parent.send_to_server("homePins")
 
     def robotOnCheckCB(self, state):
-        if state == QtCore.Qt.Checked:
-            setBlConfig("robot_online", 1)
+        if state:
+            self.parent.send_to_server("robotOn")
         else:
-            setBlConfig("robot_online", 0)
+            self.parent.send_to_server("robotOff")
+
+    def update_robot_state_checkbox(self):
+        if getBlConfig("robot_online") == 1:
+            self.robotOnCheckBox.setChecked(True)
+        else:
+            self.robotOnCheckBox.setChecked(False)
+
+    def update_enable_mount_state_checkbox(self):
+        if getBlConfig("mountEnabled") == 1:
+            self.enableMountCheckBox.setChecked(True)
+        else:
+            self.enableMountCheckBox.setChecked(False)
+
+
+    def update_robot_state_checkbox(self):
+        if getBlConfig("robot_online") == 1:
+            self.robotOnCheckBox.setChecked(True)
+        else:
+            self.robotOnCheckBox.setChecked(False)
+
+    def update_enable_mount_state_checkbox(self):
+        if getBlConfig("mountEnabled") == 1:
+            self.enableMountCheckBox.setChecked(True)
+        else:
+            self.enableMountCheckBox.setChecked(False)
+
 
     def beamCheckOnCheckCB(self, state):
         if state == QtCore.Qt.Checked:
@@ -380,10 +400,10 @@ class StaffScreenDialog(QtWidgets.QFrame):
             self.gripperUnmountColdCheckBox.setEnabled(False)
 
     def enableMountCheckCB(self, state):
-        if state == QtCore.Qt.Checked:
-            setBlConfig("mountEnabled", 1)
+        if state:
+            self.parent.send_to_server("enabledMount")
         else:
-            setBlConfig("mountEnabled", 0)
+            self.parent.send_to_server("disableMount")
 
     def screenDefaultsCancelCB(self):
         self.hide()

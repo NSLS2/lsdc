@@ -77,11 +77,14 @@ functions = [
     unlatchGov,
     backoffDetector,
     enableMount,
+    disableMount,
     robotOn,
-    set_energy,
-    anneal,
     set_cryostream_ramp_rate,
-    set_cryostream_temp
+    set_cryostream_temp,
+    robotOff,
+    set_energy,
+    insertRasterResult,
+    anneal,
     ]
 
 whitelisted_functions: "Dict[str, Callable]" = {
