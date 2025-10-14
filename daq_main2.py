@@ -5,8 +5,7 @@ The main server for the LSDC system
 import sys
 import os
 from daq_main_common import pybass_init, run_server
-from config_params import LSDC_SERVICE_USERS
-
+from utils.healthcheck import perform_server_checks
 #TODO understand why imports are required here - GUI requires imports in daq_main_common
 from daq_macros import *
 from daq_lib import *
@@ -29,20 +28,12 @@ logging.getLogger().setLevel(logging.INFO)
 logging.getLogger('ophyd').setLevel(logging.WARN)
 logging.getLogger('caproto').setLevel(logging.WARN)
 handler1 = handlers.RotatingFileHandler('lsdcServerLog.txt', maxBytes=5000000, backupCount=100)
-handler2 = handlers.RotatingFileHandler('/var/log/dama/%slsdcServerLog.txt' % os.environ['BEAMLINE_ID'], maxBytes=5000000, backupCount=100)
 myformat = logging.Formatter('%(asctime)s %(name)-8s %(levelname)-8s %(message)s')
 handler1.setFormatter(myformat)
-handler2.setFormatter(myformat)
 logger.addHandler(handler1)
-logger.addHandler(handler2)
 
-if not getpass.getuser() in LSDC_SERVICE_USERS:
-    message = "LSDC server not being started by a LSDC service user account, aborting!"
-    print(message)
-    logger.error(message)
-    sys.exit(1)
-else:
-    print(f"continuing as we are using a service user: {getpass.getuser()}")
+perform_server_checks()
+setBlConfig("visitDirectory", os.environ.get("CURRENT_VISIT_DIR", os.getcwd()))
 sitefilename = ""
 global command_list,immediate_command_list,z
 command_list = []

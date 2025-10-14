@@ -1,16 +1,16 @@
+import logging
 import os
-
 import time
-
-import six
-
 import uuid
+from collections import defaultdict
 
 import amostra.client.commands as acc
+from config_params import CollectionProtocols
 import conftrak.client.commands as ccc
-from analysisstore.client.commands import AnalysisClient
 import conftrak.exceptions
-import logging
+import six
+from analysisstore.client.commands import AnalysisClient
+from pathlib import Path
 logger = logging.getLogger(__name__)
 
 #12/19 - Skinner inherited this from Hugo, who inherited it from Matt. Arman wrote the underlying DB and left BNL in 2018. 
@@ -486,6 +486,53 @@ def getContainerByID(container_id):
     c = getContainers(filters={'uid': container_id})[0]
     return c
 
+def get_dewar_tree_data(dewar_name, beamline, get_latest_pucks=False):
+    """
+    returns all data required to show dewar tree data with minimum number of database accesses
+    """
+    dewar_data = getContainers(filters={"name": dewar_name, "owner": beamline})[0]
+
+    puck_ids = [
+        pid for pid in dewar_data.get("content", []) if pid
+    ]  # removes blank ids
+    pucks = getContainers(filters={"uid": {"$in": puck_ids}})
+
+    if get_latest_pucks:
+        # If get_latest_pucks is true, get the puck most recently updated in the database
+        # This is for cases when the excel sheet has been uploaded after puck_to_dewar
+        # Or when staff manually refreshes the dewar tree
+        new_pucks = []
+        for puck in pucks:
+            all_pucks = getContainers(filters={"name":puck["name"]})
+            latest_puck = max(all_pucks, key=lambda x: x.get("modified_time", 0.0))
+            new_pucks.append(latest_puck)
+        pucks = new_pucks  
+    # Create a mega list of sample ids from puck information
+    sample_ids = [
+        sample_id
+        for puck in pucks
+        for sample_id in puck.get("content", [])
+        if sample_id
+    ]
+
+    # Get all sample info in one call
+    params = {"uid": {"$in": sample_ids}}
+    samples = sample_ref.find(as_document=False, **params)
+
+    # Get all request info in one call
+    params = {"sample": {"$in": sample_ids}, "state": "active"}
+    reqs = list(request_ref.find(**params))
+
+    # Assemble data into dictionaries
+    puck_data = {puck["uid"]: puck for puck in pucks}
+    sample_data = {sample["uid"]: sample for sample in samples}
+    request_data = defaultdict(list)
+    for req in reqs:
+        request_data[req["sample"]].append(req)
+    
+    return dewar_data, puck_data, sample_data, request_data
+
+
 
 def getQueue(beamlineName):
     """
@@ -617,13 +664,29 @@ def popNextRequest(beamlineName):
     actually pop it off the stack
     """
     orderedRequests = getOrderedRequestList(beamlineName)
+    logger.info(f"Requests in queue: {len(orderedRequests)}")
+    request_proposal_ids = set()
+    request_paths = set()
+    for req in orderedRequests:
+        if req["priority"] > 0 and req["priority"] != 99999:
+            request_proposal_ids.add(req["proposalID"])
+            request_paths.add(req["request_obj"]["basePath"])
+    visit_dir_path = Path(getBeamlineConfigParam(beamlineName, "visitDirectory")).resolve()
+    if request_proposal_ids:
+        if len(request_proposal_ids) > 1 and "commissioning" not in visit_dir_path.parts:
+            # Multiple proposal requests being run and not in commissioning
+            logger.error(f"Queue contains requests with multiple proposals, and server not running in commissioning dir")
+            return None
+        elif Path(list(request_paths)[0]).resolve() != visit_dir_path and "commissioning" not in visit_dir_path.parts:
+            # Single proposal being run, does not match visit dir and not commissioning
+            logger.error(f"Proposal directory mismatch, and server not running in commissioning dir")
+            return None
+
+
     try:
-        if (orderedRequests[0]["priority"] != 99999):
-            if orderedRequests[0]["priority"] > 0:
-                return orderedRequests[0]
-        else: #99999 priority means it's running, try next
-            if orderedRequests[1]["priority"] > 0:
-                return orderedRequests[1]
+        for req in orderedRequests:
+            if req["priority"] != 99999 and req["priority"] > 0:
+                return req
     except IndexError:
         pass
 
@@ -825,6 +888,6 @@ def deleteCompletedRequestsforSample(sid):
   requestList=getRequestsBySampleID(sid)
   for i in range (0,len(requestList)):
     if (requestList[i]["priority"] == -1): #good to clean up completed requests after unmount
-      if (requestList[i]["protocol"] == "raster" or requestList[i]["protocol"] == "vector"):
+      if requestList[i]["protocol"] in (CollectionProtocols.RASTER, CollectionProtocols.VECTOR):
         deleteRequest(requestList[i]['uid'])
 

@@ -16,8 +16,13 @@ import pandas as pd
 import socket
 import time
 import gov_lib
+import daq_lib
 from start_bs import db, gov_robot, govs
+import logging
 
+
+logger = logging.getLogger()
+flux_df = None
 # Machine ==========================================================
 
 beam_current = EpicsSignal('SR:OPS-BI{DCCT:1}I:Real-I')
@@ -82,16 +87,21 @@ class DCM(Device):
 #    w = Cpt(EpicsMotor, '-Ax:W}Mtr', labels=['fmx'])
 
 class XYPitchMotor(XYMotor):
-	pitch = Cpt(EpicsMotor, '-Ax:P}Mtr')
+    pitch = Cpt(EpicsMotor, '-Ax:P}Mtr')
+    config = Cpt(EpicsSignal, '-PS}:FORMAT')
+    status_monitor = Cpt(EpicsSignal, "-PS}:UNIT_STATUS_MON.A")
+
 
 class KBMirror(Device):
-	hp = Cpt(EpicsMotor, ':KBH-Ax:P}Mtr')
-	hr = Cpt(EpicsMotor, ':KBH-Ax:R}Mtr')
-	hx = Cpt(EpicsMotor, ':KBH-Ax:X}Mtr')
-	hy = Cpt(EpicsMotor, ':KBH-Ax:Y}Mtr')
-	vp = Cpt(EpicsMotor, ':KBV-Ax:P}Mtr')
-	vx = Cpt(EpicsMotor, ':KBV-Ax:X}Mtr')
-	vy = Cpt(EpicsMotor, ':KBV-Ax:Y}Mtr')
+    hp = Cpt(EpicsMotor, ':KBH-Ax:P}Mtr')
+    hr = Cpt(EpicsMotor, ':KBH-Ax:R}Mtr')
+    hx = Cpt(EpicsMotor, ':KBH-Ax:X}Mtr')
+    hy = Cpt(EpicsMotor, ':KBH-Ax:Y}Mtr')
+    vp = Cpt(EpicsMotor, ':KBV-Ax:P}Mtr')
+    vx = Cpt(EpicsMotor, ':KBV-Ax:X}Mtr')
+    vy = Cpt(EpicsMotor, ':KBV-Ax:Y}Mtr')
+    config = Cpt(EpicsSignal, ':KB-PS}:FORMAT')
+    status_monitor = Cpt(EpicsSignal, ":KB-PS}:UNIT_STATUS_MON.A")
 
 
 class Cover(Device):
@@ -111,6 +121,32 @@ class GoniometerStack(Device):
 	o  = Cpt(EpicsMotor, '-Ax:O}Mtr', labels=['fmx'])
 	py = Cpt(EpicsMotor, '-Ax:PY}Mtr', labels=['fmx'])
 	pz = Cpt(EpicsMotor, '-Ax:PZ}Mtr', labels=['fmx'])
+
+class PitchHold(Device):
+    pitch_control = Cpt(EpicsSignal, "}pitch_control")
+    mono_scan_freq = Cpt(EpicsSignal, ":mono}pitch-SCAN")
+    mono_max_tries = Cpt(EpicsSignal, ":mono}pitch-NUM")
+    mono_deadband = Cpt(EpicsSignal, ":mono}pitch-DB")
+    mono_target = Cpt(EpicsSignal, ":mono}pitch-SP") # Should be set to hdcm.p
+    bragg_control = Cpt(EpicsSignal, "}bragg_control")
+    bpm1_mon = Cpt(EpicsSignal, "}bpm1mon")
+    set_kb_config = Cpt(EpicsSignal, "}kb_bimorph")
+    set_hfm_config = Cpt(EpicsSignal, "}hfm_bimorph")
+
+    def save_settings(self):
+        self.settings = {}
+        self.settings['pitch_control'] = self.pitch_control.get()
+        self.settings['bragg_control'] = self.bragg_control.get()
+        self.settings['bpm1_mon'] = self.bpm1_mon.get()
+    
+    def restore_settings(self):
+        self.pitch_control.put(self.settings['pitch_control'])
+        self.bragg_control.put(self.settings['bragg_control'])
+        self.bpm1_mon.put(self.settings['bpm1_mon'])
+
+
+step_volts = EpicsSignal("XF:17IDA-BI:FMX{Best:1}:TwkCh1.INPA")
+pitch_hold = PitchHold("XF:17ID:FMX{Karen", name="pitch_hold")
 
 ## Horizontal Double Crystal Monochromator (FMX)
 hdcm = DCM('XF:17IDA-OP:FMX{Mono:DCM', name='hdcm')
@@ -147,6 +183,10 @@ slits1 = Slits('XF:17IDA-OP:FMX{Slt:1', name='slits1', labels=['fmx'])
 
 ## Light
 light = YMotor('XF:17IDC-ES:FMX{Light:1', name='lightY')
+
+## Temporary: Disable motor alarm until end switch is fixed
+from ophyd.utils.epics_pvs import AlarmSeverity
+light.y.tolerated_alarm = AlarmSeverity.MAJOR
 
 ## Goniometer Stack
 gonio = GoniometerStack('XF:17IDC-ES:FMX{Gon:1', name='gonio')
@@ -205,6 +245,17 @@ bpm1.sum_all.kind = 'hinted'
 bpm1_sum_all_precision = EpicsSignal('XF:17IDA-BI:FMX{BPM:1}SumAll:MeanValue_RBV.PREC')
 bpm1_sum_all_precision.put(10)
 
+class Xbpm(Device):
+    x = Cpt(EpicsSignalRO, 'Pos:X-I')
+    y = Cpt(EpicsSignalRO, 'Pos:Y-I')
+    a = Cpt(EpicsSignalRO, 'Ampl:ACurrAvg-I')
+    b = Cpt(EpicsSignalRO, 'Ampl:BCurrAvg-I')
+    c = Cpt(EpicsSignalRO, 'Ampl:CCurrAvg-I')
+    d = Cpt(EpicsSignalRO, 'Ampl:DCurrAvg-I')
+    total = Cpt(EpicsSignalRO, 'Ampl:CurrTotal-I')
+
+xbpm2 = Xbpm('SR:C17-BI{XBPM:2}', name='xbpm2')
+
 # Attenuators, CRL =========================================================================
 
 class Transmission(Device):
@@ -238,6 +289,10 @@ atten = AttenuatorLUT('XF:17IDC-OP:FMX{Attn:BCU', name='atten',
 atten_bcu = AttenuatorBCU('XF:17IDC-OP:FMX{Attn:BCU', name='atten_bcu',
                           read_attrs=['done', 'a1', 'a2', 'a3', 'a4'],
                           labels=['fmx'])
+
+# KB mirror pitch tweak voltages
+vkb_piezo_tweak = EpicsSignal('XF:17IDC-BI:FMX{Best:2}:PreDAC0:OutCh1')
+hkb_piezo_tweak = EpicsSignal('XF:17IDC-BI:FMX{Best:2}:PreDAC0:OutCh2')
 
 # Utility =================================================================================
 
@@ -388,9 +443,31 @@ def setE_motors_FMX(energy):
     LGP = {m: epics.caget(LGP_fmt.format(m.name))
            for m in (kbm.hp, kbm.hx, kbm.vp, kbm.vy)}
 
+    prev_hfm_config  = hfm.config.get()
+    prev_kb_config = kbm.config.get()
+
+    label = "highE"
     # Remove CRLs if going to energy < 9 keV (FMX specific)
-    if energy < 9001:
-        set_beamsize('V0','H0')
+    if energy < 10000:
+        # set_beamsize('V0','H0')
+        label = "lowE"
+    
+    if prev_hfm_config != f"HFM_{label}":
+        yield from bps.abs_set(hfm.config, f"HFM_{label}")
+        yield from bps.abs_set(pitch_hold.set_hfm_config, 1, wait=True)
+    
+    if prev_kb_config != f"KB_{label}":
+        yield from bps.abs_set(kbm.config, f"KB_{label}")
+        yield from bps.abs_set(pitch_hold.set_kb_config, 1, wait=True)
+    
+    logger.info("Waiting for 60 seconds for ramping")
+    time.sleep(60)
+
+    #while int(kbm.status_monitor.get()) & 2 ** 30 != 1 and int(hfm.status_monitor.get()) & 2 ** 30 != 1:
+    #    logger.info("Waiting for ramping to complete... ")
+    #    time.sleep(1)
+        
+
     
     # Lookup Table
     def lut(motor):
@@ -647,6 +724,8 @@ def setELsdc(energy,
         slits1XGapOrg = slits1.x_gap.user_readback.get()
         slits1YGapOrg = slits1.y_gap.user_readback.get()
     
+    yield from deactivate_pitch_hold()
+
     print('Setting FMX motor positions')
     try:
         yield from setE_motors_FMX(energy)
@@ -680,15 +759,17 @@ def setELsdc(energy,
         print('ivu_gap_scan() successful')
         time.sleep(1)
     
-    # Activate sector 17 photon local feedback
-    photon_local_feedback_c17.x_enable.put(1)
-    photon_local_feedback_c17.y_enable.put(1)
+
+    # Hold pitch
+    yield from activate_pitch_hold()
     
     # Align LSDC microscope center to beam center
     if beamCenterAlign:
         # Check for pre-conditions for beam_center_align()
         if shutter_hutch_c.status.get():
-            print('Experiment hutch shutter closed. Has to be open for this to work. Exiting')
+            message = 'Experiment hutch shutter closed. Has to be open for this to work. Stopping'
+            logging.error(message)
+            daq_lib.gui_message(message)
             return -1
         
         print('Aligning beam center')
@@ -698,6 +779,9 @@ def setELsdc(energy,
     if slit1Set:
         yield from bps.mv(slits1.x_gap, slits1XGapOrg)  # Move Slit 1 X to original position
         yield from bps.mv(slits1.y_gap, slits1YGapOrg)  # Move Slit 1 Y to original position
+
+    yield from fmx_reference(transSet=transSet)
+    daq_lib.gui_message(f"Set energy to {energy} complete")
     
 
 # Alignment ===========================================================================================
@@ -939,21 +1023,6 @@ def beam_center_align(transSet='All'):
             beamHiMagDiffX=0
             beamHiMagDiffY=0
         
-        # # Do nothing if we would walk ROI2 for Mag 3 off the top camera edge
-        # if (cam_8.roi2.min_xyz.min_y.get() + beamHiMagDiffY + cam_8.roi2.size.y.get()) > 1215
-        #     print('ROI2 for Mag 3 too high.',
-        #           'Move beam towards center of Hi Mag, or align beam center by hand',
-        #           'No changes made. Manual beam center correction needed.')
-        #     beamHiMagDiffX=0
-        #     beamHiMagDiffY=0
-        # 
-        # # Do nothing if we would walk ROI2 for Mag 3 off the bottom camera edge
-        # if (cam_8.roi2.min_xyz.min_y.get() + beamHiMagDiffY < 1
-        #     print('ROI2 for Mag 3 too low.',
-        #           'Move beam towards center of Hi Mag, or align beam center by hand',
-        #           'No changes made. Manual beam center correction needed.')
-        #     beamHiMagDiffX=0
-        #     beamHiMagDiffY=0
         
         # Correct Mag 4 (cam_8 ROI1)
         # Adjust cam_8 ROI1 min_y, LSDC uses this for the Mag4 FOV.
@@ -1002,3 +1071,244 @@ def beam_center_align(transSet='All'):
                 yield from trans_set(transOrgBCU, trans=trans_bcu)
         else:
             yield from trans_set(transOrgBCU, trans=trans_bcu)
+
+def get_fluxKeithley():
+    """
+    Returns Keithley diode current derived flux.
+    """
+    
+    keithFlux = epics.caget('XF:17IDA-OP:FMX{Mono:DCM-dflux}')
+    
+    return keithFlux
+
+
+def set_fluxBeam(flux):
+    """
+    Sets the flux reference field.
+    
+    flux: Beamline flux at sample position for transmisison T = 1.  [ph/s]
+    """
+    
+    error = epics.caput('XF:17IDA-OP:FMX{Mono:DCM-dflux-M}', flux)
+    
+    return error
+
+
+def slit1_flux_reference(flux_df,slit1Gap):
+    """
+    Sets Slit 1 X gap and Slit 1 Y gap to a specified position,
+    and returns flux reference values to a provided pandas DataFrame.
+    
+    Supporting function for fmx_flux_reference()
+    
+    Parameters
+    ----------
+    
+    slit1Gap: float
+        Gap value for Slit 1 X and Y [um]
+    
+    flux_df: pandas DataFrame with fields:
+        Slit 1 X gap [um]
+        Slit 1 Y gap [um]
+        Keithley current [A]
+        Keithley flux [ph/s]
+        BPM1 sum [A]
+        BPM4 sum [A]
+        
+    """
+    yield from bps.mv(slits1.x_gap, slit1Gap, slits1.y_gap, slit1Gap, wait=True)
+    time.sleep(2.0) # wait so the slits are definitely done moving and the Keithley reading is stable
+    
+    flux_df.at[slit1Gap, 'Slit 1 X gap [um]'] = slit1Gap
+    flux_df.at[slit1Gap, 'Slit 1 Y gap [um]'] = slit1Gap
+    flux_df.at[slit1Gap, 'Keithley current [A]'] = keithley.get()
+    flux_df.at[slit1Gap, 'Keithley flux [ph/s]'] = get_fluxKeithley()
+    flux_df.at[slit1Gap, 'BPM1 sum [A]'] = bpm1.sum_all.get()
+    # TEMP FIX: flux_df.at[slit1Gap, 'BPM4 sum [A]'] = bpm4.sum_all.get()
+    flux_df.at[slit1Gap, 'BPM4 sum [A]'] = 0
+
+def fmx_flux_reference(slit1GapList = [2000, 1000, 600, 400], slit1GapDefault = 1000, transSet='All'):
+    """
+    Sets Slit 1 X gap and Slit 1 Y gap to a list of settings,
+    and returns flux reference values in a pandas DataFrame.
+    
+    Parameters
+    ----------
+    
+    slit1GapList: float (default=[2000, 1000, 600, 400])
+        A list of gap values [um] for Slit 1 X and Y
+    slit1GapDefault: Gap value [um] to set as default after getting references
+        Default slit1GapDefault = 1000
+    
+    Returns
+    -------
+    
+    flux_df: pandas DataFrame with fields
+        Slit 1 X gap [um]
+        Slit 1 Y gap [um]
+        Keithley current [A]
+        Keithley flux [ph/s]
+        BPM1 sum [A]
+        BPM4 sum [A]
+        
+    Examples
+    --------
+    fmx_flux_reference()
+    flux_df=fmx_flux_reference()
+    flux_df
+    fmx_flux_reference(slit1GapList = [2000, 1500, 1000])
+    fmx_flux_reference(slit1GapList = [2000, 1500, 1000], slit1GapDefault = 600)
+        
+    """
+    
+    # Store current transmission, then set full transmission
+    if transSet != 'None':
+        if transSet in ['All', 'BCU']:
+            transOrgBCU = trans_get(trans=trans_bcu)
+        if transSet in ['All', 'RI']:
+            transOrgRI = trans_get(trans=trans_ri)
+            yield from trans_set(1.0, trans=trans_ri)
+        if transSet == 'BCU':
+            yield from trans_set(1.0, trans=trans_bcu)
+        if transSet == 'All':
+            yield from trans_set(1.0, trans=trans_bcu)
+            
+    msgStr = "Energy = " + "%.1f" % get_energy() + " eV"
+    print(msgStr)
+    logger.info(msgStr)
+    
+    global flux_df
+    flux_df = pd.DataFrame(columns=['Slit 1 X gap [um]',
+                                    'Slit 1 Y gap [um]',
+                                    'Keithley current [A]',
+                                    'Keithley flux [ph/s]',
+                                    'BPM1 sum [A]',
+                                    'BPM4 sum [A]',
+                                   ])
+    
+    # Put in diode
+    yield from bps.mv(light.y,
+                      govs.gov.Robot.dev.li.target_Diode.get())
+    
+
+    # Open BCU shutter
+    yield from bps.mv(shutter_bcu.open, 1)
+    time.sleep(1)
+    
+    for slit1Gap in slit1GapList:
+        yield from slit1_flux_reference(flux_df,slit1Gap)
+    
+    # Move back to default slit width
+    # TODO: save reference before and return to 
+    yield from bps.mv(slits1.x_gap, slit1GapDefault, slits1.y_gap, slit1GapDefault, wait=True)
+    time.sleep(2.0) # wait so the slits are definitely done moving and the Keithley reading is stable
+
+    vFlux = get_fluxKeithley()
+    set_fluxBeam(vFlux)
+    msgStr = "Reference flux for Slit 1 gap = " + "%d" % slit1GapDefault + " um for T=1 set to " + "%.1e" % vFlux + " ph/s"
+    print(msgStr)
+    logger.info(msgStr)
+    
+   
+    # Close shutter
+    yield from bps.mv(shutter_bcu.close, 1)
+    
+    # Retract diode
+    yield from bps.mv(light.y,
+                      govs.gov.Robot.dev.li.target_In.get())
+
+    # Set previous beam transmission
+    if transSet != 'None':
+        if transSet in ['All', 'RI']:
+            yield from trans_set(transOrgRI, trans=trans_ri)
+        if transSet in ['All', 'BCU']:
+            yield from trans_set(transOrgBCU, trans=trans_bcu)
+
+
+def deactivate_pitch_hold():
+    pitch_hold.save_settings()
+    yield from bps.abs_set(pitch_hold.bragg_control, 0, wait=True)
+    yield from bps.abs_set(pitch_hold.bpm1_mon, 0, wait=True)
+    yield from bps.abs_set(pitch_hold.pitch_control, 0, wait=True)
+
+def activate_pitch_hold():
+    yield from bps.abs_set(step_volts, "0.01", wait=True)
+    yield from bps.abs_set(pitch_hold.mono_scan_freq, 1, wait=True)
+    yield from bps.abs_set(pitch_hold.mono_max_tries, 100, wait=True)
+    yield from bps.abs_set(pitch_hold.mono_deadband, 0.0003, wait=True)
+    yield from bps.abs_set(pitch_hold.mono_target, hdcm.p.user_readback.get(), wait=True)
+
+    # Reactivate pitch control
+    pitch_hold.restore_settings()
+
+def fmx_reference(slit1GapDefault = 1000, transSet='All'):
+    """
+    Calls fmx_flux_reference, then fmx_beamline_reference.
+    setE will do the same after the beam alignment.
+   
+    Parameters
+    ----------
+    transSet: FMX only: Set to 'RI' if there is a problem with the BCU attenuator.
+              FMX only: Set to 'BCU' if there is a problem with the RI attenuator.
+              Set to 'None' if there are problems with all attenuators.
+              Operator then has to choose a flux by hand that will not saturate scinti
+              default = 'All'
+              
+    Examples
+    --------
+    fmx_reference()
+        
+    """
+    if not gov_robot.state.get() == "SA":
+        print('Not in Governor state SA, exiting')
+        return
+    
+    # Transition to Governor state BL
+    gov_lib.setGovRobot(gov_robot, 'BL')
+    
+    yield from fmx_flux_reference(slit1GapDefault = slit1GapDefault, transSet = transSet)
+    
+    # Transition to Governor state SA
+    gov_lib.setGovRobot(gov_robot, 'SA')
+    
+    log_fmx_beamline_reference()
+    
+
+
+def log_fmx_beamline_reference():
+    """
+    Prints reference values and appends to the FMX log file
+    
+   
+    Examples
+    --------
+    fmx_beamline_reference()
+        
+    """
+    global flux_df
+    messages = [
+        f"Energy = {get_energy():.2f} eV",
+        f"Beam current = {beam_current.get():.2f} mA",
+        f"IVU gap = {ivu_gap.gap.user_readback.get():.1f} um",
+        f"XBPM2 posX = {xbpm2.x.get():.2f} um",
+        f"XBPM2 posY = {xbpm2.y.get():.2f} um",
+        f"XBPM2 total current = {xbpm2.total.get():.2f} uA",
+        f"HDCM pitch = {hdcm.p.user_readback.get():.4f} mrad", 
+        f"HDCM roll = {hdcm.r.user_readback.get():.4f} mrad", 
+        f"BPM1 posX = {bpm1.x.get():.2f}", 
+        f"BPM1 posY = {bpm1.y.get():.2f}",
+        f"BPM1 total current = {bpm1.sum_all.get():.3f} A",
+        f"HFM pitch = {hfm.pitch.user_readback.get():.4f} mrad", 
+        f"VKB tweak voltage = {vkb_piezo_tweak.get():.3f} V", 
+        f"VKB pitch = {kbm.vp.user_readback.get():.4f} urad", 
+        f"HKB tweak voltage = {hkb_piezo_tweak.get():.3f} V", 
+        f"HKB pitch = {kbm.hp.user_readback.get():.4f} urad", 
+        f"Gonio X = {gonio.gx.user_readback.get():.1f} um", 
+        f"Gonio Y = {gonio.gy.user_readback.get():.1f} um", 
+        f"Gonio Z = {gonio.gz.user_readback.get():.1f} um",
+   ]
+    for message in messages:
+        print(message)
+        logger.info(message)
+    if flux_df is not None:
+        logger.info(f"Flux dataframe {flux_df.to_string()}")

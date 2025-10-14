@@ -32,7 +32,6 @@ myformat = logging.Formatter(
 handler1.setFormatter(myformat)
 logger.addHandler(handler1)
 
-
 def main():
     logger.info("Starting LSDC...")
     perform_checks()

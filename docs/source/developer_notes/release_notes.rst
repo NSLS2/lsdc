@@ -2,6 +2,64 @@
  Release History
 =================
 
+2.0.3 (2024-01-22, a.k.a. 2024-1)
+=================================
+
+Fixes and other changes
+-----------------------
+
+* GUI
+
+  * For users, do not show pucks that do not belong to their proposal
+  * Speed up dewar tree refresh
+  * Refresh dewar tree button
+  * Albula now running in a separate instance
+  * No more automatic pre-fill of parameters upon request click - user option to do the pre-fill
+  * Moved unmount cold to the button panel. Added "End Visit" button, only unmounts warm currently
+
+* Server
+
+  * Datapath fix
+  * Fix ISPyB processing population and crystal snapshot creation problems
+  * Remove population of ISPyB database while infrastructure to update user proposal membership for SynchWeb is being developed
+
+* Server and GUI security improvements
+
+  * White-listing functions that can be called on the server to prevent execution of arbitrary code
+
+2.0.2 (2023-09-12, a.k.a. 2023-3)
+=================================
+
+Fixes and other changes
+-----------------------
+
+* GUI
+
+  * GUI code split up into its own module
+  * Fixes for lifetime calculation
+  * Improve Albula handling
+
+* Server and GUI security improvements
+
+  * Use external file to determine visit directory
+  * Use same visit directory location for server and GUI, and force all files acquired by LSDC to be written to that directory
+  * Enforce GUI and server starting in the visit directory
+  * Ensure server is started as one of the known LSDC service users (as opposed to a staff member in n2sn-inststaff-<tla>)
+
+
+* Improved synchronization of detector and governor
+* Re-enable ISPyB storage of data collections and processing results
+* Standardize handling of FMX towards AMX when mounting a sample
+* Move storage of raster results in ISPyB onto server, to remove ISPyB dependence in GUI
+* Save FMX flux reference after energy change
+
+* NYX-specific (2023-2-nyx) - not merged into master due to significant differences
+
+  * GUI improvements
+
+    * General layout
+    * NYX-specific changes
+
 2.0.1 (2023-04-20, a.k.a. 2023-2)
 =================================
 

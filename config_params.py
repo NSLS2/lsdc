@@ -1,3 +1,5 @@
+import grp
+import os
 from enum import Enum
 
 # BlConfig parameter variable names
@@ -35,6 +37,8 @@ CRYOSTREAM_ONLINE = (
 # GUI default configuration
 BEAM_CHECK = "beamCheck"
 UNMOUNT_COLD_CHECK = "unmountColdCheck"
+ON_MOUNT_OPTION = "onMountOption"
+SET_ENERGY_CHECK = "setEnergyCheck"
 
 
 # raster request status updates
@@ -51,12 +55,17 @@ class RasterStatus(Enum):
     READY_FOR_SNAPSHOT = 3
     READY_FOR_REPROCESS = 4
 
+class OnMountAvailOptions(Enum):
+    """
+    This enumerates the options available to the user on mounting a sample
+    """
+    DO_NOTHING = 0 # Only mounts sample
+    CENTER_SAMPLE = 1 # Mounts and centers sample
+    AUTO_RASTER = 2 # Mounts, centers and takes 2 orthogonal rasters
 
 HUTCH_TIMER_DELAY = 500
-SAMPLE_TIMER_DELAY = 0
-
-ROBOT_MIN_DISTANCE = 200.0
-ROBOT_DISTANCE_TOLERANCE = 0.050
+SAMPLE_TIMER_DELAY = 40
+SERVER_CHECK_DELAY = 2000
 
 FAST_DP_MIN_NODES = 4
 SPOT_MIN_NODES = 8
@@ -72,17 +81,17 @@ UNMOUNT_STEP_SUCCESSFUL = 2
 PINS_PER_PUCK = 16
 
 DETECTOR_OBJECT_TYPE_LSDC = "lsdc"  # using det_lib
+DETECTOR_OBJECT_TYPE_NO_INIT = "no init" # skip epics detector init
 DETECTOR_OBJECT_TYPE_OPHYD = "ophyd"  # instantiated in start_bs, using Bluesky scans
 DETECTOR_OBJECT_TYPE = "detectorObjectType"
 
-DETECTOR_SAFE_DISTANCE = 200.0
-
+DETECTOR_SAFE_DISTANCE = {"fmx": 200.0, "amx": 180.0, "nyx": 200.0}
 GOVERNOR_TIMEOUT = 120  # seconds for a governor move
 
-DEWAR_SECTORS = {"amx": 8, "fmx": 8, "nyx": 5}
-PUCKS_PER_DEWAR_SECTOR = {"amx": 3, "fmx": 3, "nyx": 3}
+DEWAR_SECTORS = {'amx':8, 'fmx':8, 'nyx':8}
+PUCKS_PER_DEWAR_SECTOR = {'amx':3, 'fmx':3, 'nyx':3}
 
-cryostreamTempPV = {"amx": "AMX:cs700:gasT-I", "fmx": "FMX:cs700:gasT-I"}
+cryostreamTempPV = {"amx": "XF:17ID1:CS700:TEMP", "fmx": "XF:17ID2:CS700:TEMP", "nyx":"XF:19ID2:CS700:TEMP"}
 
 VALID_EXP_TIMES = {
     "amx": {"min": 0.005, "max": 1, "digits": 3},
@@ -107,4 +116,69 @@ VALID_TRANSMISSION = {
     "nyx": {"min": 0.001, "max": 0.999, "digits": 3},
 }
 
+MINIMUM_RASTER_SIZE = {"amx": 6, "fmx": 6, "nyx": 2}
+
 LSDC_SERVICE_USERS = ("lsdc-amx", "lsdc-fmx", "lsdc-nyx")
+IS_STAFF = (
+    True
+    if os.environ.get("STAFF_GROUP") is not None and os.environ["STAFF_GROUP"] in [grp.getgrgid(g).gr_name for g in os.getgroups()]
+    else False
+)
+
+EMBL_SERVER_PV_BASE = {
+    "amx": "XF:17IDB-ES:AMX{EMBL}",
+    "fmx": "XF:17IDC-ES:FMX{EMBL}"
+}
+
+BEAMSIZE_OPTIONS = {
+    "S": ["V0", "H0"],
+    "L": ["V1", "H1"]
+}
+
+
+class MountState(Enum):
+    CURRENTLY_MOUNTING = "cm"
+    FAILED_MOUNTING = "fm"
+    MOUNTED = "m"
+    CURRENTLY_UNMOUNTING = "cu"
+    FAILED_UNMOUNTING = "fu"
+
+    @classmethod
+    def get_text(cls, enum_value):
+        text_values = {
+            cls.CURRENTLY_MOUNTING: "\n(Currently Mounting)",
+            cls.FAILED_MOUNTING: "\n(Failed Mounting)",
+            cls.MOUNTED: "\n(Mounted)",
+            cls.CURRENTLY_UNMOUNTING: "\n(Currently Unmounting)",
+            cls.FAILED_UNMOUNTING: "\n(Failed Unmounting)"
+        }
+        return text_values.get(enum_value, "\n(Unknown State)")
+
+OPHYD_COLLECTIONS = {"amx": False, "fmx": False, "nyx": True}
+
+class CollectionProtocols(str, Enum):
+    STANDARD = "standard"
+    RASTER = "raster"
+    VECTOR = "vector"
+    BURN = "burn"
+    RASTER_SCREEN = "rasterScreen"
+    STEP_RASTER = "stepRaster"
+    STEP_VECTOR = "stepVector"
+    MULTI_COL = "multiCol"
+    MULTI_COL_Q = "multiColQ"
+    CHARACTERIZE = "characterize"
+    EDNA_COL = "ednaCol"
+    E_SCAN = "eScan"
+
+    @classmethod
+    def get_beamline_options(cls, beamline):
+        all_protocols = (cls.STANDARD, cls.RASTER, cls.VECTOR, cls.BURN, cls.RASTER_SCREEN,
+                         cls.STEP_RASTER, cls.STEP_VECTOR, cls.MULTI_COL, cls.CHARACTERIZE,
+                         cls.EDNA_COL)
+        beamline_options = {
+            "nyx": (cls.STANDARD, cls.RASTER, cls.VECTOR),
+            "amx": all_protocols,
+            "fmx": all_protocols
+        }
+
+        return beamline_options.get(beamline, ())

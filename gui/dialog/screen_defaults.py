@@ -202,7 +202,7 @@ class ScreenDefaultsDialog(QtWidgets.QDialog):
         try:
             reqID = self.parent.selectedSampleRequest["uid"]
             self.parent.drawPolyRaster(db_lib.getRequestByID(reqID))
-            self.parent.send_to_server('reprocessRaster("' + str(reqID) + '")')
+            self.parent.send_to_server("reprocessRaster", [reqID])
         except:
             pass
 

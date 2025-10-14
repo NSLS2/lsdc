@@ -1,10 +1,18 @@
-from qtpy.QtCore import QThread, QTimer, QEventLoop, Signal, QPoint, Qt, QObject
+from qtpy.QtCore import QThread, Signal, QPoint, Qt, QObject, QRunnable
 from qtpy import QtGui
 from PIL import Image, ImageQt
+import os
+import sys
 import urllib
 from io import BytesIO
 import logging
+from config_params import SERVER_CHECK_DELAY
 import raddoseLib
+from pathlib import Path
+import cv2
+import time
+import numpy as np
+import requests
 
 logger = logging.getLogger()
 
@@ -30,38 +38,59 @@ class VideoThread(QThread):
                     self.frame_ready.emit(pixmap_orig)
                     self.showing_error = True
 
-        if self.camera_object:
-            retval,self.currentFrame = self.camera_object.read()
+        if self.video_capture:
+            if self.new_mjpg_url != self.old_mjpg_url:
+                self.video_capture.open(self.new_mjpg_url)
+                self.old_mjpg_url = self.new_mjpg_url 
+            retval,self.currentFrame = self.video_capture.read()
+
             if self.currentFrame is None:
-                logger.debug('no frame read from stream URL - ensure the URL does not end with newline and that the filename is correct')
+                #logger.debug('no frame read from stream URL - ensure the URL does not end with newline and that the filename is correct')
                 return
+
             height,width=self.currentFrame.shape[:2]
             qimage= QtGui.QImage(self.currentFrame,width,height,3*width,QtGui.QImage.Format_RGB888)
             qimage = qimage.rgbSwapped()
             pixmap_orig = QtGui.QPixmap.fromImage(qimage)
             if self.width and self.height:
                 pixmap_orig = pixmap_orig.scaled(self.width, self.height)
-        
+
+            
         if not self.showing_error:
             self.frame_ready.emit(pixmap_orig)
             
         
-    def __init__(self, *args, delay=1000, url='', camera_object=None, width=None, height=None,**kwargs):
+    def __init__(self, *args, delay=1000, url='', mjpg_url=None, width=None, height=None,**kwargs):
         self.delay = delay
         self.width = width
         self.height = height
         self.url = url
-        self.camera_object = camera_object
+        self.mjpg_url = mjpg_url
+        self.old_mjpg_url = None
+        self.new_mjpg_url = None
+        self.video_capture = None
+        if self.mjpg_url and self.mjpg_url.lower().endswith(".mjpg"):
+            self.video_capture = cv2.VideoCapture(self.mjpg_url)
+            self.old_mjpg_url = self.mjpg_url
+            self.new_mjpg_url = self.mjpg_url
+            self.mjpg_url = None
         self.showing_error = False
+        self.is_running = True
         QThread.__init__(self, *args, **kwargs)
     
-    def updateCam(self, camera_object):
-        self.camera_object = camera_object
+    def updateCam(self, url):
+        if url.lower().endswith(".mjpg"):
+            self.new_mjpg_url = url
         
     def run(self):
-        while True:
+        while self.is_running:
             self.camera_refresh()
             self.msleep(self.delay)
+
+    
+    def stop(self):
+        self.is_running = False
+        self.wait()
 
 
 class RaddoseThread(QThread):
@@ -88,3 +117,45 @@ class RaddoseThread(QThread):
         self.lifetime.emit(lifetime_value)
 
 
+class ServerCheckThread(QThread):
+    visit_dir_changed = Signal()
+    def __init__(self, *args, delay=SERVER_CHECK_DELAY, **kwargs):
+        self.delay = delay
+        QThread.__init__(self, *args, **kwargs)
+
+    def run(self):
+        import db_lib
+        beamline = os.environ["BEAMLINE_ID"]
+        while True:
+            if Path(db_lib.getBeamlineConfigParam(beamline, "visitDirectory")).resolve() != Path.cwd():
+                message = "The server visit directory has changed, stopping!"
+                logger.error(message)
+                print(message)
+                self.visit_dir_changed.emit()
+                break
+            self.msleep(self.delay)
+
+
+class SignalObject(QObject):
+    finished = Signal(object)
+
+class DataFetchRunnable(QRunnable):
+    def __init__(self, run_function, *args, **kwargs):
+        """
+        Initialize the runnable with a custom function.
+        
+        :param run_function: A callable to execute in the run() method.
+        :param args: Positional arguments to pass to run_function.
+        :param kwargs: Keyword arguments to pass to run_function.
+        """
+        super(DataFetchRunnable, self).__init__()
+        self.run_function = run_function
+        self.args = args
+        self.kwargs = kwargs
+        self.signal = SignalObject()
+
+    def run(self):
+        # Execute the provided function with its arguments.
+        result = self.run_function(*self.args, **self.kwargs)
+        # Emit the finished signal with the result.
+        self.signal.finished.emit(result)

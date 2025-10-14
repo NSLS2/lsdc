@@ -39,6 +39,7 @@ class RasterExploreDialog(QtWidgets.QDialog):
         vBoxParams1.addLayout(hBoxParams3)
         vBoxParams1.addWidget(self.buttons)
         self.setLayout(vBoxParams1)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowDoesNotAcceptFocus)
 
     def setSpotCount(self, val):
         self.spotCount_ledit.setText(str(val))

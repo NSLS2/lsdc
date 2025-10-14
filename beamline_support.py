@@ -319,9 +319,14 @@ def read_db():
 
 def init_motors():
   global motor_channel_dict
+  md2_motors = ["omega","sampleX","sampleY","sampleZ", "finex", "finey", "finez"]
 
   for key in list(motor_dict.keys()):
-    motor_channel_dict[motor_dict[key]] = EpicsMotor(motor_dict[key],name = key)
+    if beamline_designation == "XF:19ID" and key in md2_motors:
+      from mxbluesky.devices.md2 import MD2Positioner
+      motor_channel_dict[motor_dict[key]] = MD2Positioner(motor_dict[key],name = key)
+    else:
+      motor_channel_dict[motor_dict[key]] = EpicsMotor(motor_dict[key],name = key)
 
 
 def initControlPVs():

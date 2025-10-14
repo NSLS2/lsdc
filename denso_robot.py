@@ -13,6 +13,12 @@ class OphydRobot:
     def __init__(self, robot):
         self.robot = robot
 
+    def parkRobot(self):
+        try:
+            self.robot.parkRobot()
+        except Exception as e:
+            logger.error(f'Failed to park robot: {e}')
+
     def warmupGripper(self):
         try:
             logger.info('drying gripper')
@@ -83,7 +89,7 @@ class OphydRobot:
     def finish(self):
         ...
 
-    def multiSampleGripper():
+    def multiSampleGripper(self):
         return True
 
     def check_sample_mounted(self, mount, puck_pos, pin_pos):  # is the correct sample present/absent as expected during a mount/unmount?

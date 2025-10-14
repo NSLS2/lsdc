@@ -59,7 +59,8 @@ class DewarDialog(QtWidgets.QDialog):
             for j in range(0, self.pucksPerDewarSector):
                 dataIndex = (i * self.pucksPerDewarSector) + j
                 self.allButtonList[dataIndex] = QtWidgets.QPushButton(
-                    (str(self.data[dataIndex]))
+                    #(str(self.data[dataIndex]))
+                    '{}: {}'.format(str(dataIndex+1),str(self.data[dataIndex]))
                 )
                 self.allButtonList[dataIndex].clicked.connect(
                     functools.partial(self.on_button, str(dataIndex))

@@ -13,6 +13,7 @@ except Exception as e:
   logger.error("daq_utils: ISPYB import error, %s" %e)
 
 import db_lib
+from config_params import CollectionProtocols
 
 global beamline
 beamline = os.environ["BEAMLINE_ID"]
@@ -34,7 +35,7 @@ global CAMERA_ANGLE_BEAM,CAMERA_ANGLE_ABOVE, CAMERA_ANGLE_BELOW
 CAMERA_ANGLE_BEAM = 0 # viewing angle is in line with beam, upstream from the sample, facing downstream, top toward ceiling
 CAMERA_ANGLE_ABOVE = 1 # viewing angle is directly above sample facing downward, top of view is downstream
 CAMERA_ANGLE_BELOW = 2 # viewing angle is directly below sample facing upward, top of view is downstream
-global mag1ViewAngle, mag2ViewAngle, mag3VivewAngle, mag4ViewAngle
+global mag1ViewAngle, mag2ViewAngle, mag3ViewAngle, mag4ViewAngle
 mag1ViewAngle = CAMERA_ANGLE_BEAM
 mag2ViewAngle = CAMERA_ANGLE_BEAM
 mag3ViewAngle = CAMERA_ANGLE_BEAM
@@ -51,8 +52,7 @@ def setBlConfig(param, value, beamline=beamline):
         db_lib.setBeamlineConfigParam(beamline, param, value)
 
 def init_environment():
-  global beamline,detector_id,mono_mot_code,has_beamline,has_xtalview,xtal_url,xtal_url_small,unitScaling,sampleCameraCount,xtalview_user,xtalview_pass,det_type,has_dna,beamstop_x_pvname,beamstop_y_pvname,camera_offset,det_radius,lowMagFOVx,lowMagFOVy,highMagFOVx,highMagFOVy,lowMagPixX,lowMagPixY,highMagPixX,highMagPixY,screenPixX,screenPixY,screenPixCenterX,screenPixCenterY,screenProtocol,screenPhist,screenPhiend,screenWidth,screenDist,screenExptime,screenWave,screenReso,gonioPvPrefix,searchParams,screenEnergy,detectorOffline,imgsrv_host,imgsrv_port,beamlineComm,primaryDewarName,lowMagCamURL,highMagZoomCamURL,lowMagZoomCamURL,highMagCamURL,owner,dewarPlateMap,mag1ViewAngle,mag2ViewAngle,mag3ViewAngle,mag4ViewAngle
-
+  global beamline,detector_id,mono_mot_code,has_beamline,has_xtalview,xtal_url,xtal_url_small,unitScaling,sampleCameraCount,xtalview_user,xtalview_pass,det_type,has_dna,beamstop_x_pvname,beamstop_y_pvname,camera_offset,det_radius,lowMagFOVx,lowMagFOVy,highMagFOVx,highMagFOVy,lowMagPixX,lowMagPixY,highMagPixX,highMagPixY,screenPixX,screenPixY,screenPixCenterX,screenPixCenterY,screenProtocol,screenPhist,screenPhiend,screenWidth,screenDist,screenExptime,screenWave,screenReso,gonioPvPrefix,searchParams,screenEnergy,detectorOffline,imgsrv_host,imgsrv_port,beamlineComm,primaryDewarName,lowMagCamURL,highMagZoomCamURL,lowMagZoomCamURL,highMagCamURL,owner,dewarPlateMap,mag1ViewAngle,mag2ViewAngle,mag3ViewAngle,mag4ViewAngle,exporter_enabled
 
   owner = getpass.getuser()
   primaryDewarName = getBlConfig("primaryDewarName")
@@ -72,6 +72,10 @@ def init_environment():
   highMagPixY = float(getBlConfig("highMagPixY"))
   screenPixX = float(getBlConfig("screenPixX"))
   screenPixY = float(getBlConfig("screenPixY"))
+  if beamline == 'nyx':
+    exporter_enabled = bool(getBlConfig("exporterEnabled"))
+  else:
+    exporter_enabled = False
 
   try: 
     unitScaling = float(getBlConfig("unitScaling"))
@@ -131,7 +135,7 @@ def init_environment():
   if varname in os.environ:
     detectorOffline = int(os.environ[varname])
   setBlConfig(BEAM_CHECK,1)
-  setBlConfig(UNMOUNT_COLD_CHECK,0)
+  setBlConfig(UNMOUNT_COLD_CHECK,1)
 
 def calc_reso(det_radius,detDistance,wave,theta):
 
@@ -191,7 +195,7 @@ def lab2gonio(x_lab, y_lab, z_lab, omega_deg):
   z_gonio = (sinO * y_lab) + (cosO * z_lab)
   return x_lab, y_gonio, z_gonio, omega_deg
 
-def createDefaultRequest(sample_id,createVisit=True):
+def createDefaultRequest(sample_id,createVisit=True, basePath=None):
     """
     Doesn't really create a request, just returns a dictionary
     with the default parameters that can be passed to addRequesttoSample().
@@ -209,7 +213,7 @@ def createDefaultRequest(sample_id,createVisit=True):
       setProposalID(propNum,createVisit)
     screenDist, screenEnergy, screenExptime, screenPhiend, screenPhist, screenReso, screenTransmissionPercent, screenWidth, screenbeamHeight, screenbeamWidth = getScreenDefaultParams()
     sampleName = str(db_lib.getSampleNamebyID(sample_id))
-    basePath = os.getcwd()
+    basePath = getBlConfig("visitDirectory") if basePath is None else basePath
     runNum = db_lib.getSampleRequestCount(sample_id)
     (puckPosition,samplePositionInContainer,containerID) = db_lib.getCoordsfromSampleID(beamline,sample_id)          
     request = {"sample": sample_id}
@@ -219,7 +223,7 @@ def createDefaultRequest(sample_id,createVisit=True):
                "sweep_start": screenPhist,  "sweep_end": screenPhiend,
                "img_width": screenWidth,
                "exposure_time": screenExptime,
-               "protocol": "standard",
+               "protocol": CollectionProtocols.STANDARD,
                "detDist": screenDist,
                "parentReqID": -1,
                "basePath": basePath,
@@ -284,7 +288,7 @@ def create_filename(prefix,number):
   else:
     tmp_filename = "%s_%05d.cbf" % (prefix,int(number))
   if (prefix[0] != "/"):
-    cwd = os.getcwd()
+    cwd = getBlConfig("visitDirectory")
     filename = "%s/%s" % (cwd,tmp_filename)
   else:
     filename = tmp_filename

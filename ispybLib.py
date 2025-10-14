@@ -8,25 +8,27 @@ from epics import PV
 import db_lib
 import det_lib
 import time
-import mysql.connector
+from PIL import Image
 import logging
+from config_params import CollectionProtocols
 logger = logging.getLogger(__name__)
 
 #12/19 - I'm leaving all commented lines alone on this. Karl Levik, DLS, is an immense help with this.
 
-conf_file = os.environ["CONFIGDIR"] + "ispybConfig.cfg"
+ispyb_db_name = os.environ("ISPYB_DB", "ispyb")
+conf_file = f"/etc/ispyb/{ispyb_db_name}Config.cfg"
 visit = 'mx99999-1'
 # Get a list of request dicts
 #request_dicts = lsdb2.getColRequestsByTimeInterval('2018-02-14T00:00:00','2018-02-15T00:00:00')
 
 # Connect to ISPyB, get the relevant data area objects
-conn = ispyb.open(credentials=conf_file)
-core = ispyb.factory.create_data_area(ispyb.factory.DataAreaType.CORE, conn)
-mxacquisition = ispyb.factory.create_data_area(ispyb.factory.DataAreaType.MXACQUISITION, conn)
-mxprocessing = ispyb.factory.create_data_area(ispyb.factory.DataAreaType.MXPROCESSING, conn)
-mxscreening = ispyb.factory.create_data_area(ispyb.factory.DataAreaType.MXSCREENING, conn)
-cnx = mysql.connector.connect(user='ispyb_api', password=os.environ['ISPYB_PASSWORD'],host='ispyb-db.nsls2.bnl.local',database='ispyb')
-cursor = cnx.cursor()
+#conn = ispyb.open(conf_file)
+#core = ispyb.factory.create_data_area(ispyb.factory.DataAreaType.CORE, conn)
+#mxacquisition = ispyb.factory.create_data_area(ispyb.factory.DataAreaType.MXACQUISITION, conn)
+#mxprocessing = ispyb.factory.create_data_area(ispyb.factory.DataAreaType.MXPROCESSING, conn)
+#mxscreening = ispyb.factory.create_data_area(ispyb.factory.DataAreaType.MXSCREENING, conn)
+#cnx = mysql.connector.connect(user='ispyb_api', password=os.environ['ISPYB_PASSWORD'],host='ispyb-db-dev.cs.nsls2.local',database='ispyb')
+#cursor = cnx.cursor()
 beamline = os.environ["BEAMLINE_ID"]
 
   # Find the id for a particular
@@ -38,151 +40,6 @@ def queryOneFromDB(q):
   except TypeError:
     return 0
 
-def personIdFromLogin(loginName):
-  q = ("select personId from Person where login = \""+ loginName + "\"")
-  return (queryOneFromDB(q))
-
-def personIdFromProposal(propNum):
-  q = ("select personId from Proposal where proposalNumber = " + str(propNum))
-  return (queryOneFromDB(q))  
-
-def proposalIdFromProposal(propNum):
-  q = ("select proposalId from Proposal where proposalNumber = " + str(propNum))
-  return (queryOneFromDB(q))
-
-def maxVisitNumfromProposal(propNum):
-  propID = proposalIdFromProposal(propNum)
-  q = ("select max(visit_number) from BLSession where proposalId = " + str(propID))
-  return (queryOneFromDB(q))
-  
-
-def createPerson(firstName,lastName,loginName):
-  return
-  params = core.get_person_params()  
-  params['given_name'] = firstName
-  params['family_name'] = lastName
-  params['login'] = loginName
-  pid = core.upsert_person(list(params.values()))
-  cnx.commit()
-  
-
-def createProposal(propNum,PI_login="boaty"):
-  return
-  pid = personIdFromLogin(PI_login)
-  if (pid == 0):
-    createPerson("Not","Sure",PI_login)
-    pid = personIdFromLogin(PI_login)
-  params = core.get_proposal_params()
-  params['proposal_code'] = 'mx'
-  params['proposal_number'] = int(propNum)
-  params['proposal_type'] = 'mx'
-  params['person_id'] = pid
-  params['title'] = 'SynchWeb Dev Proposal'
-  proposal_id = core.upsert_proposal(list(params.values()))
-  cnx.commit()  #not sure why I needed to do this. Maybe mistake in stored proc?
-
-def createVisitName(propNum): # this is for the GUI to know what a datapath would be in row_clicked
-  return
-  logger.info("creating visit Name for propnum " + str(propNum))
-  propID = proposalIdFromProposal(propNum)
-  if (propID == 0): #proposal doesn't exist, just create and assign to boaty
-    createProposal(propNum)
-  maxVis = maxVisitNumfromProposal(propNum)
-  if (maxVis == None): #1st visit
-    newVisitNum = 1
-  else:
-    newVisitNum = 1 + maxVis
-    logger.info('new visit number: %s' % newVisitNum)
-  visitName = "mx"+str(propNum)+"-"+str(newVisitNum)
-  return visitName, newVisitNum
-
-
-def createVisit(propNum):
-  return
-  visitName, newVisitNum = createVisitName(propNum)
-  personID = personIdFromProposal(propNum)
-  params = core.get_session_for_proposal_code_number_params()
-  params['proposal_code'] = 'mx'
-  params['proposal_number'] = propNum
-  params['visit_number'] = newVisitNum
-  params['beamline_name'] = daq_utils.beamline.upper()
-  params['startdate'] = datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
-  params['enddate'] = datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
-  
-  params['comments'] = 'For software testing'
-  sid = core.upsert_session_for_proposal_code_number(list(params.values()))
-  cnx.commit() 
-  assert sid is not None
-  assert sid > 0
-        # Test upsert_person:
-#        params = core.get_person_params()
-#        params['given_name'] = 'Baldur'
-#        params['family_name'] = 'Odinsson'
-#        params['login'] = 'bo%s' % str(time.time()) # login must be unique
-#        pid = core.upsert_person(list(params.values()))
-#        assert pid is not None
-#        assert pid > 0
-
-#        params = core.get_person_params()
-#        params['id'] = pid
-#        params['email_address'] = 'baldur.odinsson@asgard.org'
-#        pid2 = core.upsert_person(list(params.values()))
-#        assert pid2 is not None
-#        assert pid2 == pid
-
-        # Test upsert_session_has_person:
-  params = core.get_session_has_person_params()
-  params['session_id'] = sid
-  params['person_id'] = personID
-  params['role'] = 'Co-Investigator'
-  params['remote'] = True
-  core.upsert_session_has_person(list(params.values()))
-  cnx.commit()
-  try:
-    personsOnProposalList = core.retrieve_persons_for_proposal("mx",propNum)
-    logger.debug(f'list of all persons: {personsOnProposalList}')
-  except:
-    logger.error(f'exception when retrieving persons for proposal {propNum}')
-    return visitName      
-  for i in range (0,len(personsOnProposalList)):
-    personLogin = personsOnProposalList[i]["login"]
-    personID = personIdFromLogin(personLogin)
-    params = core.get_session_has_person_params()
-    params['session_id'] = sid
-    params['person_id'] = personID
-    params['role'] = 'Co-Investigator'
-    params['remote'] = True
-    core.upsert_session_has_person(list(params.values()))
-    cnx.commit()
-    
-
-        # Test upsert_proposal_has_person:
-#        params = core.get_proposal_has_person_params()
-#        params['proposal_id'] = 141666
-#        params['person_id'] = pid
-#        params['role'] = 'Principal Investigator'
-#        phpid = core.upsert_proposal_has_person(list(params.values()))
-#        assert phpid is not None
-#        assert phpid > 0
-  return visitName  
-
-def addPersonToProposal(personLogin,propNum):
-  return
-  personID = personIdFromLogin(personLogin)
-  if (personID == 0):
-    createPerson("Not","Sure",personLogin)
-    personID  = personIdFromLogin(personLogin)
-  propID = proposalIdFromProposal(propNum)
-  if (propID == 0):
-    createProposal(propNum,personLogin)
-    propID = proposalIdFromProposal(propNum)    
-  params = core.get_proposal_has_person_params()
-  params['proposal_id'] = propID
-  params['role'] = 'Co-Investigator'
-  params['personid'] = personID
-  phpid = core.upsert_proposal_has_person(list(params.values()))
-  cnx.commit()                                          
-  
 
 def insertPlotResult(dc_id,imageNumber,spotTotal,goodBraggCandidates,method2Res,totalIntegratedSignal):
   return
@@ -203,14 +60,16 @@ def insertResult(result,resultType,request,visitName,dc_id=None,xmlFileName=None
  try:
    sessionid = core.retrieve_visit_id(visitName)
  except ISPyBNoResultException as e:
-   logger.error("insert result - caught ISPyBNoResultException: '%s'. make sure visit name is in the format mx999999-1234. NOT HAVING MX IN FRONT IS A SIGN OF PROBLEMS - try newVisit() in that case." % e)
-   propNum = visitName.split('-')[0]
-   sessionid = createVisit(propNum)
+   message = f"insert result - caught ISPyBNoResultException: '{e}'."
+   logger.exception(message)
+   raise e
  request_type = request['request_type']
- if request_type in('standard', 'vector') :
+ if request_type in (CollectionProtocols.STANDARD, CollectionProtocols.VECTOR):
    sample = request['sample'] # this needs to be created and linked to a DC group
    if (resultType == 'fastDP'):
      mx_data_reduction_dict = xml_file_to_dict(xmlFileName)
+     comm = mx_data_reduction_dict['AutoProcProgramContainer']['AutoProcProgram']['processingCommandLine']
+     mx_data_reduction_dict['AutoProcProgramContainer']['AutoProcProgram']['processingCommandLine'] = comm[len(comm)-255:]
      (app_id, ap_id, scaling_id, integration_id) = mx_data_reduction_to_ispyb(mx_data_reduction_dict, dc_id, mxprocessing)
      mxprocessing.upsert_program_ex(program_id=app_id,status=1)
          
@@ -227,10 +86,13 @@ def insertResult(result,resultType,request,visitName,dc_id=None,xmlFileName=None
      daq_utils.take_crystal_picture(filename=jpegImagePrefix)
      jpegImageFilename = jpegImagePrefix+".jpg"
      jpegImageThumbFilename = jpegImagePrefix+"t.jpg"
-     node = db_lib.getBeamlineConfigParam(beamline,"adxvNode")
-     comm_s = f"ssh -q {node} \"{os.environ['MXPROCESSINGSCRIPTSDIR']}resize.sh {jpegImageFilename} {jpegImageThumbFilename} 40% \"&"
-     logger.info('resizing image: %s' % comm_s)
-     os.system(comm_s)
+     resizeRatio = 0.4
+     logger.info(f'resizing image: ratio: {resizeRatio} filename: {jpegImageThumbFilename}')
+     fullSnapshot = Image.open(jpegImageFilename)
+     resizeWidth = fullSnapshot.width * resizeRatio
+     resizeHeight = fullSnapshot.height * resizeRatio
+     thumbSnapshot = fullSnapshot.resize((int(resizeWidth), int(resizeHeight)))
+     thumbSnapshot.save(jpegImageThumbFilename)
      
      seqNum = int(det_lib.detector_get_seqnum())          
      node = db_lib.getBeamlineConfigParam(beamline,"adxvNode")
@@ -244,9 +106,9 @@ def insertResult(result,resultType,request,visitName,dc_id=None,xmlFileName=None
      # Create a new data collection group entry:
      params = mxacquisition.get_data_collection_group_params()
      params['parentid'] = sessionid
-     if request_type == 'standard':
+     if request_type == CollectionProtocols.STANDARD:
        params['experimenttype'] = 'OSC'
-     elif request_type == 'vector':
+     elif request_type == CollectionProtocols.VECTOR:
        params['experimenttype'] = 'Helical'
      return createDataCollection(directory, filePrefix, jpegImageFilename, params, request_obj, sessionid)
 
@@ -392,8 +254,10 @@ def insertRasterResult(request,visitName):
  try:
    sessionid = core.retrieve_visit_id(visitName)
  except ISPyBNoResultException as e:
-   logger.error("insertRasterResult - caught ISPyBNoResultException: '%s'. make sure visit name is in the format mx999999-1234. NOT HAVING MX IN FRONT IS A SIGN OF PROBLEMS - try newVisit() in that case." % e)
-   return
+   message = f"insertRasterResult - caught ISPyBNoResultException: '{e}'."
+   logger.error(message)
+   raise e
+ request = db_lib.getRequestByID(request_id)
  sample = request['sample'] # this needs to be created and linked to a DC group
  #result_obj = result['result_obj'] this doesn't appear to be used -DK
  request_obj = request['request_obj']

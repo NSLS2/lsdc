@@ -1,6 +1,6 @@
 export PROJDIR=/nsls2/software/mx/daq/
 export CONFIGDIR=${PROJDIR}bnlpx_config/
-export LSDCHOME=${PROJDIR}lsdc_nyx_prod
+export LSDCHOME=${PROJDIR}lsdc_nyx
 export EPICS_CA_AUTO_ADDR_LIST=NO
 export EPICS_CA_ADDR_LIST=10.67.147.255
 

@@ -22,8 +22,8 @@ class DataLocInfo(QtWidgets.QGroupBox):
         self.vBoxDPathParams1 = QtWidgets.QVBoxLayout()
         self.hBoxDPathParams1 = QtWidgets.QHBoxLayout()
         self.basePathLabel = QtWidgets.QLabel("Base Path:")
-        self.base_path_ledit = QtWidgets.QLabel()  # leave editable for now
-        self.base_path_ledit.setText(os.getcwd())
+        self.base_path_ledit = QtWidgets.QLabel()
+        self.base_path_ledit.setText(daq_utils.getBlConfig("visitDirectory"))
         self.base_path_ledit.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
         # self.base_path_ledit.textChanged[str].connect(self.basePathTextChanged)
         self.browseBasePathButton = QtWidgets.QPushButton("Browse...")
@@ -45,6 +45,7 @@ class DataLocInfo(QtWidgets.QGroupBox):
         self.hBoxDPathParams2.addWidget(self.prefix_ledit)
         self.dataNumstartLabel = QtWidgets.QLabel("File Number Start:")
         self.file_numstart_ledit = QtWidgets.QLineEdit()
+        self.file_numstart_ledit.setText("1")
         self.file_numstart_ledit.setValidator(QtGui.QIntValidator(1, 99999, self))
         self.file_numstart_ledit.setFixedWidth(50)
         self.hBoxDPathParams3 = QtWidgets.QHBoxLayout()
