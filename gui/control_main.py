@@ -5141,7 +5141,8 @@ class ControlMain(QtWidgets.QMainWindow):
         self.refreshTreeSignal.connect(self.dewarTree.refreshTreeThreaded)
         self.treeChanged_pv.add_callback(self.treeChangedCB)
         self.mountedPin_pv = EpicsQObject(
-            daq_utils.beamlineComm + "mounted_pin", self.processMountedPin
+            daq_utils.beamlineComm + "mounted_pin", self.processMountedPin,
+            custom_pv=custom_pv.MountedPinPV
         )
         det_stop_pv = daq_utils.pvLookupDict["stopEiger"]
         logger.info("setting stop Eiger detector PV: %s" % det_stop_pv)
