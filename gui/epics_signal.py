@@ -1,6 +1,6 @@
 from qtpy.QtCore import Signal, QObject
 from epics import PV
-
+from typing import Optional, Type
 
 class EpicsQObject(QObject):
     """
@@ -12,17 +12,20 @@ class EpicsQObject(QObject):
     # Define the PyQt signal
     epics_pv_changed = Signal(object)
 
-    def __init__(self, pv_name, qt_callback, use_string=False, pv_callback=None, custom_pv=None):
+    def __init__(self, pv_name, qt_callback, use_string=False, pv_callback=None,
+                 custom_pv: Optional[Type[PV]]=None):
         super().__init__()
         self.use_string = use_string
         # Define the pyepics PV and its callback
         if not pv_callback:
             pv_callback = self.on_pv_changed
 
-        if custom_pv:
-            PV = custom_pv
+        EpicsPV: Type[PV] = PV if custom_pv is None else custom_pv
 
-        self.pv = PV(pv_name, callback=pv_callback, auto_monitor=True)
+        if not issubclass(EpicsPV, PV):
+            raise TypeError("custom_pv must be a PV class or a subclass of PV")
+
+        self.pv = EpicsPV(pv_name, callback=pv_callback, auto_monitor=True)
         self.epics_pv_changed.connect(qt_callback)
 
     # Define the callback for the pyepics PV
