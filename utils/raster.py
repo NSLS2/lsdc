@@ -1,4 +1,20 @@
 import numpy as np
+import logging
+import db_lib, daq_utils
+
+logger = logging.getLogger()
+
+def get_score_vals(cellResults, scoreOption):
+  """
+  Returns a numpy 1d-array that stores the selected scores as a flattened array
+  """
+  score_vals = np.zeros(len(cellResults))
+  for i, res in enumerate(cellResults):
+    try:
+      score_vals[i] = float(res[scoreOption])
+    except TypeError:
+      logger.debug(f"Option {scoreOption} not found for {res}")
+  return score_vals
 
 
 def calculate_matrix_index(k, M, N, pattern="horizontal"):
@@ -108,3 +124,63 @@ def get_flattened_indices_of_max_col(raster_def, max_col):
         )
 
     return indices
+
+def peakfind_maxburn(array, num_iter):
+    '''
+    Collection center finding for multiCol protocol
+    
+    Input 2D array, find max element, store max index in list,
+    then set max element and its 8 neighbors to zero (a.k.a. burn this spot)
+    
+    Repeat until all elements set to zero, or maximum number of iterations reached
+    
+    Returns center list, and "burnt" array
+    '''
+    arr_work = array.copy()
+    indices = []
+    iterate = 1
+    while arr_work.max() != 0 and iterate <= num_iter:
+        iterate = iterate + 1
+        i, j = np.unravel_index(np.argmax(arr_work), arr_work.shape)
+        indices.append((i, j))
+        arr_work[max(i-1, 0):i+2, max(j-1, 0):j+2] = 0
+    return indices, arr_work
+
+def addMultiRequestLocation(parentReqID, hitCoords, locIndex, wedge=None): #rough proto of what to pass here for details like how to organize data
+  parentRequest = db_lib.getRequestByID(parentReqID)
+  sampleID = parentRequest["sample"]
+
+  logger.info(str(sampleID))
+  logger.info(hitCoords)
+  dataDirectory = parentRequest["request_obj"]['directory']+"multi_"+str(locIndex)
+  runNum = parentRequest["request_obj"]['runNum']
+  tempnewStratRequest = daq_utils.createDefaultRequest(sampleID)
+  ss = parentRequest["request_obj"]["rasterDef"]["omega"]
+  if "wedge" in parentRequest["request_obj"]:
+    wedge = float(parentRequest["request_obj"]["wedge"])
+  elif wedge is None:
+    wedge = 10
+
+  sweepStart = ss - wedge/2
+  sweepEnd = ss + wedge/2
+  imgWidth = parentRequest["request_obj"]['img_width']
+  exptime = parentRequest["request_obj"]['exposure_time']
+  currentDetDist = parentRequest["request_obj"]['detDist']
+  
+  newReqObj = tempnewStratRequest["request_obj"]
+  newReqObj["sweep_start"] = sweepStart
+  newReqObj["sweep_end"] = sweepEnd
+  newReqObj["img_width"] = imgWidth
+  newReqObj["exposure_time"] = exptime
+  newReqObj["detDist"] = currentDetDist
+  newReqObj["directory"] = dataDirectory  
+  newReqObj["pos_x"] = hitCoords['x']
+  newReqObj["pos_y"] = hitCoords['y']
+  newReqObj["pos_z"] = hitCoords['z']
+  newReqObj["fastDP"] = True
+  newReqObj["fastEP"] = False
+  newReqObj["dimple"] = False    
+  newReqObj["xia2"] = False
+  newReqObj["runNum"] = runNum
+  newReqObj["parentReqID"] = parentReqID
+  newRequestUID = db_lib.addRequesttoSample(sampleID,newReqObj["protocol"],daq_utils.owner,newReqObj,priority=6000,proposalID=daq_utils.getProposalID()) # a higher priority
