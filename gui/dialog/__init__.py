@@ -12,3 +12,4 @@ from .dewar import DewarDialog
 from .screen_defaults import ScreenDefaultsDialog
 from .set_energy import SetEnergyDialog
 from .resolution_dialog import CalculatorWindow
+from .multicol import MultiCol
