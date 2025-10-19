@@ -211,9 +211,16 @@ class DewarTree(QtWidgets.QTreeView):
                 sample_name = item.text()
             item.setText(sample_name + MountState.get_text(mount_state))
 
-    def refreshTreeDewarView(self, get_latest_pucks=False):
+    def refreshTreeDewarView(self, get_latest_pucks=False, hard_refresh=False):
         puck = ""
-        #self.model.clear()
+        # self.model.clear()
+        # We only want to show 1 puck when special mount is enabled
+        if daq_utils.getBlConfig("special_mount_enabled"):
+            self.pucksPerDewarSector = 1
+            self.dewarSectors = 1
+        else:
+            self.pucksPerDewarSector = PUCKS_PER_DEWAR_SECTOR[daq_utils.beamline]
+            self.dewarSectors = DEWAR_SECTORS[daq_utils.beamline]
         dewar_data, puck_data, sample_data, request_data = db_lib.get_dewar_tree_data(
             daq_utils.primaryDewarName, daq_utils.beamline, get_latest_pucks
         )
@@ -223,6 +230,8 @@ class DewarTree(QtWidgets.QTreeView):
             "sample_data": sample_data,
             "request_data": request_data,
         }
+        if hard_refresh:
+            self.model.clear()
         self.update_model(data)
 
     def update_model(self, data):
