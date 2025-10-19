@@ -80,6 +80,8 @@ functions = [
     robotOn,
     set_energy,
     anneal,
+    set_cryostream_ramp_rate,
+    set_cryostream_temp
     ]
 
 whitelisted_functions: "Dict[str, Callable]" = {

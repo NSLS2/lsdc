@@ -118,7 +118,7 @@ if (beamline=="amx"):
     dewar = Dewar("XF:17IDB-ES:AMX", name="dewar")
     home_pins = home_pins_plan(gov_mon_signal, gonio_mon_signal, pyz_homer, gonio)
     robot_arm = RobotArm("XF:17IDB-ES:AMX", name="robot_arm")
-    cs700 = CryoStream("XF:17ID1:CS700:", name="cs700", atol=0.1)
+    cs1000 = CryoStream("XF:17IDB-ES:AMX{CS:1}", name="cs1000", atol=0.1)
 
 elif beamline == "fmx":
     from mxbluesky.devices import (WorkPositions, TwoClickLowMag, LoopDetector, MountPositions, 
@@ -165,7 +165,7 @@ elif beamline == "fmx":
     dewar = Dewar("XF:17IDC-ES:FMX", name="dewar")
     home_pins = home_pins_plan(gov_mon_signal, gonio_mon_signal, pyz_homer, gonio)
     robot_arm = RobotArm("XF:17IDC-ES:FMX", name="robot_arm")
-    cs700 = CryoStream("XF:17ID2:CS700:", name="cs700", atol=0.1)
+    cs1000 = CryoStream("XF:17IDC-ES:FMX{CS:1}", name="cs1000", atol=0.1)
 else:
     raise Exception(f"Invalid beamline name provided: {beamline}")
 
