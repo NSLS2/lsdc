@@ -4714,16 +4714,9 @@ class ControlMain(QtWidgets.QMainWindow):
 
     def stopQueueCB(self):
         logger.info("stopping queue")
-        if self.pauseQueueButton.text() == "Continue":
-            self.aux_send_to_server("continue_data_collection")
-        else:
-            self.aux_send_to_server("stopDCQueue", [2])
-        
+        self.aux_send_to_server("stopDCQueue", [2])
 
     def mountSampleCB(self):
-
-
-
         if getBlConfig("mountEnabled") == 0:
             self.popupServerMessage("Mounting disabled!! Call staff!")
             return

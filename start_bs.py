@@ -41,7 +41,7 @@ plt.ion()
 import bluesky.plans as bp
 
 from bluesky.run_engine import RunEngine
-RE = RunEngine()
+RE = RunEngine(context_managers=[])
 beamline = os.environ["BEAMLINE_ID"]
 from databroker import Broker
 db = Broker.named(beamline)

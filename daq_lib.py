@@ -22,6 +22,7 @@ import bluesky.plan_stubs as bps
 import logging
 from utils import validation
 import requests
+import threading
 logger = logging.getLogger(__name__)
 
 try:
@@ -59,6 +60,9 @@ var_channel_list = {}
 
 global abort_flag
 abort_flag = 0
+
+unpause_evt = threading.Event()
+unpause_evt.set()
 
 def init_var_channels():
   global var_channel_list
@@ -166,12 +170,19 @@ def abort_data_collection(flag):
 
   if (flag==2): #stop queue after current collection
     abort_flag = 2
+    if unpause_evt.is_set():
+      unpause_evt.clear()
+      set_field("pause_button_state", "Continue")
+    else:
+      unpause_evt.set()
+      set_field("pause_button_state", "Pause")
     return
   gui_message("Aborting. This may take a minute or more.")  
   while not (getPvDesc("VectorActive")): #only stop if actually collecting
     time.sleep(0.1)
   destroy_gui_message()    
   abort_flag = 1
+  unpause_evt.clear()
   time.sleep(1.0)
   gon_stop() #this calls osc abort
   setPvDesc("zebraDisarm",1)
@@ -466,10 +477,33 @@ def runDCQueue(): #maybe don't run rasters from here???
         db_lib.updatePriority(currentRequest["uid"],-1)
         refreshGuiTree()
         continue
+    # if (abort_flag):
+    #   abort_flag =  0 #careful about when to reset this
+    #   return
+    logger.info(f"Unpause event is_set: {unpause_evt.is_set()}")
+    unpause_evt.wait()
       
-    if (abort_flag):
-      abort_flag =  0 #careful about when to reset this
-      return
+    if (currentRequest == {}):
+      break
+    elif currentRequest is None:
+      gui_message("Queue contains collection requests from different proposals" 
+                  "and not using commissioning directory."
+                  "Please remove invalid requests or switch to" 
+                  "commissioning directory to continue")
+      break
+    if (getBlConfig("queueCollect") == 1): 
+      if (getBlConfig(BEAM_CHECK) == 1):
+        waitBeam()
+      if not robot_arm.is_full_speed():
+        waitRobotArm()
+      sampleID = currentRequest["sample"]
+      puckPos,pinPos,puckID = db_lib.getCoordsfromSampleID(daq_utils.beamline, sampleID)
+      if puck_lifted(puckPos):
+        # If the puck is lifted set the collection as complete and move on
+        db_lib.updatePriority(currentRequest["uid"],-1)
+        refreshGuiTree()
+        continue
+      
     logger.info("processing request " + str(time.time()))
     reqObj = currentRequest["request_obj"]
     gov_lib.set_detz_in(gov_robot, reqObj["detDist"])
