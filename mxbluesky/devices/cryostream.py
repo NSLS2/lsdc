@@ -10,9 +10,10 @@ class CryoStreamCmd(IntEnum):
 
 
 class CryoStream(PVPositionerIsClose):
-    readback = Cpt(EpicsSignalRO, 'TEMP')
-    setpoint = Cpt(EpicsSignal, 'RTEMP')
-    actuate = Cpt(EpicsSignal, "RAMP.PROC")
+    readback = Cpt(EpicsSignalRO, 'SAMPLE_TEMP_RBV')
+    setpoint = Cpt(EpicsSignal, 'RAMP:TARGET_TEMP')
+    actuate = Cpt(EpicsSignal, "RAMP:EXECUTE")
     actuate_value = CryoStreamCmd.START_RAMP
-    stop_signal = Cpt(EpicsSignal, "RAMP.PROC")
+    stop_signal = Cpt(EpicsSignal, "RAMP:EXECUTE")
     stop_value = CryoStreamCmd.STOP_RAMP
+    ramp_rate = Cpt(EpicsSignal, "RAMP:RAMP_RATE")

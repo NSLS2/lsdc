@@ -133,6 +133,17 @@ class UserScreenDialog(QtWidgets.QFrame):
             self.slit1YMotor_ledit = QtWidgets.QLineEdit()
             self.slit1YMotor_ledit.setText(str(self.parent.slit1YGapSP_pv.get()))
             self.slit1YMotor_ledit.returnPressed.connect(self.setSlit1YCB)
+            temp_change_label = QtWidgets.QLabel("Cryo Temp:")
+            self.temp_change_ledit = QtWidgets.QLineEdit()
+            self.temp_change_ledit.returnPressed.connect(self.setTemp)
+            self.temp_change_button = QtWidgets.QPushButton("Set Temp")
+            self.temp_change_button.clicked.connect(self.setTemp)
+            
+            temp_ramp_label = QtWidgets.QLabel("Cryo Ramp Rate:")
+            self.temp_ramp_ledit = QtWidgets.QLineEdit()
+            self.temp_ramp_ledit.returnPressed.connect(self.setRamp)
+            self.temp_ramp_button = QtWidgets.QPushButton("Set Ramp Rate")
+            self.temp_ramp_button.clicked.connect(self.setRamp)
 
         sampleFluxLabelDesc = QtWidgets.QLabel("Sample Flux:")
         sampleFluxLabelDesc.setFixedWidth(80)
@@ -152,8 +163,18 @@ class UserScreenDialog(QtWidgets.QFrame):
             hBoxBeam2.addWidget(self.slit1YRBVLabel.getEntry())
             hBoxBeam2.addWidget(slit1YSPLabel)
             hBoxBeam2.addWidget(self.slit1YMotor_ledit)
+            hBoxTemp = QtWidgets.QHBoxLayout()
+            hBoxTemp.addWidget(temp_change_label)
+            hBoxTemp.addWidget(self.temp_change_ledit)
+            hBoxTemp.addWidget(self.temp_change_button)
+            hBoxRamp = QtWidgets.QHBoxLayout()
+            hBoxRamp.addWidget(temp_ramp_label)
+            hBoxRamp.addWidget(self.temp_ramp_ledit)
+            hBoxRamp.addWidget(self.temp_ramp_button)
             vBoxBeam.addLayout(hBoxBeam1)
             vBoxBeam.addLayout(hBoxBeam2)
+            vBoxBeam.addLayout(hBoxTemp)
+            vBoxBeam.addLayout(hBoxRamp)
         vBoxBeam.addLayout(hBoxBeam3)
         beamGB.setLayout(vBoxBeam)
 
@@ -229,6 +250,12 @@ class UserScreenDialog(QtWidgets.QFrame):
     def setSlit1YCB(self):
         self.parent.send_to_server("setSlit1Y", [self.slit1YMotor_ledit.text()])
 
+    def setTemp(self):
+        self.parent.send_to_server("set_cryostream_temp", [self.temp_change_ledit.text()])
+
+    def setRamp(self):
+        self.parent.send_to_server("set_cryostream_ramp_rate", [self.temp_ramp_ledit.text()])
+    
     def unmountWarmCB(self):
         self.parent.send_to_server("unmountSample")
 
