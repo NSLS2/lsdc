@@ -639,6 +639,9 @@ def collectData(currentRequest):
       check_pause()
     else:
       logger.info("autoRaster")
+      # Store original user-requested start angle before auto-centering
+      original_sweep_start = reqObj["sweep_start"]
+      
       daq_macros.run_loop_center_plan()
       if not (daq_macros.autoRasterLoop(currentRequest)):
         logger.info("could not center sample")
@@ -647,14 +650,16 @@ def collectData(currentRequest):
         return 0
       else:
         if (reqObj["centeringOption"] == "AutoLoop"):
-          reqObj["sweep_start"] = beamline_lib.motorPosFromDescriptor("omega") #%360.0?
+          # Use the original start angle directly as absolute motor position
+          reqObj["sweep_start"] = original_sweep_start
           sweep_start = reqObj["sweep_start"]
+          logger.info(f"AutoLoop (absolute mode): start angle set to {sweep_start}")
         if (reqObj["centeringOption"] == "AutoRaster"):
-          reqObj["sweep_start"] = beamline_lib.motorPosFromDescriptor("omega") - 90.0 #%360.0?
+          reqObj["sweep_start"] = beamline_lib.motorPosFromDescriptor("omega") - 90.0 + original_sweep_start
           sweep_start = reqObj["sweep_start"]
       daq_macros.setTrans(attenuation)      
 
-    if (reqObj["protocol"] in (CollectionProtocols.CHARACTERIZE, CollectionProtocols.EDNA_COL):
+    if (reqObj["protocol"] in (CollectionProtocols.CHARACTERIZE, CollectionProtocols.EDNA_COL)):
       characterizationParams = reqObj["characterizationParams"]
       index_success = daq_macros.dna_execute_collection3(0.0,img_width,2,exposure_period,data_directory_name+"/",file_prefix,1,-89.0,1,currentRequest)
       if (index_success):        
@@ -813,7 +818,7 @@ def collect_detector_seq_hw(sweep_start,range_degrees,image_width,exposure_perio
         RE(daq_macros.vector_plan_wrapped(currentRequest))
   else:  
     if (protocol in (CollectionProtocols.STANDARD, CollectionProtocols.CHARACTERIZE,
-                     CollectionProtocols.EDNA_COL, CollectionProtocols.BURN):
+                     CollectionProtocols.EDNA_COL, CollectionProtocols.BURN)):
       logger.info("vectorSync " + str(time.time()))    
       daq_macros.vectorSync()
       logger.info("zebraDaq " + str(time.time()))
