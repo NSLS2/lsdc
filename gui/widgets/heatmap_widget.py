@@ -85,7 +85,6 @@ class HeatmapWidget(MplCanvas):
             return
         x, y = int(round(event.xdata)), int(round(event.ydata))
         col, row = int(np.floor(x)), int(np.floor(y))
-        print(f"Clicked at: ({event.xdata}, {event.ydata})")
         if 0 <= row < self.data.shape[0] and 0 <= col < self.data.shape[1]:
             value = self.data[row, col]
             if event.dblclick:
@@ -96,10 +95,7 @@ class HeatmapWidget(MplCanvas):
     def show_diffraction_image(self, row, col):
         if not self.cell_results:
             return
-        print(row, col, self.data.shape[0], self.data.shape[1])
         flattened_index = calculate_flattened_index(row, col, self.data.shape[0], self.data.shape[1])
-        print(flattened_index)
-        print(len(self.cell_results))
         cell_filename = self.cell_results[flattened_index].get("image")
         if not cell_filename:
             return
