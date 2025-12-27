@@ -63,7 +63,7 @@ from gui.dialog import (
     StaffScreenDialog,
     UserScreenDialog,
     CalculatorWindow,
-    MultiCol
+    MultiColDialog,
 )
 from gui.widgets.log_widget import get_summary_widget
 from gui.raster import RasterCell, RasterGroup
@@ -2894,7 +2894,7 @@ class ControlMain(QtWidgets.QMainWindow):
                     break
             else:
                 return
-            multicol_dialog = MultiCol(parent=self, raster_req=self.selectedSampleRequest, raster_result=raster_result)
+            multicol_dialog = MultiColDialog(parent=self, raster_req=self.selectedSampleRequest, raster_result=raster_result)
             multicol_dialog.show()
 
     def moveEnergyCB(self):

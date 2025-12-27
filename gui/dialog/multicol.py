@@ -15,7 +15,7 @@ import daq_utils
 
 logger = logging.getLogger()
 
-class MultiCol(QtWidgets.QDialog):
+class MultiColDialog(QtWidgets.QDialog):
 
     def __init__(self, parent: "ControlMain", raster_req: dict, raster_result: dict):
         # Pass in the raster request and result for the widget to run a cell selection algorithm
