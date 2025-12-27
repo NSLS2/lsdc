@@ -9,7 +9,7 @@ if typing.TYPE_CHECKING:
     from lsdcGui import ControlMain
 
 from gui.widgets.heatmap_widget import HeatmapWidget
-from utils.raster import determine_raster_shape, create_snake_array, peakfind_maxburn, calculate_flattened_index, get_score_vals, addMultiRequestLocation
+from utils.raster import determine_raster_shape, create_snake_array, peakfind_maxburn, calculate_flattened_index, get_score_vals 
 import db_lib
 import daq_utils
 
@@ -58,7 +58,6 @@ class MultiColDialog(QtWidgets.QDialog):
         layout.addWidget(self.clear_centers_button, 1, 3, 1, 1)
 
         layout.addWidget(wedge_label, 2, 0, 1, 1)
-        # layout.addWidget(self.wedge_edit, 2, 1, 1, 1)
 
         layout.addWidget(self.submit_centers_button, 3, 0, 1, 1)
         layout.addWidget(self.cancel_button, 3, 3, 1, 1)
@@ -76,15 +75,12 @@ class MultiColDialog(QtWidgets.QDialog):
             flattened_index = calculate_flattened_index(x, y, self.M, self.N, self.direction)
             hitFile = self.cell_results[flattened_index]["cellMapKey"]
             hitCoords = self.raster_map[hitFile]
-            parent_req_id = self.raster_result['result_obj']["parentReqID"]
-            #current_omega = self._parent.gon.omega.get()
             self.addMultiRequestLocation(self.raster_result["request"], hitCoords, flattened_index, float(self._parent.osc_end_ledit.text()))
         self._parent.treeChanged_pv.put(1)
         self.accept()
 
 
-    def addMultiRequestLocation(self, parentReqID, hitCoords, locIndex, wedge=None): #rough proto of what to pass here for details like how to organize data
-        print(wedge)
+    def addMultiRequestLocation(self, parentReqID, hitCoords, locIndex, wedge=10.0):
         parentRequest = db_lib.getRequestByID(parentReqID)
         sampleID = parentRequest["sample"]
 
@@ -96,8 +92,6 @@ class MultiColDialog(QtWidgets.QDialog):
         ss = parentRequest["request_obj"]["rasterDef"]["omega"]
         if "wedge" in parentRequest["request_obj"]:
             wedge = float(parentRequest["request_obj"]["wedge"])
-        elif wedge is None:
-            wedge = 10
 
         newReqObj = tempnewStratRequest["request_obj"]
         newReqObj["sweep_start"] = ss - wedge/2
@@ -117,5 +111,4 @@ class MultiColDialog(QtWidgets.QDialog):
         newReqObj["parentReqID"] = parentReqID
         newReqObj["energy"] = self._parent.energy_pv.get()
         newReqObj["wavelength"] = daq_utils.energy2wave(newReqObj["energy"])
-        print(newReqObj)
-        newRequestUID = db_lib.addRequesttoSample(sampleID,newReqObj["protocol"],daq_utils.owner,newReqObj,priority=6000,proposalID=daq_utils.getProposalID())
+        db_lib.addRequesttoSample(sampleID,newReqObj["protocol"],daq_utils.owner,newReqObj,priority=6000,proposalID=daq_utils.getProposalID())
