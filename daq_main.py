@@ -3,8 +3,8 @@ import logging
 from logging import handlers
 import signal
 import threading
-from concurrent.futures import ThreadPoolExecutor
 import asyncio
+from typing import Any, Callable, Dict
 
 import daq_utils
 from epics import PV
@@ -27,39 +27,36 @@ handler1.setFormatter(myformat)
 logger.addHandler(handler1)
 
 
-# Queues to hold commands from 
-normal_queue: "Queue[str]" = Queue()
-immediate_queue: "Queue[str]" = Queue()
+workers: Dict[str, Dict[str, Any]] = {
+    "normal": {
+        "queue": Queue(),
+        "pv_suffix": "command_s",
+        "label": "command",
+    },
+    "immediate": {
+        "queue": Queue(),
+        "pv_suffix": "immediate_command_s",
+        "label": "immediate",
+    },
+}
 
-# Threadpools to execute the commands
-normal_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="Normal")
-immediate_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="Immediate")
-
-def _ensure_loop_then_call(fn, *a, **kw):
+def worker(queue: Queue, worker_name: str = "worker") -> None:
+    """
+    This worker thread waits for a command to be added to the queue,
+    then processes it directly in the worker thread
+    """
+    logger.info(f"{worker_name} started")
     # Make sure this worker thread has a default asyncio loop for the RunEngine
     try:
         asyncio.get_event_loop()
     except RuntimeError:
         asyncio.set_event_loop(asyncio.new_event_loop())
-    return fn(*a, **kw)
-
-
-def call_on_executor(executor, fn, *a, **kw):
-    return executor.submit(_ensure_loop_then_call, fn, *a, **kw).result()
-
-
-def worker(queue, executor, worker_name="worker"):
-    """
-    This worker thread waits for a command to be added to the queue,
-    then passes it on to the executor pool
-    """
-    logger.info(f"{worker_name} started")
     while True:
         cmd = queue.get()  # blocks until a command is available
         try:
             if cmd == "__STOP__":
                 break
-            call_on_executor(executor, process_input, cmd)
+            process_input(cmd)
         except Exception:
             logger.exception("Error executing %r", cmd)
         finally:
@@ -67,40 +64,44 @@ def worker(queue, executor, worker_name="worker"):
     logger.info(f"{worker_name} exiting")
 
 
-def make_pv_callback(priority_label, queue):
-    def _cb(value=None, char_value=None, **kws):
+def make_pv_callback(queue_label: str, queue: Queue) -> Callable[..., None]:
+    def _cb(value: Any = None, char_value: Any = None, **kws: Any) -> None:
         s = (char_value or "").strip()
         if not s:
             return
-        logger.info("PV %s -> %s", priority_label, s)
+        logger.info("PV %s -> %s", queue_label, s)
         queue.put(s)  # just enqueue; worker will pick it up
 
     return _cb
 
 
-def run_server(prefix: str):
+def run_server(prefix: str) -> None:
     """
     This server implementation allows multiple "workers" to execute commands in its own thread.
     Each worker runs commands from a queue assigned to it and each queue is populated by commands sent to it via Epics PVs.
     """
-    # Start worker thread
-    normal_worker_thread = threading.Thread(target=worker, name="cmd-worker", args=[normal_queue, normal_executor, "normal worker"], daemon=True)
-    normal_worker_thread.start()
-    immediate_worker_thread = threading.Thread(target=worker, name="cmd-worker", args=[immediate_queue, immediate_executor, "immediate worker"], daemon=True)
-    immediate_worker_thread.start()
+    # Start worker threads
+    stop_evt = threading.Event()
+    threads: Dict[str, threading.Thread] = {}
+    for name, cfg in workers.items():
+        t = threading.Thread(
+            target=worker,
+            name=f"cmd-worker-{name}",
+            args=[cfg["queue"], f"{name} worker"],
+            daemon=True,
+        )
+        t.start()
+        threads[name] = t
 
-    pv_cmd = PV(f"{prefix}command_s", auto_monitor=True)
-    pv_cmd.put("", wait=True)
-    pv_cmd.add_callback(make_pv_callback("command", normal_queue), run_now=False)
-
-    pv_imm = PV(f"{prefix}immediate_command_s", auto_monitor=True)
-    pv_imm.put("", wait=True)
-    pv_imm.add_callback(make_pv_callback("immediate", immediate_queue), run_now=False)
+    pvs: Dict[str, PV] = {}
+    for name, cfg in workers.items():
+        pv = PV(f"{prefix}{cfg['pv_suffix']}", auto_monitor=True)
+        pv.put("", wait=True)
+        pv.add_callback(make_pv_callback(cfg["label"], cfg["queue"]), run_now=False)
+        pvs[name] = pv
 
     # Keep process alive; stop cleanly on Ctrl-C / SIGTERM
-    stop_evt = threading.Event()
-
-    def _sig(_s, _f):
+    def _sig(_s: int, _f: Any) -> None:
         stop_evt.set()
 
     signal.signal(signal.SIGINT, _sig)
@@ -109,15 +110,15 @@ def run_server(prefix: str):
     try:
         stop_evt.wait()
     finally:
-        # tell worker to exit and wait for it
-        normal_queue.put("__STOP__")
-        normal_worker_thread.join()
-        immediate_worker_thread.join()
-        normal_executor.shutdown(wait=True, cancel_futures=True)
-        immediate_executor.shutdown(wait=True, cancel_futures=True)
+        # tell workers to exit and wait for them
+        stop_evt.set()
+        for cfg in workers.values():
+            cfg["queue"].put("__STOP__")
+        for t in threads.values():
+            t.join()
 
 
-def main():
+def main() -> None:
     pybass_init()
     perform_server_checks()
     setBlConfig("visitDirectory", os.environ.get("CURRENT_VISIT_DIR", os.getcwd()))
