@@ -87,8 +87,13 @@ functions = [
     robotOn,
     robotOff,
     set_energy,
-    insertRasterResult,
     anneal,
+    beamCheckOn,
+    beamCheckOff,
+    queueCollectOn,
+    queueCollectOff,
+    unmountColdOn,
+    unmountColdOff
     ]
 
 if daq_utils.beamline != "nyx":
