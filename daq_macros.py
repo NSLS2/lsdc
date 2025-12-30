@@ -870,10 +870,6 @@ def generateGridMap(rasterRequest,rasterEncoderMap=None): #12/19 - there's some 
   return rasterResult
 
 
-def rasterWait():
-  time.sleep(0.2)
-  while (getPvDesc("RasterActive")):
-    time.sleep(0.2)
 
 def vectorWait():
   time.sleep(0.15)
@@ -886,14 +882,6 @@ def vectorActiveWait():
     if time.time() - start_time > 3: #if we have waited long enough, just throw an exception
       raise TimeoutError()
     time.sleep(0.05)
-
-def vectorHoldWait():
-  time.sleep(0.15)
-  while (getPvDesc("VectorState")!=2):
-    time.sleep(0.05)
-
-def vectorProceed():
-  setPvDesc("vectorProceed",1)
 
 def vectorSync():
   setPvDesc("vectorSync",1)
@@ -1162,130 +1150,6 @@ def runDialsThread(requestID, directory,prefix,rowIndex,rowCellCount,seqNum):
   rasterRowResultsList[rowIndex] = localDialsResultDict["data"]["response"]
   processedRasterRowCount+=1
   logger.info("leaving thread")
-
-def generateGridMapFine(rasterRequest,rasterEncoderMap=None,rowsOfSubrasters=0,columnsOfSubrasters=0,rowsPerSubraster=0,cellsPerSubrasterRow=0):
-  global rasterRowResultsList
-
-  reqObj = rasterRequest["request_obj"]
-  rasterDef = reqObj["rasterDef"]
-  stepsize = float(rasterDef["stepsize"])
-  omega = float(rasterDef["omega"])
-  rasterStartX = float(rasterDef["x"])
-  rasterStartY = float(rasterDef["y"])
-  rasterStartZ = float(rasterDef["z"])
-  omegaRad = math.radians(omega)
-  filePrefix = reqObj["directory"]+"/"+reqObj["file_prefix"]
-  rasterCellMap = {}
-  os.system("mkdir -p " + reqObj["directory"])
-  for i in range(len(rasterDef["rowDefs"])):
-    numsteps = float(rasterDef["rowDefs"][i]["numsteps"])
-#next 6 lines to differentiate horizontal vs vertical raster    
-    startX = rasterDef["rowDefs"][i]["start"]["x"]
-    endX = rasterDef["rowDefs"][i]["end"]["x"]
-    startY = rasterDef["rowDefs"][i]["start"]["y"]
-    endY = rasterDef["rowDefs"][i]["end"]["y"]
-    deltaX = abs(endX-startX)
-    deltaY = abs(endY-startY)
-
-    if (deltaX>deltaY): #horizontal raster
-      if (i%2 == 0): #left to right if even, else right to left - a snake attempt
-        startX = rasterDef["rowDefs"][i]["start"]["x"]+(stepsize/2.0) #this is relative to center, so signs are reversed from motor movements.
-      else:
-        startX = (numsteps*stepsize) + rasterDef["rowDefs"][i]["start"]["x"]-(stepsize/2.0)
-      startY = rasterDef["rowDefs"][i]["start"]["y"]+(stepsize/2.0)
-      xRelativeMove = startX
-      yzRelativeMove = startY*math.sin(omegaRad)
-      yyRelativeMove = startY*math.cos(omegaRad)
-      xMotAbsoluteMove = rasterStartX+xRelativeMove    
-      yMotAbsoluteMove = rasterStartY-yyRelativeMove
-      zMotAbsoluteMove = rasterStartZ-yzRelativeMove
-      numsteps = int(rasterDef["rowDefs"][i]["numsteps"])
-      for j in range(numsteps):
-        imIndexStr = str((i*numsteps)+j+1)        
-        if (i%2 == 0): #left to right if even, else right to left - a snake attempt
-          xMotCellAbsoluteMove = xMotAbsoluteMove+(j*stepsize)
-        else:
-          xMotCellAbsoluteMove = xMotAbsoluteMove-(j*stepsize)
-        if (daq_utils.detector_id == "EIGER-16"):
-          dataFileName = "%s_%06d.cbf" % (reqObj["directory"]+"/cbf/"+reqObj["file_prefix"]+"_Raster_"+str(i),(i*numsteps)+j+1)
-        else:
-          dataFileName = daq_utils.create_filename(filePrefix+"_Raster_"+str(i),(i*numsteps)+j+1)
-        rasterCellCoords = {"x":xMotCellAbsoluteMove,"y":yMotAbsoluteMove,"z":zMotAbsoluteMove}
-        rasterCellMap[dataFileName[:-4]] = rasterCellCoords
-    else: #vertical raster
-      if (i%2 == 0): #top to bottom if even, else bottom to top - a snake attempt
-        startY = rasterDef["rowDefs"][i]["start"]["y"]+(stepsize/2.0) #this is relative to center, so signs are reversed from motor movements.
-      else:
-        startY = (numsteps*stepsize) + rasterDef["rowDefs"][i]["start"]["y"]-(stepsize/2.0)
-      startX = rasterDef["rowDefs"][i]["start"]["x"]+(stepsize/2.0)
-      xRelativeMove = startX
-      yzRelativeMove = startY*math.sin(omegaRad)
-      yyRelativeMove = startY*math.cos(omegaRad)
-      xMotAbsoluteMove = rasterStartX+xRelativeMove    
-      yMotAbsoluteMove = rasterStartY-yyRelativeMove
-      zMotAbsoluteMove = rasterStartZ-yzRelativeMove
-      numsteps = int(rasterDef["rowDefs"][i]["numsteps"])
-      for j in range(numsteps):
-        imIndexStr = str((i*numsteps)+j+1)              
-        if (i%2 == 0): #top to bottom if even, else bottom to top - a snake attempt
-          yMotCellAbsoluteMove = yMotAbsoluteMove-(math.cos(omegaRad)*(j*stepsize))
-          zMotCellAbsoluteMove = zMotAbsoluteMove-(math.sin(omegaRad)*(j*stepsize))          
-        else:
-          yMotCellAbsoluteMove = yMotAbsoluteMove+(math.cos(omegaRad)*(j*stepsize))
-          zMotCellAbsoluteMove = zMotAbsoluteMove+(math.sin(omegaRad)*(j*stepsize))          
-        if (daq_utils.detector_id == "EIGER-16"):
-          dataFileName = "%s_%06d.cbf" % (reqObj["directory"]+"/cbf/"+reqObj["file_prefix"]+"_Raster_"+str(i),(i*numsteps)+j+1)
-        else:
-          dataFileName = daq_utils.create_filename(filePrefix+"_Raster_"+str(i),j+1)
-        rasterCellCoords = {"x":xMotAbsoluteMove,"y":yMotCellAbsoluteMove,"z":zMotCellAbsoluteMove}
-        rasterCellMap[dataFileName[:-4]] = rasterCellCoords
-
-#commented out all of the processing, as this should have been done by the thread
-  if (rasterEncoderMap!= None):
-    rasterCellMap = rasterEncoderMap
-  if ("parentReqID" in rasterRequest["request_obj"]):
-    parentReqID = rasterRequest["request_obj"]["parentReqID"]
-  else:
-    parentReqID = -1
-  logger.info("RASTER CELL RESULTS")
-  if (rowsOfSubrasters != 0):
-    cellsPerSubraster = rowsPerSubraster*cellsPerSubrasterRow
-    subrastersPerCompositeRaster = rowsOfSubrasters*columnsOfSubrasters
-    rowsPerCompositeRaster = rowsPerSubraster*rowsOfSubrasters
-    cellsPerCompositeRasterRow = columnsOfSubrasters*cellsPerSubrasterRow
-    cellsPerCompositeRaster = cellsPerSubraster*subrastersPerCompositeRaster
-    subRasterListFlipped = []
-    for ii in range (0,len(rasterRowResultsList)):
-      subrasterFlipped = []  
-      for i in range (0,rowsPerSubraster):
-        for j in range (0,cellsPerSubrasterRow):
-          origSubrasterIndex = (i*cellsPerSubrasterRow)+j                
-          if (i%2 == 1): #odd,flip
-            subrasterIndex = (i*cellsPerSubrasterRow)+(cellsPerSubrasterRow-j-1)
-          else:
-            subrasterIndex = origSubrasterIndex
-          subrasterFlipped.append(rasterRowResultsList[ii][subrasterIndex])
-      subRasterListFlipped.append(subrasterFlipped)
-    dialsResultLocalList = []
-    for ii in range (0,rowsOfSubrasters):
-      for jj in range (0,rowsPerSubraster):          
-        for i in range (0,columnsOfSubrasters):
-          for j in range (0,cellsPerSubrasterRow):
-            dialsResultLocalList.append(subRasterListFlipped[(ii*columnsOfSubrasters)+i][(jj*cellsPerSubrasterRow)+j]) #first dimension is easy, 
-  else:
-    dialsResultLocalList = []    
-    for i in range (0,len(rasterRowResultsList)):
-      for j in range (0,len(rasterRowResultsList[i])):
-        try:
-          dialsResultLocalList.append(rasterRowResultsList[i][j])
-        except KeyError: #this is to deal with single cell row. Instead of getting back a list of one row, I get back just the row from Dials.
-          dialsResultLocalList.append(rasterRowResultsList[i])
-          break
-
-  rasterResultObj = {"sample_id": rasterRequest["sample"],"parentReqID":parentReqID,"rasterCellMap":rasterCellMap,"rasterCellResults":{"type":"dozorRasterResult","resultObj":dialsResultLocalList}}
-  rasterResultID = db_lib.addResultforRequest("rasterResult",rasterRequest["uid"], owner=daq_utils.owner,result_obj=rasterResultObj,proposalID=daq_utils.getProposalID(),beamline=daq_utils.beamline)
-  rasterResult = db_lib.getResult(rasterResultID)
-  return rasterResult
 
 def getNodeName(node_type, row_index, num_nodes=8): #calculate node name based on row index
     node_number = row_index % num_nodes + 1
@@ -2460,34 +2324,21 @@ def gridRaster(currentRequest):
 
 def runRasterScan(currentRequest,rasterType="", width=0, height=0, step_size=10, omega_rel=0): #this actually defines and runs
   sampleID = currentRequest["sample"]
-  if (rasterType=="Fine"):
-    daq_lib.set_field("xrecRasterFlag","100")    
-    rasterReqID = defineRectRaster(currentRequest,90,90,10)
-    RE(snakeRaster(rasterReqID))
-  elif (rasterType=="Coarse"):
-    daq_lib.set_field("xrecRasterFlag","100")    
-    rasterReqID = defineRectRaster(currentRequest,630,390,30)     
-    RE(snakeRaster(rasterReqID))
-  elif (rasterType=="autoVector"):
-    daq_lib.set_field("xrecRasterFlag","100")    
-    rasterReqID = defineRectRaster(currentRequest,615,375,15)     
-    RE(snakeRaster(rasterReqID))
-  elif (rasterType=="Line"):  
-    daq_lib.set_field("xrecRasterFlag","100")    
-    beamline_lib.mvrDescriptor("omega",90)
-    rasterReqID = defineRectRaster(currentRequest,10,290,10)    
-    RE(snakeRaster(rasterReqID))
-    daq_lib.set_field("xrecRasterFlag","100")    
-  elif (rasterType=="Custom"):
-    daq_lib.set_field("xrecRasterFlag","100")
-    beamline_lib.mvrDescriptor("omega",omega_rel)
-    rasterReqID = defineRectRaster(currentRequest, width+step_size, height+step_size, step_size)
-    RE(snakeRaster(rasterReqID))
-  else:
-    rasterReqID = getXrecLoopShape(currentRequest)
-    logger.info("snake raster " + str(rasterReqID))
-    time.sleep(1) #I think I really need this, not sure why
-    RE(snakeRaster(rasterReqID))
+  params = {
+    "Fine": {"omega": 0, "width": 90, "height": 90, "step_size": 10},
+    "Coarse": {"omega": 0, "width": 630, "height": 390, "step_size": 30},
+    "autoVector": {"omega": 0, "width": 615, "height": 375, "step_size": 15},
+    "Line": {"omega": 90, "width": 10, "height": 290, "step_size": 10},
+  }
+  selected_params = params.get(rasterType, {"omega": omega_rel, "width": width, "height": height, "step_size": step_size})
+
+  daq_lib.set_field("xrecRasterFlag", "100")
+  beamline_lib.mvrDescriptor("omega",omega_rel)
+  rasterReqID = defineRectRaster(currentRequest, 
+                                 selected_params["width"], 
+                                 selected_params["height"], 
+                                 selected_params["step_size"])
+  RE(snakeRaster(rasterReqID))
 
 def get_score_vals(cellResults, scoreOption):
   """
@@ -2760,32 +2611,7 @@ def screenYPixels2microns(pixels):
   fovY = fov["y"]
   return float(pixels)*(fovY/daq_utils.lowMagPixY)
 
-def defineTiledRaster(rasterDef,numsteps_h,numsteps_v,origRasterCenterScreenX,origRasterCenterScreenY): #I need this to redefine composite for tiling. Much of the reqObf can stay same.
-  
-  rasterDef["rowDefs"] = []
-  stepsize = rasterDef["stepsize"]
-  point_offset_x = origRasterCenterScreenX-(numsteps_h*stepsize)/2.0
-  point_offset_y = origRasterCenterScreenY-(numsteps_v*stepsize)/2.0
-  if (numsteps_v > numsteps_h): #vertical raster
-    for i in range(numsteps_h):
-      vectorStartX = point_offset_x+(i*stepsize)
-      vectorEndX = vectorStartX
-      vectorStartY = point_offset_y
-      vectorEndY = vectorStartY + (numsteps_v*stepsize)
-      newRowDef = {"start":{"x": vectorStartX,"y":vectorStartY},"end":{"x":vectorEndX,"y":vectorEndY},"numsteps":numsteps_v}
-      rasterDef["rowDefs"].append(newRowDef)
-  else: #horizontal raster
-    for i in range(numsteps_v):
-      vectorStartX = point_offset_x
-      vectorEndX = vectorStartX + (numsteps_h*stepsize)
-      vectorStartY = point_offset_y+(i*stepsize)
-      vectorEndY = vectorStartY
-      newRowDef = {"start":{"x": vectorStartX,"y":vectorStartY},"end":{"x":vectorEndX,"y":vectorEndY},"numsteps":numsteps_h}
-      rasterDef["rowDefs"].append(newRowDef)
-  rasterDef["status"] = RasterStatus.DRAWN.value # this will tell clients that the raster should be displayed.      
-  return rasterDef
-
-def defineRectRaster(currentRequest,raster_w_s,raster_h_s,stepsizeMicrons_s,xoff=0.0,yoff=0.0,zoff=0.0): #maybe point_x and point_y are image center? #everything can come as microns, make this a horz vector scan, note this never deals with pixels.
+def defineRectRaster(currentRequest,raster_w_s,raster_h_s,stepsizeMicrons_s,xoff=0.0,yoff=0.0,zoff=0.0): 
   
   sampleID = currentRequest["sample"]
   sample = db_lib.getSampleByID(sampleID)
@@ -2855,35 +2681,7 @@ def defineRectRaster(currentRequest,raster_w_s,raster_h_s,stepsizeMicrons_s,xoff
   time.sleep(1)
   return newRasterRequestUID
 
-
-
-def collectSpec(filename,gotoSA=True):
-  """collectSpec(filenamePrefix) : collect a spectrum, save to file"""  
-  gov_lib.setGovRobot(gov_robot, 'XF')
-  daq_lib.open_shutter()
-  setPvDesc("mercuryEraseStart",1)
-  while (1):
-    if (getPvDesc("mercuryReadStat") == 0):
-      break
-    time.sleep(0.05)
-  specArray = getPvDesc("mercurySpectrum")
-  plt.plot(specArray)
-  plt.show(block=False)
-  nowtime_s = str(int(time.time()))
-  specFileName = filename + "_" + nowtime_s + ".txt"
-  specFile = open(specFileName,"w+")
-  channelCount = len(specArray)
-  for i in range (0,channelCount):
-    if (i == 0):
-      specFile.write(str(specArray[i]))
-    else:
-      specFile.write("," + str(specArray[i]))
-  specFile.close()
-  daq_lib.close_shutter()
-  if (gotoSA):
-    gov_lib.setGovRobot(gov_robot, 'SA')
-
-    
+   
 def eScan(energyScanRequest):
   plt.clf()
   sampleID = energyScanRequest["sample"]
@@ -3460,20 +3258,6 @@ def zebraDaqPrep():
   setPvDesc("zebraM3SetPosProc",1)
   setPvDesc("zebraArmTrigSource",1)
 
-
-def zebraArm():
-  setPvDesc("zebraArm",1)
-  while(1):
-    time.sleep(.1)
-    if (getPvDesc("zebraArmOut") == 1):
-      break
-
-def zebraWaitOld():
-  while(1):
-    time.sleep(.1)
-    if (getPvDesc("zebraDownloading") == 0):
-      break
-
 def zebraWait(timeoutCheck=True):
   timeoutLimit = 20.0
   downloadStart = time.time()  
@@ -3488,19 +3272,6 @@ def zebraWait(timeoutCheck=True):
     if (getPvDesc("zebraDownloading") == 0):
       break
 
-def zebraWaitDownload(numsteps):
-
-  timeoutLimit = 5.0  
-  downloadStart = time.time()  
-  while(1):
-    now = time.time()
-    if (now > (downloadStart+timeoutLimit)):
-      setPvDesc("zebraReset",1)
-      logger.error("timeout in zebra wait download!")
-      break
-    time.sleep(.1)
-    if (getPvDesc("zebraDownloadCount") == numsteps):
-      break
     
 def loop_center_mask():
   os.system("cp $CONFIGDIR/bkgrnd.jpg .")
@@ -4675,8 +4446,6 @@ def lsdcHelp():
   print(setAttenBCU.__doc__)
   print(setAttenRI.__doc__)
   print(unlockGUI.__doc__)
-  print(collectSpec.__doc__)
-  print(setScannerType.__doc__)            
   print("recoverRobot()")
   print("setFastDPNode(nodeName)")
   print("setDimpleNode(nodeName)")
