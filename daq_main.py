@@ -14,6 +14,7 @@ from daq_main_common import pybass_init, process_input
 import os
 from queue import Queue
 
+# Setup logger
 logger = logging.getLogger()
 logging.getLogger().setLevel(logging.INFO)
 logging.getLogger("ophyd").setLevel(logging.WARN)
@@ -24,8 +25,15 @@ handler1 = handlers.RotatingFileHandler(
 myformat = logging.Formatter("%(asctime)s %(name)-8s %(levelname)-8s %(message)s")
 handler1.setFormatter(myformat)
 logger.addHandler(handler1)
+
+
+# Queues to hold commands from 
+normal_queue: "Queue[str]" = Queue()
+immediate_queue: "Queue[str]" = Queue()
+
+# Threadpools to execute the commands
 normal_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="Normal")
-imm_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="Immediate")
+immediate_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="Immediate")
 
 def _ensure_loop_then_call(fn, *a, **kw):
     # Make sure this worker thread has a default asyncio loop for the RunEngine
@@ -40,15 +48,11 @@ def call_on_executor(executor, fn, *a, **kw):
     return executor.submit(_ensure_loop_then_call, fn, *a, **kw).result()
 
 
-def execute_command(command_str: str):
-    logger.info("execute_command: %s", command_str)
-    return process_input(command_str)
-
-
-q: "Queue[str]" = Queue()
-imm_q = Queue()
-
 def worker(queue, executor, worker_name="worker"):
+    """
+    This worker thread waits for a command to be added to the queue,
+    then passes it on to the executor pool
+    """
     logger.info(f"{worker_name} started")
     while True:
         cmd = queue.get()  # blocks until a command is available
@@ -75,19 +79,23 @@ def make_pv_callback(priority_label, queue):
 
 
 def run_server(prefix: str):
+    """
+    This server implementation allows multiple "workers" to execute commands in its own thread.
+    Each worker runs commands from a queue assigned to it and each queue is populated by commands sent to it via Epics PVs.
+    """
     # Start worker thread
-    t = threading.Thread(target=worker, name="cmd-worker", args=[q, normal_executor, "normal worker"], daemon=True)
-    t.start()
-    imm_t = threading.Thread(target=worker, name="cmd-worker", args=[imm_q, imm_executor, "immediate worker"], daemon=True)
-    imm_t.start()
+    normal_worker_thread = threading.Thread(target=worker, name="cmd-worker", args=[normal_queue, normal_executor, "normal worker"], daemon=True)
+    normal_worker_thread.start()
+    immediate_worker_thread = threading.Thread(target=worker, name="cmd-worker", args=[immediate_queue, immediate_executor, "immediate worker"], daemon=True)
+    immediate_worker_thread.start()
 
     pv_cmd = PV(f"{prefix}command_s", auto_monitor=True)
     pv_cmd.put("", wait=True)
-    pv_cmd.add_callback(make_pv_callback("command", q), run_now=False)
+    pv_cmd.add_callback(make_pv_callback("command", normal_queue), run_now=False)
 
     pv_imm = PV(f"{prefix}immediate_command_s", auto_monitor=True)
     pv_imm.put("", wait=True)
-    pv_imm.add_callback(make_pv_callback("immediate", imm_q), run_now=False)
+    pv_imm.add_callback(make_pv_callback("immediate", immediate_queue), run_now=False)
 
     # Keep process alive; stop cleanly on Ctrl-C / SIGTERM
     stop_evt = threading.Event()
@@ -102,11 +110,11 @@ def run_server(prefix: str):
         stop_evt.wait()
     finally:
         # tell worker to exit and wait for it
-        q.put("__STOP__")
-        t.join()
-        imm_t.join()
+        normal_queue.put("__STOP__")
+        normal_worker_thread.join()
+        immediate_worker_thread.join()
         normal_executor.shutdown(wait=True, cancel_futures=True)
-        imm_executor.shutdown(wait=True, cancel_futures=True)
+        immediate_executor.shutdown(wait=True, cancel_futures=True)
 
 
 def main():
