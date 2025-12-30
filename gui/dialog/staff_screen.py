@@ -43,24 +43,18 @@ class StaffScreenDialog(QtWidgets.QFrame):
         hBoxColParams0.addWidget(puckToDewarButton)
         hBoxColParams0.addWidget(removePuckButton)
         self.robotOnCheckBox = QCheckBox("Robot (On)")
-        self.update_robot_state_checkbox()
+        self.robotOnCheckBox.setChecked(True if getBlConfig("robot_online") else False)
         self.robotOnCheckBox.clicked.connect(self.robotOnCheckCB)
         self.topViewCheckOnCheckBox = QCheckBox("TopViewCheck (On)")
-        if getBlConfig(TOP_VIEW_CHECK) == 1:
-            self.topViewCheckOnCheckBox.setChecked(True)
-        else:
-            self.topViewCheckOnCheckBox.setChecked(False)
-        self.topViewCheckOnCheckBox.stateChanged.connect(self.topViewOnCheckCB)
+        self.topViewCheckOnCheckBox.setChecked(True if getBlConfig(TOP_VIEW_CHECK) else False)
+        self.topViewCheckOnCheckBox.clicked.connect(self.topViewOnCheckCB)
         # BeamCheck check box
         self.beamCheckOnCheckBox = QCheckBox("BeamCheck (On)")
-        if getBlConfig(BEAM_CHECK) == 1:
-            self.beamCheckOnCheckBox.setChecked(True)
-        else:
-            self.beamCheckOnCheckBox.setChecked(False)
-        self.beamCheckOnCheckBox.stateChanged.connect(self.beamCheckOnCheckCB)
+        self.beamCheckOnCheckBox.setChecked(True if getBlConfig(BEAM_CHECK) else False)
+        self.beamCheckOnCheckBox.clicked.connect(self.beamCheckOnCheckCB)
 
         self.gripperUnmountColdCheckBox = QCheckBox("Unmount Cold")
-        self.gripperUnmountColdCheckBox.stateChanged.connect(self.unmountColdCheckCB)
+        self.gripperUnmountColdCheckBox.clicked.connect(self.unmountColdCheckCB)
         if getBlConfig(UNMOUNT_COLD_CHECK) == 1:
             self.gripperUnmountColdCheckBox.setEnabled(True)
             self.gripperUnmountColdCheckBox.setChecked(True)
@@ -72,44 +66,32 @@ class StaffScreenDialog(QtWidgets.QFrame):
         if daq_utils.beamline == "fmx":
             self.set_energy_checkbox = QCheckBox("Set Energy")
             hBoxColParams1.addWidget(self.set_energy_checkbox)
-            if getBlConfig(SET_ENERGY_CHECK) == 1:
-                self.set_energy_checkbox.setChecked(True)
-            else:
-                self.set_energy_checkbox.setChecked(False)
-            self.set_energy_checkbox.stateChanged.connect(self.set_energy_check_cb)
+            self.set_energy_checkbox.setChecked(True if getBlConfig(SET_ENERGY_CHECK) else False)
+            self.set_energy_checkbox.clicked.connect(self.set_energy_check_cb)
 
 
         self.queueCollectOnCheckBox = QCheckBox("Queue Collect")
         hBoxColParams1.addWidget(self.queueCollectOnCheckBox)
         self.checkQueueCollect()
-        self.queueCollectOnCheckBox.stateChanged.connect(self.queueCollectOnCheckCB)
+        self.queueCollectOnCheckBox.clicked.connect(self.queueCollectOnCheckCB)
         self.vertRasterOnCheckBox = QCheckBox("Vert. Raster")
         hBoxColParams1.addWidget(self.vertRasterOnCheckBox)
-        if getBlConfig("vertRasterOn") == 1:
-            self.vertRasterOnCheckBox.setChecked(True)
-        else:
-            self.vertRasterOnCheckBox.setChecked(False)
-        self.vertRasterOnCheckBox.stateChanged.connect(self.vertRasterOnCheckCB)
+        self.vertRasterOnCheckBox.setChecked(True if getBlConfig("vertRasterOn") else False)
+        self.vertRasterOnCheckBox.clicked.connect(self.vertRasterOnCheckCB)
         self.procRasterOnCheckBox = QCheckBox("Process Raster")
         hBoxColParams1.addWidget(self.procRasterOnCheckBox)
-        if getBlConfig("rasterProcessFlag") == 1:
-            self.procRasterOnCheckBox.setChecked(True)
-        else:
-            self.procRasterOnCheckBox.setChecked(False)
-        self.procRasterOnCheckBox.stateChanged.connect(self.procRasterOnCheckCB)
+        self.procRasterOnCheckBox.setChecked(True if getBlConfig("rasterProcessFlag") else False)
+        self.procRasterOnCheckBox.clicked.connect(self.procRasterOnCheckCB)
         self.guiRemoteOnCheckBox = QCheckBox("GUI Remote")
         hBoxColParams1.addWidget(self.guiRemoteOnCheckBox)
-        if getBlConfig("omegaMonitorPV") == "VAL":
-            self.guiRemoteOnCheckBox.setChecked(True)
-        else:
-            self.guiRemoteOnCheckBox.setChecked(False)
+        self.guiRemoteOnCheckBox.setChecked(True if getBlConfig("omegaMonitorPV") == "VAL" else False)
         self.guiRemoteOnCheckBox.stateChanged.connect(self.guiRemoteOnCheckCB)
         self.albulaDispCheckBox = QCheckBox("Display Data (Albula)")
         self.albulaDispCheckBox.setChecked(True)
         hBoxColParams1.addWidget(self.albulaDispCheckBox)
 
         self.enableMountCheckBox = QCheckBox("Enable Mount")
-        self.update_enable_mount_state_checkbox()
+        self.enableMountCheckBox.setChecked(True if getBlConfig("mountEnabled") else False)
         self.enableMountCheckBox.clicked.connect(self.enableMountCheckCB)
         self.unmountColdButton = QtWidgets.QPushButton("Unmount Cold")
         self.unmountColdButton.clicked.connect(self.unmountColdCB)
