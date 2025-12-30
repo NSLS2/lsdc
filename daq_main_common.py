@@ -83,8 +83,13 @@ functions = [
     set_cryostream_temp,
     robotOff,
     set_energy,
-    insertRasterResult,
     anneal,
+    beamCheckOn,
+    beamCheckOff,
+    queueCollectOn,
+    queueCollectOff,
+    unmountColdOn,
+    unmountColdOff
     ]
 
 whitelisted_functions: "Dict[str, Callable]" = {

@@ -294,45 +294,17 @@ class StaffScreenDialog(QtWidgets.QFrame):
     def homePinsCB(self):
         self.parent.send_to_server("homePins")
 
+    def checkbox_toggle_cb(self, state: bool, on_function_name: str, off_function_name: str):
+        # Based on the value of state, call on_function_name if state is true or off_function_name
+        function_name = on_function_name if state else off_function_name
+        logger.info(f"Checkbox state: {state}. Running: {function_name}")
+        self.parent.send_to_server(function_name)
+
     def robotOnCheckCB(self, state):
-        if state:
-            self.parent.send_to_server("robotOn")
-        else:
-            self.parent.send_to_server("robotOff")
-
-    def update_robot_state_checkbox(self):
-        if getBlConfig("robot_online") == 1:
-            self.robotOnCheckBox.setChecked(True)
-        else:
-            self.robotOnCheckBox.setChecked(False)
-
-    def update_enable_mount_state_checkbox(self):
-        if getBlConfig("mountEnabled") == 1:
-            self.enableMountCheckBox.setChecked(True)
-        else:
-            self.enableMountCheckBox.setChecked(False)
-
-
-    def update_robot_state_checkbox(self):
-        if getBlConfig("robot_online") == 1:
-            self.robotOnCheckBox.setChecked(True)
-        else:
-            self.robotOnCheckBox.setChecked(False)
-
-    def update_enable_mount_state_checkbox(self):
-        if getBlConfig("mountEnabled") == 1:
-            self.enableMountCheckBox.setChecked(True)
-        else:
-            self.enableMountCheckBox.setChecked(False)
-
+        self.checkbox_toggle_cb(state, "robotOn", "robotOff")
 
     def beamCheckOnCheckCB(self, state):
-        if state == QtCore.Qt.Checked:
-            setBlConfig(BEAM_CHECK, 1)
-            logger.debug(f"{BEAM_CHECK} on")
-        else:
-            setBlConfig(BEAM_CHECK, 0)
-            logger.debug(f"{BEAM_CHECK} off")
+        self.checkbox_toggle_cb(state, "beamCheckOn", "beamCheckOff")
 
     def set_energy_check_cb(self, state):
         if state == QtCore.Qt.Checked:
@@ -347,12 +319,7 @@ class StaffScreenDialog(QtWidgets.QFrame):
         msg_box.setDefaultButton(QtWidgets.QMessageBox.StandardButton.Ok)
 
     def unmountColdCheckCB(self, state):
-        if state == QtCore.Qt.Checked:
-            logger.info("unmountColdCheckCB On")
-            setBlConfig(UNMOUNT_COLD_CHECK, 1)
-        else:
-            logger.info("unmountColdCheckCB Off")
-            setBlConfig(UNMOUNT_COLD_CHECK, 0)
+        self.checkbox_toggle_cb(state, "unmountColdOn", "unmountColdOff")
 
     def topViewOnCheckCB(self, state):
         if state == QtCore.Qt.Checked:
@@ -379,14 +346,7 @@ class StaffScreenDialog(QtWidgets.QFrame):
             setBlConfig("omegaMonitorPV", "RBV")
 
     def queueCollectOnCheckCB(self, state):
-        if state == QtCore.Qt.Checked:
-            setBlConfig("queueCollect", 1)
-            self.gripperUnmountColdCheckBox.setEnabled(True)
-            self.parent.queue_collect_status_widget.setText("Queue Collect: ON")
-        else:
-            setBlConfig("queueCollect", 0)
-            self.gripperUnmountColdCheckBox.setEnabled(False)
-            self.parent.queue_collect_status_widget.setText("Queue Collect: OFF")
+        self.checkbox_toggle_cb(state, "queueCollectOn", "queueCollectOff")
         self.parent.row_clicked(
             0
         )  # This is so that appropriate boxes are filled when toggling queue collect
@@ -401,7 +361,7 @@ class StaffScreenDialog(QtWidgets.QFrame):
 
     def enableMountCheckCB(self, state):
         if state:
-            self.parent.send_to_server("enabledMount")
+            self.parent.send_to_server("enableMount")
         else:
             self.parent.send_to_server("disableMount")
 
