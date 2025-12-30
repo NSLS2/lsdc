@@ -48,6 +48,7 @@ config_bluesky_logging(level='INFO')
 from fmx_annealer import govStatusGet, govStateSet, fmxAnnealer, amxAnnealer # for using annealer specific to FMX and AMX
 from config_params import ON_MOUNT_OPTION, OnMountAvailOptions, BEAMSIZE_OPTIONS
 from mxbluesky.plans import detect_loop, topview_optimized
+import json
 
 if daq_utils.beamline == 'fmx':
   from setenergy_lsdc import setELsdc
@@ -4391,13 +4392,13 @@ def setAttenRI():
 def robotOn():
   """robotOn() : use the robot to mount samples"""
   setBlConfig("robot_online",1)
-  daq_lib.gui_message(json.dumps({"update_robot_settings": True}))
+  daq_lib.gui_message(json.dumps({"robot_online": True}))
 
 
 def robotOff():
   """robotOff() : fake mounting samples"""  
   setBlConfig("robot_online",0)
-  daq_lib.gui_message(json.dumps({"update_robot_settings": True}))
+  daq_lib.gui_message(json.dumps({"robot_online": True}))
 
 
 def zebraVecDaqSetup(angle_start,imgWidth,exposurePeriodPerImage,numImages,filePrefix,data_directory_name,file_number_start,scanEncoder=3): #scan encoder 0=x, 1=y,2=z,3=omega
@@ -4571,12 +4572,12 @@ def backoffDetector():
 def disableMount():
   """disableMount() : turn off robot mounting. Usually done in an error situation where we want staff intervention before resuming."""
   setBlConfig("mountEnabled",0)
-  daq_lib.gui_message(json.dumps({"update_enable_mount_setting": True}))
+  daq_lib.gui_message(json.dumps({"enable_mount": True}))
 
 def enableMount():
   """enableMount() : allow robot mounting"""
   setBlConfig("mountEnabled",1)
-  daq_lib.gui_message(json.dumps({"update_enable_mount_setting": True}))
+  daq_lib.gui_message(json.dumps({"enable_mount": True}))
 
 def set_beamsize(sizeV, sizeH):
   if (sizeV == 'V0'):
