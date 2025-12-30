@@ -25,11 +25,6 @@ import requests
 import threading
 logger = logging.getLogger(__name__)
 
-try:
-  import ispybLib
-except Exception as e:
-  logger.error("daq_lib: ISPYB import error, %s" % e)
-
 if daq_utils.beamline in ["amx", "fmx"]:
   from start_bs import gov_mon_signal
 
@@ -588,15 +583,6 @@ def logMxRequestParams(currentRequest,wait=True):
   logfile.write("detector distance: " + str(reqObj["detDist"]) +"\n")
   logfile.write("wavelength: " + str(reqObj["wavelength"]) +"\n")
   logfile.close()
-  visitName = daq_utils.getVisitName()
-  try: #I'm worried about unforseen ispyb db errors
-    #rasters results are entered in ispyb by the GUI, no need to wait
-    if wait:
-      time.sleep(getBlConfig(ISPYB_RESULT_ENTRY_DELAY))
-    currentIspybDCID = ispybLib.insertResult(newResult,"mxExpParams",currentRequest,visitName)
-  except Exception as e:
-    currentIspybDCID = 999999
-    logger.error("logMxRequestParams - ispyb error: %s" % e)
 
 
 

@@ -52,11 +52,6 @@ if daq_utils.beamline == 'fmx':
   from setenergy_lsdc import setELsdc
 
 
-try:
-  import ispybLib
-except Exception as e:
-  logger.error("daq_macros: ISPYB import error, %s" % e)
-  
 from XSDataMXv1 import XSDataResultCharacterisation
 global rasterRowResultsList, processedRasterRowCount
 global ednaActiveFlag

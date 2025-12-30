@@ -1,4 +1,3 @@
-import argparse
 import logging
 from logging import handlers
 import signal
