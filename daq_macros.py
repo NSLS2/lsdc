@@ -4514,9 +4514,11 @@ def queueCollectOff():
 
 def unmountColdOn():
   setBlConfig(UNMOUNT_COLD_CHECK, 1)
+  daq_lib.gui_message(json.dumps({"unmount_cold": True}))
 
 def unmountColdOff():
   setBlConfig(UNMOUNT_COLD_CHECK, 0)
+  daq_lib.gui_message(json.dumps({"unmount_cold": False}))
 
 def guiLocal(): #monitor omega RBV
   """guiLocal() : show the readback of the Omega motor as it's moving. Can lead to lags when operating remotely with reduced bandwidth."""
