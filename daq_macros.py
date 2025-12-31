@@ -300,7 +300,7 @@ def recoverCS8():
 
 def run_recovery_procedure(stop=True):
   """
-  Manual recovery procedure used in daq_lib.flocoStopOperations and daq_lib.flocoContinueOperations
+  Manual recovery procedure used in daq_lib.floco_stop_operations and daq_lib.floco_continue_operations
   """
   RESET  = "\033[0m"
   BOLD = "\033[1m"
