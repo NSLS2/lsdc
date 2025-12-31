@@ -8,14 +8,10 @@ import sys
 import time
 from typing import Dict, List, Optional
 from pathlib import Path
-import threading
 
-from queue import Queue
-import cv2
 import numpy as np
 import requests
 from epics import PV
-from PyMca5.PyMcaGui.physics.xrf.McaAdvancedFit import McaAdvancedFit
 from PyMca5.PyMcaGui.pymca.McaWindow import McaWindow, ScanWindow
 from PyMca5.PyMcaPhysics.xrf import Elements
 from qt_epics.QtEpicsPVEntry import QtEpicsPVEntry
@@ -37,7 +33,6 @@ from config_params import (
     CRYOSTREAM_ONLINE,
     HUTCH_TIMER_DELAY,
     MINIMUM_RASTER_SIZE,
-    RASTER_GUI_XREC_FILL_DELAY,
     SAMPLE_TIMER_DELAY,
     SERVER_CHECK_DELAY,
     SET_ENERGY_CHECK,
@@ -366,7 +361,6 @@ class ControlMain(QtWidgets.QMainWindow):
             functools.partial(self.dewarViewToggledCB, "dewarView")
         )
         hBoxRadioLayout1.addWidget(self.dewarViewRadio)
-        hBoxRadioLayout1.addWidget(self.priorityViewRadio)
         self.viewRadioGroup.addButton(self.dewarViewRadio)
         vBoxDFlayout.addLayout(hBoxRadioLayout1)
         vBoxDFlayout.addWidget(self.dewarTree)
@@ -585,7 +579,7 @@ class ControlMain(QtWidgets.QMainWindow):
         self.beamsizeComboBox = QtWidgets.QComboBox(self)
         self.beamsizeComboBox.addItems(beamSizeOptionList)
         self.beamsizeComboBox.setCurrentIndex(current_index)
-        self.beamsizeComboBox.activated[str].connect(self.beamsizeComboActivatedCB)
+        self.beamsizeComboBox.currentTextChanged.connect(self.beamsizeComboActivatedCB)
         if daq_utils.beamline == "amx" or self.energy_pv.get() < 9000:
             self.beamsizeComboBox.setEnabled(False)
         colEnergyLabel = QtWidgets.QLabel("Energy (eV):")
@@ -702,7 +696,7 @@ class ControlMain(QtWidgets.QMainWindow):
         protoOptionList = CollectionProtocols.get_beamline_options(daq_utils.beamline)
         self.protoComboBox = QtWidgets.QComboBox(self)
         self.protoComboBox.addItems(protoOptionList)
-        self.protoComboBox.activated[str].connect(self.protoComboActivatedCB)
+        self.protoComboBox.currentTextChanged.connect(self.protoComboActivatedCB)
         hBoxColParams6.addWidget(protoLabel)
         hBoxColParams6.addWidget(self.protoStandardRadio)
         hBoxColParams6.addWidget(self.protoRasterRadio)
@@ -773,7 +767,7 @@ class ControlMain(QtWidgets.QMainWindow):
         self.rasterEvalComboBox.setCurrentIndex(
             db_lib.beamlineInfo(daq_utils.beamline, "rasterScoreFlag")["index"]
         )
-        self.rasterEvalComboBox.activated[str].connect(self.rasterEvalComboActivatedCB)
+        self.rasterEvalComboBox.currentTextChanged.connect(self.rasterEvalComboActivatedCB)
         self.hBoxRasterLayout1.addWidget(rasterStepLabel)
         self.hBoxRasterLayout1.addWidget(self.rasterStepEdit)
         self.hBoxRasterLayout1.addWidget(self.rasterGrainCoarseRadio)
@@ -1260,6 +1254,8 @@ class ControlMain(QtWidgets.QMainWindow):
         focusMinusButton.clicked.connect(functools.partial(self.focusTweakCB, -5))
         annealButton = QtWidgets.QPushButton("Anneal")
         annealButton.clicked.connect(self.annealButtonCB)
+        if daq_utils.beamline == "amx":
+            annealButton.setEnabled(False)
         annealTimeLabel = QtWidgets.QLabel("Time")
         self.annealTime_ledit = QtWidgets.QLineEdit()
         self.annealTime_ledit.setFixedWidth(40)
@@ -1293,6 +1289,7 @@ class ControlMain(QtWidgets.QMainWindow):
         hBoxSampleAlignLayout = QtWidgets.QHBoxLayout()
         centerLoopButton = QtWidgets.QPushButton("Center\nLoop")
         centerLoopButton.clicked.connect(self.autoCenterLoopCB)
+        centerLoopButton.hide()
         measureButton = QtWidgets.QPushButton("Measure")
         measureButton.clicked.connect(self.measurePolyCB)
         loopShapeButton = QtWidgets.QPushButton("Add Raster\nto Queue")
@@ -3278,7 +3275,6 @@ class ControlMain(QtWidgets.QMainWindow):
             reqID=rasterReq["uid"],
             rasterHeatJpeg=jpegImageFilename,
         )
-        self.send_to_server("insertRasterResult", [str(rasterReq["uid"]), str(visitName)])
 
     def reFillPolyRaster(self):
         rasterEvalOption = str(self.rasterEvalComboBox.currentText())
