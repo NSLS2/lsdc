@@ -4398,7 +4398,7 @@ def robotOn():
 def robotOff():
   """robotOff() : fake mounting samples"""  
   setBlConfig("robot_online",0)
-  daq_lib.gui_message(json.dumps({"robot_online": True}))
+  daq_lib.gui_message(json.dumps({"robot_online": False}))
 
 
 def zebraVecDaqSetup(angle_start,imgWidth,exposurePeriodPerImage,numImages,filePrefix,data_directory_name,file_number_start,scanEncoder=3): #scan encoder 0=x, 1=y,2=z,3=omega
@@ -4578,7 +4578,7 @@ def backoffDetector():
 def disableMount():
   """disableMount() : turn off robot mounting. Usually done in an error situation where we want staff intervention before resuming."""
   setBlConfig("mountEnabled",0)
-  daq_lib.gui_message(json.dumps({"enable_mount": True}))
+  daq_lib.gui_message(json.dumps({"enable_mount": False}))
 
 def enableMount():
   """enableMount() : allow robot mounting"""

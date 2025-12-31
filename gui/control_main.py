@@ -5527,6 +5527,11 @@ class ControlMain(QtWidgets.QMainWindow):
         if "queue_collect" in command:
             self.staffScreenDialog.queueCollectOnCheckBox.setChecked(command["queue_collect"])
             self.userScreenDialog.queueCollectOnCheckBox.setChecked(command["queue_collect"])
+            # Update status widget and unmount-cold control based on queue_collect state
+            self.queue_collect_status_widget.setText(
+                f"Queue Collect: {'ON' if command['queue_collect'] else 'OFF'}"
+            )
+            self.staffScreenDialog.gripperUnmountColdCheckBox.setEnabled(command["queue_collect"])
         if "unmount_cold" in command:
             self.staffScreenDialog.gripperUnmountColdCheckBox.setChecked(command["unmount_cold"])
 
