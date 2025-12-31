@@ -1576,7 +1576,7 @@ class ControlMain(QtWidgets.QMainWindow):
         
 
         self.hutchCornerCamThread = VideoThread(
-            parent=self, delay=HUTCH_TIMER_DELAY, url=getBlConfig("hutchCornerCamURL")
+            parent=self, delay=HUTCH_TIMER_DELAY, url=getBlConfig("hutchCornerCamURL") + "?resolution=320x180"
         )
         self.hutchCornerCamThread.frame_ready.connect(
             lambda frame: self.updateCam(self.pixmap_item_HutchCorner, frame)
@@ -1584,7 +1584,7 @@ class ControlMain(QtWidgets.QMainWindow):
         self.hutchCornerCamThread.start()
 
         self.hutchTopCamThread = VideoThread(
-            parent=self, delay=HUTCH_TIMER_DELAY, url=getBlConfig("hutchTopCamURL")
+            parent=self, delay=HUTCH_TIMER_DELAY, url=getBlConfig("hutchTopCamURL") + "?resolution=320x180"
         )
         self.hutchTopCamThread.frame_ready.connect(
             lambda frame: self.updateCam(self.pixmap_item_HutchTop, frame)
@@ -1618,10 +1618,10 @@ class ControlMain(QtWidgets.QMainWindow):
         # Currently changes what camera angle is shown in the center
         if state in ("state SE", "transition SA to SE"):
             print(f"Govstate: {state}")
-            self.sampleCameraThread.updateCam("http://xf17id1b-webcam1.nsls2.bnl.local/axis-cgi/mjpg/video.cgi?resolution=640x360")
+            self.sampleCameraThread.updateCam(getBlConfig("hutchCornerCamURL") + "?resolution=640x360")
         elif state in ("transition SE to TA"):
             print(f"Govstate: {state}")
-            self.sampleCameraThread.updateCam("http://xf17id1b-webcam4.nsls2.bnl.local/axis-cgi/mjpg/video.cgi?resolution=640x360")
+            self.sampleCameraThread.updateCam(getBlConfig("hutchTopCamURL") + "?resolution=640x360")
         elif state in ("state TA"):
             print(f"Govstate: {state}")
             self.sampleCameraThread.updateCam(self.capture)
