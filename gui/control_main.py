@@ -1617,16 +1617,16 @@ class ControlMain(QtWidgets.QMainWindow):
         # This function reacts to changes in governor state
         # Currently changes what camera angle is shown in the center
         if state in ("state SE", "transition SA to SE"):
-            print(f"Govstate: {state}")
-            self.sampleCameraThread.updateCam(getBlConfig("hutchCornerCamURL") + "?resolution=640x360")
+            logger.info("Govstate: %s", state)
+            self.sampleCameraThread.updateCam("http://xf17id1b-webcam1.nsls2.bnl.local/axis-cgi/mjpg/video.cgi?resolution=640x360")
         elif state in ("transition SE to TA"):
-            print(f"Govstate: {state}")
-            self.sampleCameraThread.updateCam(getBlConfig("hutchTopCamURL") + "?resolution=640x360")
+            logger.info("Govstate: %s", state)
+            self.sampleCameraThread.updateCam("http://xf17id1b-webcam4.nsls2.bnl.local/axis-cgi/mjpg/video.cgi?resolution=640x360")
         elif state in ("state TA"):
-            print(f"Govstate: {state}")
+            logger.info("Govstate: %s", state)
             self.sampleCameraThread.updateCam(self.capture)
         elif state in ("state SA"):
-            print(f"Govstate: {state}")
+            logger.info("Govstate: %s", state)
             self.sampleCameraThread.updateCam(self.capture)
             
 
