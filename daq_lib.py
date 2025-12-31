@@ -242,7 +242,7 @@ def floco_stop_operations():
     daq_macros.run_recovery_procedure(stop=True)
     lockGUI()
   except Exception as e:
-    logger.exception("Error encountered while running flocoStopOperations. Stopping...")
+    logger.exception("Error encountered while running floco_stop_operations. Stopping...")
 
 def floco_continue_operations():
   try:
