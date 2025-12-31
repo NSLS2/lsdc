@@ -90,6 +90,8 @@ class TopAlignCam(StandardProsilica):
     out10_reset = Cpt(EpicsSignal, "Out10:compress.RES")
     out9_buffer = Cpt(EpicsSignalRO, "Out9:compress")
     out9_reset = Cpt(EpicsSignal, "Out9:compress.RES")
+    out8_buffer = Cpt(EpicsSignalRO, "Out8:compress")
+    out8_reset = Cpt(EpicsSignal, "Out8:compress.RES")
 
     def __init__(self, *args, **kwargs):
         super().__init__(
@@ -119,7 +121,7 @@ class TopAlignCam(StandardProsilica):
                 ("cv1.inputs.input2", 3),
                 ("cv1.inputs.input3", 1),
                 ("cv1.inputs.input4", 3),
-                ("cv1.inputs.input5", 13),
+                ("cv1.inputs.input5", 6),
                 ("cv1.inputs.input6", 1),
                 ("trans1.nd_array_port", "PROC1"),
             ]
@@ -233,7 +235,8 @@ class TopAlignerFast(TopAlignerBase):
             ]
         )
 
-        self.topcam.read_attrs = ["out9_buffer", "out10_buffer"]
+        self.topcam.read_attrs = [ "out8_buffer",
+            "out9_buffer", "out10_buffer"]
         self.zebra.read_attrs = ["pos_capt.data.enc4"]
 
     def _update_stage_sigs(self, *args, **kwargs):
