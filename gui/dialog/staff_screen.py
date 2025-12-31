@@ -85,7 +85,7 @@ class StaffScreenDialog(QtWidgets.QFrame):
         self.guiRemoteOnCheckBox = QCheckBox("GUI Remote")
         hBoxColParams1.addWidget(self.guiRemoteOnCheckBox)
         self.guiRemoteOnCheckBox.setChecked(True if getBlConfig("omegaMonitorPV") == "VAL" else False)
-        self.guiRemoteOnCheckBox.stateChanged.connect(self.guiRemoteOnCheckCB)
+        self.guiRemoteOnCheckBox.clicked.connect(self.guiRemoteOnCheckCB)
         self.albulaDispCheckBox = QCheckBox("Display Data (Albula)")
         self.albulaDispCheckBox.setChecked(True)
         hBoxColParams1.addWidget(self.albulaDispCheckBox)
