@@ -309,7 +309,15 @@ class ControlMain(QtWidgets.QMainWindow):
 
 
     def closeEvent(self, evnt):
+        self.hutchCornerCamThread.stop()
+        self.hutchTopCamThread.stop()
+        self.hutchCornerCamThread.wait()
+        self.hutchTopCamThread.wait()
         self.sampleCameraThread.stop()
+        self.sampleCameraThread.wait()
+        self.serverCheckThread.stop()
+        self.serverCheckThread.wait()
+        self.albulaInterface.close()
         evnt.accept()
         sys.exit()  # doing this to close any windows left open
 
@@ -1586,9 +1594,9 @@ class ControlMain(QtWidgets.QMainWindow):
             lambda frame: self.updateCam(self.pixmap_item_HutchTop, frame)
         )
         self.hutchTopCamThread.start()
-        serverCheckThread = ServerCheckThread(parent=self, delay=SERVER_CHECK_DELAY)
-        serverCheckThread.visit_dir_changed.connect(QApplication.instance().quit)
-        serverCheckThread.start()
+        self.serverCheckThread = ServerCheckThread(parent=self, delay=SERVER_CHECK_DELAY)
+        self.serverCheckThread.visit_dir_changed.connect(QApplication.instance().quit)
+        self.serverCheckThread.start()
 
     def updateCam(self, pixmapItem: "QGraphicsPixmapItem", frame):
         if pixmapItem == self.pixmap_item:
@@ -5285,10 +5293,6 @@ class ControlMain(QtWidgets.QMainWindow):
             self.popupServerMessage("You don't have control")
 
     def closeAll(self):
-        self.hutchCornerCamThread.stop()
-        self.hutchTopCamThread.stop()
-        self.hutchCornerCamThread.wait()
-        self.hutchTopCamThread.wait()
         QtWidgets.QApplication.instance().quit()
 
     def initCallbacks(self):
