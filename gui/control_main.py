@@ -1676,7 +1676,6 @@ class ControlMain(QtWidgets.QMainWindow):
             if self.protoComboBox.currentText() in (CollectionProtocols.RASTER, 
                                                     CollectionProtocols.STEP_RASTER):
                 self.protoComboBox.setCurrentText(CollectionProtocols.STANDARD)
-                self.protoComboActivatedCB(CollectionProtocols.STANDARD)
             self.showProtParams()
 
     def adjustGraphics4ZoomChange(self, fov):
@@ -2385,7 +2384,6 @@ class ControlMain(QtWidgets.QMainWindow):
             self.choochF2PrimePeak.setText(str(choochResultObj["f2prime_peak"]))
             self.choochResultFlag_pv.put("0")
             self.protoComboBox.setCurrentText(CollectionProtocols.STANDARD)
-            self.protoComboActivatedCB(CollectionProtocols.STANDARD)
         except TypeError as e:
             logger.error(
                 "Chooch plotting failed - check whether scan had a strong signal or not: %s"
@@ -2632,13 +2630,10 @@ class ControlMain(QtWidgets.QMainWindow):
     def protoRadioToggledCB(self, text):
         if self.protoStandardRadio.isChecked():
             self.protoComboBox.setCurrentText(CollectionProtocols.STANDARD)
-            self.protoComboActivatedCB(text)
         elif self.protoRasterRadio.isChecked():
             self.protoComboBox.setCurrentText(CollectionProtocols.RASTER)
-            self.protoComboActivatedCB(text)
         elif self.protoVectorRadio.isChecked():
             self.protoComboBox.setCurrentText(CollectionProtocols.VECTOR)
-            self.protoComboActivatedCB(text)
         else:
             pass
 
@@ -4734,7 +4729,6 @@ class ControlMain(QtWidgets.QMainWindow):
         self.zoom2Radio.setChecked(True)
         self.zoomLevelToggledCB("Zoom2")
         self.protoComboBox.setCurrentText(CollectionProtocols.STANDARD)
-        self.protoComboActivatedCB(CollectionProtocols.STANDARD)
 
     def unmountSampleCB(self):
         logger.info("unmount sample")
