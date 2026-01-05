@@ -4600,6 +4600,12 @@ def emptyQueue():
 def topViewCheckOn():
   setBlConfig(TOP_VIEW_CHECK,1)
 
+def set_cryostream_temp(temp):
+  cs1000.move(float(temp))
+
+def set_cryostream_ramp_rate(ramp_rate):
+  cs1000.ramp_rate.put(float(ramp_rate))
+
 def anneal(annealTime=1.0):
     if daq_utils.beamline == 'fmx':
       annealer = fmxAnnealer
