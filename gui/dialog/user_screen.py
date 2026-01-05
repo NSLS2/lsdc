@@ -138,7 +138,7 @@ class UserScreenDialog(QtWidgets.QFrame):
             self.temp_change_ledit.returnPressed.connect(self.setTemp)
             self.temp_change_button = QtWidgets.QPushButton("Set Temp")
             self.temp_change_button.clicked.connect(self.setTemp)
-            
+
             temp_ramp_label = QtWidgets.QLabel("Cryo Ramp Rate:")
             self.temp_ramp_ledit = QtWidgets.QLineEdit()
             self.temp_ramp_ledit.returnPressed.connect(self.setRamp)
@@ -255,7 +255,7 @@ class UserScreenDialog(QtWidgets.QFrame):
 
     def setRamp(self):
         self.parent.send_to_server("set_cryostream_ramp_rate", [self.temp_ramp_ledit.text()])
-    
+
     def unmountWarmCB(self):
         self.parent.send_to_server("unmountSample")
 
