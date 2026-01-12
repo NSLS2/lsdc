@@ -362,12 +362,6 @@ class ControlMain(QtWidgets.QMainWindow):
         self.dewar_puck_radio = QtWidgets.QRadioButton("Dewar Puck")
         self.puck_type_radio_group.addButton(self.special_puck_radio)
         self.puck_type_radio_group.addButton(self.dewar_puck_radio)
-        self.dewar_puck_radio.toggled.connect(
-            lambda: self.toggle_special_puck(False)
-        )
-        self.special_puck_radio.toggled.connect(
-            lambda: self.toggle_special_puck(True)
-        )
         puck_type_radio_layout = QtWidgets.QHBoxLayout()
         puck_type_radio_layout.addWidget(self.dewar_puck_radio)
         puck_type_radio_layout.addWidget(self.special_puck_radio)
@@ -375,6 +369,12 @@ class ControlMain(QtWidgets.QMainWindow):
             self.special_puck_radio.setChecked(True)
         else:
             self.dewar_puck_radio.setChecked(True)
+        self.dewar_puck_radio.toggled.connect(
+            lambda: self.toggle_special_puck(False)
+        )
+        self.special_puck_radio.toggled.connect(
+            lambda: self.toggle_special_puck(True)
+        )
 
         hBoxRadioLayout1.addWidget(self.dewarViewRadio)
         hBoxRadioLayout1.addWidget(self.priorityViewRadio)
