@@ -5,6 +5,7 @@ import uuid
 from collections import defaultdict
 
 import amostra.client.commands as acc
+from config_params import CollectionProtocols
 import conftrak.client.commands as ccc
 import conftrak.exceptions
 import six
@@ -887,6 +888,6 @@ def deleteCompletedRequestsforSample(sid):
   requestList=getRequestsBySampleID(sid)
   for i in range (0,len(requestList)):
     if (requestList[i]["priority"] == -1): #good to clean up completed requests after unmount
-      if (requestList[i]["protocol"] == "raster" or requestList[i]["protocol"] == "vector"):
+      if requestList[i]["protocol"] in (CollectionProtocols.RASTER, CollectionProtocols.VECTOR):
         deleteRequest(requestList[i]['uid'])
 

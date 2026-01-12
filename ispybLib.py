@@ -10,6 +10,7 @@ import det_lib
 import time
 from PIL import Image
 import logging
+from config_params import CollectionProtocols
 logger = logging.getLogger(__name__)
 
 #12/19 - I'm leaving all commented lines alone on this. Karl Levik, DLS, is an immense help with this.
@@ -63,7 +64,7 @@ def insertResult(result,resultType,request,visitName,dc_id=None,xmlFileName=None
    logger.exception(message)
    raise e
  request_type = request['request_type']
- if request_type in('standard', 'vector') :
+ if request_type in (CollectionProtocols.STANDARD, CollectionProtocols.VECTOR):
    sample = request['sample'] # this needs to be created and linked to a DC group
    if (resultType == 'fastDP'):
      mx_data_reduction_dict = xml_file_to_dict(xmlFileName)
@@ -105,9 +106,9 @@ def insertResult(result,resultType,request,visitName,dc_id=None,xmlFileName=None
      # Create a new data collection group entry:
      params = mxacquisition.get_data_collection_group_params()
      params['parentid'] = sessionid
-     if request_type == 'standard':
+     if request_type == CollectionProtocols.STANDARD:
        params['experimenttype'] = 'OSC'
-     elif request_type == 'vector':
+     elif request_type == CollectionProtocols.VECTOR:
        params['experimenttype'] = 'Helical'
      return createDataCollection(directory, filePrefix, jpegImageFilename, params, request_obj, sessionid)
 

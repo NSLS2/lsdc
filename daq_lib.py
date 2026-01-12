@@ -605,29 +605,29 @@ def collectData(currentRequest):
     os.system(comm_s)
   logger.debug('starting initial motions - transmission and detector distance')
   daq_macros.setTrans(attenuation)
-  if not prot in ["eScan"]:
+  if not prot in [CollectionProtocols.E_SCAN]:
     beamline_lib.mvaDescriptor("detectorDist",colDist)  
   logger.debug('transmission and detector distance done')
   # now that the detector is in the correct position, get the beam center
   currentRequest['request_obj']['xbeam'] = getPvDesc('beamCenterX')
   currentRequest['request_obj']['ybeam'] = getPvDesc('beamCenterY')
   db_lib.updateRequest(currentRequest)
-  if (prot == "raster"):
+  if prot == CollectionProtocols.RASTER:
     logger.info('entering raster')
     RE(daq_macros.snakeRaster(currentRequest["uid"]))
     status = 0
     logger.info('exiting raster')
-  elif (prot == "stepRaster"):
+  elif prot == CollectionProtocols.STEP_RASTER:
     status = daq_macros.snakeStepRaster(currentRequest["uid"])    
-  elif (prot == "vector" or prot == "stepVector"):
+  elif prot in (CollectionProtocols.VECTOR, CollectionProtocols.STEP_VECTOR):
     imagesAttempted = collect_detector_seq_hw(sweep_start,range_degrees,img_width,exposure_period,file_prefix,data_directory_name,file_number_start,currentRequest)
-  elif (prot == "multiCol"):
+  elif prot == CollectionProtocols.MULTI_COL:
     RE(daq_macros.snakeRaster(currentRequest["uid"]))
-  elif (prot == "rasterScreen"):
+  elif prot == CollectionProtocols.RASTER_SCREEN:
     daq_macros.rasterScreen(currentRequest)    
-  elif (prot == "multiColQ"):
+  elif prot == CollectionProtocols.MULTI_COL_Q:
     daq_macros.multiCol(currentRequest)
-  elif (prot == "eScan"):
+  elif prot == CollectionProtocols.E_SCAN:
     daq_macros.eScan(currentRequest)
   else: #standard, screening, or edna - these may require autoalign, checking first
     if (reqObj["pos_x"] != -999):
@@ -639,6 +639,9 @@ def collectData(currentRequest):
       check_pause()
     else:
       logger.info("autoRaster")
+      # Store original user-requested start angle before auto-centering
+      original_sweep_start = reqObj["sweep_start"]
+      
       daq_macros.run_loop_center_plan()
       if not (daq_macros.autoRasterLoop(currentRequest)):
         logger.info("could not center sample")
@@ -647,14 +650,16 @@ def collectData(currentRequest):
         return 0
       else:
         if (reqObj["centeringOption"] == "AutoLoop"):
-          reqObj["sweep_start"] = beamline_lib.motorPosFromDescriptor("omega") #%360.0?
+          # Use the original start angle directly as absolute motor position
+          reqObj["sweep_start"] = original_sweep_start
           sweep_start = reqObj["sweep_start"]
+          logger.info(f"AutoLoop (absolute mode): start angle set to {sweep_start}")
         if (reqObj["centeringOption"] == "AutoRaster"):
-          reqObj["sweep_start"] = beamline_lib.motorPosFromDescriptor("omega") - 90.0 #%360.0?
+          reqObj["sweep_start"] = beamline_lib.motorPosFromDescriptor("omega") - 90.0 + original_sweep_start
           sweep_start = reqObj["sweep_start"]
       daq_macros.setTrans(attenuation)      
 
-    if (reqObj["protocol"] == "characterize" or reqObj["protocol"] == "ednaCol"):
+    if (reqObj["protocol"] in (CollectionProtocols.CHARACTERIZE, CollectionProtocols.EDNA_COL)):
       characterizationParams = reqObj["characterizationParams"]
       index_success = daq_macros.dna_execute_collection3(0.0,img_width,2,exposure_period,data_directory_name+"/",file_prefix,1,-89.0,1,currentRequest)
       if (index_success):        
@@ -693,7 +698,7 @@ def collectData(currentRequest):
           runNum = db_lib.incrementSampleRequestCount(sampleID)
           newReqObj["runNum"] = runNum
           newStratRequest = db_lib.addRequesttoSample(sampleID,newReqObj["protocol"],daq_utils.owner,newReqObj,priority=0,proposalID=daq_utils.getProposalID())
-          if (reqObj["protocol"] == "ednaCol"):
+          if (reqObj["protocol"] == CollectionProtocols.EDNA_COL):
             logger.info("new strat req = ")
             logger.info(newStratRequest)
             db_lib.updatePriority(currentRequest["uid"],-1)
@@ -709,7 +714,7 @@ def collectData(currentRequest):
           beamline_lib.mvaDescriptor("omega",sweep_start)
       collect_detector_seq_hw(sweep_start,range_degrees,img_width,exposure_period,file_prefix,data_directory_name,file_number_start,currentRequest)
   try:
-    if (logMe) and prot == 'raster':
+    if (logMe) and prot == CollectionProtocols.RASTER:
       logMxRequestParams(currentRequest,wait=False)
     elif (logMe):
       logMxRequestParams(currentRequest)
@@ -721,9 +726,9 @@ def collectData(currentRequest):
     logger.error('caught key error in logging: %s' % e)
 
   # collection finished, start processing
-  if reqObj["protocol"] in ("standard", "vector", "raster"):
+  if reqObj["protocol"] in (CollectionProtocols.STANDARD, CollectionProtocols.VECTOR, CollectionProtocols.RASTER):
     send_kafka_message(topic=f'{daq_utils.beamline}.lsdc.documents', event='stop', uuid=currentRequest['uid'], protocol=reqObj["protocol"])
-  if (prot == "vector" or prot == "standard" or prot == "stepVector"):
+  if prot in (CollectionProtocols.VECTOR, CollectionProtocols.STANDARD, CollectionProtocols.STEP_VECTOR):
     if daq_utils.beamline != "nyx":
       seqNum = flyer.detector.cam.sequence_id.get()
       comm_s = os.environ["LSDCHOME"] + "/runSpotFinder4syncW.py " + data_directory_name + " " + file_prefix + " " + str(currentRequest["uid"]) + " " + str(seqNum) + " " + str(currentIspybDCID)+ "&"
@@ -785,7 +790,7 @@ def collect_detector_seq_hw(sweep_start,range_degrees,image_width,exposure_perio
   reqObj = currentRequest["request_obj"]
   protocol = str(reqObj["protocol"])
   sweep_start = sweep_start % 360.0 if sweep_start > 0 else sweep_start % -360
-  if (protocol == "vector" or protocol == "stepVector"):
+  if protocol in (CollectionProtocols.VECTOR, CollectionProtocols.STEP_VECTOR):
     beamline_lib.mvaDescriptor("omega",sweep_start)
   if (image_width == 0):
     number_of_images = range_degrees
@@ -807,12 +812,13 @@ def collect_detector_seq_hw(sweep_start,range_degrees,image_width,exposure_perio
   
   if OPHYD_COLLECTIONS[daq_utils.beamline]:
       logger.info("ophyd collections enabled")
-      if (protocol == "standard"):
+      if (protocol == CollectionProtocols.STANDARD):
         RE(daq_macros.standard_plan_wrapped(currentRequest))
-      elif (protocol == "vector"):
+      elif (protocol == CollectionProtocols.VECTOR):
         RE(daq_macros.vector_plan_wrapped(currentRequest))
   else:  
-    if (protocol == "standard" or protocol == "characterize" or protocol == "ednaCol" or protocol == "burn"):
+    if (protocol in (CollectionProtocols.STANDARD, CollectionProtocols.CHARACTERIZE,
+                     CollectionProtocols.EDNA_COL, CollectionProtocols.BURN)):
       logger.info("vectorSync " + str(time.time()))    
       daq_macros.vectorSync()
       logger.info("zebraDaq " + str(time.time()))
@@ -820,9 +826,9 @@ def collect_detector_seq_hw(sweep_start,range_degrees,image_width,exposure_perio
       vector_params = daq_macros.gatherStandardVectorParams()
       logger.debug(f"vector_params: {vector_params}") 
       RE(daq_macros.standard_zebra_plan(flyer,angleStart,number_of_images,range_degrees,image_width,exposure_period,file_prefix_minus_directory,data_directory_name,file_number, vector_params, file_prefix_minus_directory))
-    elif (protocol == "vector"):
+    elif (protocol == CollectionProtocols.VECTOR):
       RE(daq_macros.vectorZebraScan(currentRequest))
-    elif (protocol == "stepVector"):
+    elif (protocol == CollectionProtocols.STEP_VECTOR):
       daq_macros.vectorZebraStepScan(currentRequest)
     else:
       pass

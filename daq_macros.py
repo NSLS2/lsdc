@@ -1372,7 +1372,7 @@ def snakeRasterNormal(rasterReqID,grain=""):
                                                             rasterReqID))
         spotFindThread.start()
         spotFindThreadList.append(spotFindThread)
-      send_kafka_message(f'{daq_utils.beamline}.lsdc.documents', event='event', uuid=rasterReqID, protocol="raster", row=i, proc_flag=procFlag)
+      send_kafka_message(f'{daq_utils.beamline}.lsdc.documents', event='event', uuid=rasterReqID, protocol=CollectionProtocols.RASTER, row=i, proc_flag=procFlag)
 
 
     """governor transitions:
@@ -1407,8 +1407,9 @@ def snakeRasterNormal(rasterReqID,grain=""):
       rasterResult = generateGridMap(rasterRequest)
   
       logger.info(f'protocol = {reqObj["protocol"]}')
-      if (reqObj["protocol"] == "multiCol" or parentReqProtocol == "multiColQ"):
-        if (parentReqProtocol == "multiColQ"):    
+      if (reqObj["protocol"] == CollectionProtocols.MULTI_COL or 
+          parentReqProtocol == CollectionProtocols.MULTI_COL_Q):
+        if (parentReqProtocol == CollectionProtocols.MULTI_COL_Q):    
           multiColThreshold  = parentReqObj["diffCutoff"]
         else:
           multiColThreshold  = reqObj["diffCutoff"]         
@@ -1752,7 +1753,7 @@ def snakeRasterBluesky(rasterReqID, grain=""):
                                                               rasterReqID))
           spotFindThread.start()
           spotFindThreadList.append(spotFindThread)
-        send_kafka_message(f'{daq_utils.beamline}.lsdc.documents', event='event', uuid=rasterReqID, protocol="raster", row=row_index, proc_flag=procFlag)
+        send_kafka_message(f'{daq_utils.beamline}.lsdc.documents', event='event', uuid=rasterReqID, protocol=CollectionProtocols.RASTER, row=row_index, proc_flag=procFlag)
         logger.info('row complete')
     """governor transitions:
     initiate transitions here allows for GUI sample/heat map image to update
@@ -1797,8 +1798,9 @@ def snakeRasterBluesky(rasterReqID, grain=""):
       rasterResult = generateGridMap(rasterRequest)
 
       logger.info(f'protocol = {reqObj["protocol"]}')
-      if (reqObj["protocol"] == "multiCol" or parentReqProtocol == "multiColQ"):
-        if (parentReqProtocol == "multiColQ"):
+      if (reqObj["protocol"] == CollectionProtocols.MULTI_COL or 
+          parentReqProtocol == CollectionProtocols.MULTI_COL_Q):
+        if (parentReqProtocol == CollectionProtocols.MULTI_COL_Q):    
           multiColThreshold  = parentReqObj["diffCutoff"]
         else:
           multiColThreshold  = reqObj["diffCutoff"]         
@@ -2352,7 +2354,7 @@ def defineRectRaster(currentRequest,raster_w_s,raster_h_s,stepsizeMicrons_s,xoff
 
   tempnewRasterRequest = daq_utils.createDefaultRequest(sampleID, basePath=currentRequest["request_obj"]["basePath"])
   reqObj = tempnewRasterRequest["request_obj"]
-  reqObj["protocol"] = "raster"
+  reqObj["protocol"] = CollectionProtocols.RASTER
   reqObj["exposure_time"] = getBlConfig("rasterDefaultTime")
   reqObj["img_width"] = getBlConfig("rasterDefaultWidth")
   reqObj["attenuation"] = getBlConfig("rasterDefaultTrans")
@@ -3590,7 +3592,7 @@ def zebraDaqRasterBluesky(flyer, angle_start, num_images, scanWidth, imgWidth, e
                    x_end_um=x_vec_end, y_end_um=y_vec_end, z_end_um=z_vec_end, \
                    file_prefix=filePrefix, data_directory_name=data_directory_name,\
                    detector_dead_time=detectorDeadTime, scan_encoder=scanEncoder, change_state=changeState,\
-                   row_index=row_index, transmission=1, protocol="raster")
+                   row_index=row_index, transmission=1, protocol=CollectionProtocols.RASTER)
     yield from bp.fly([raster_flyer])
 
     logger.info("vector Done")

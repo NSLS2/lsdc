@@ -17,6 +17,7 @@ from config_params import (
     MountState
 )
 from threads import DataFetchRunnable
+from config_params import CollectionProtocols
 
 if typing.TYPE_CHECKING:
     from lsdcGui import ControlMain
@@ -145,9 +146,9 @@ class DewarTree(QtWidgets.QTreeView):
         item = self.model.itemFromIndex(index)
         requestData = db_lib.getRequestByID(item.data(32))
         protocol = requestData["request_obj"]["protocol"]
-        if "raster" in protocol.lower():  # Will cover specRaster and stepRaster as well
+        if CollectionProtocols.RASTER in protocol.lower():  # Will cover specRaster and stepRaster as well
             self.parent.cloneRequestCB()
-        elif "standard" in protocol.lower():
+        elif CollectionProtocols.STANDARD in protocol.lower():
             self.parent.addRequestsToAllSelectedCB()
 
     def keyPressEvent(self, event):
@@ -668,9 +669,9 @@ class DewarTree(QtWidgets.QTreeView):
                 self.selectedSampleID = selectedSampleRequest["sample"]
                 db_lib.deleteRequest(selectedSampleRequest["uid"])
                 if selectedSampleRequest["request_obj"]["protocol"] in (
-                    "raster",
-                    "stepRaster",
-                    "multiCol",
+                    CollectionProtocols.RASTER,
+                    CollectionProtocols.STEP_RASTER,
+                    CollectionProtocols.MULTI_COL
                 ):
                     for i in range(len(self.parent.rasterList)):
                         if self.parent.rasterList[i] != None:
@@ -682,10 +683,8 @@ class DewarTree(QtWidgets.QTreeView):
                                     self.parent.rasterList[i]["graphicsItem"]
                                 )
                                 self.parent.rasterList[i] = None
-                if (
-                    selectedSampleRequest["request_obj"]["protocol"] == "vector"
-                    or selectedSampleRequest["request_obj"]["protocol"] == "stepVector"
-                ):
+                if selectedSampleRequest["request_obj"]["protocol"] in (CollectionProtocols.VECTOR, 
+                                                                        CollectionProtocols.STEP_VECTOR):
                     self.parent.clearVectorCB()
         self.parent.progressDialog.close()
         self.parent.treeChanged_pv.put(1)

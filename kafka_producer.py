@@ -3,6 +3,7 @@ import os
 import sys
 import json
 from time import sleep
+from config_params import CollectionProtocols
 
 import certifi
 import yaml
@@ -29,9 +30,9 @@ def delivery_callback(err, msg):
 
 def send_kafka_message(topic, event, uuid, protocol, **kwargs):
     try:
-        if protocol in ("standard", "vector") or (protocol == "raster" and event == "stop"):
+        if protocol in (CollectionProtocols.STANDARD, CollectionProtocols.VECTOR) or (protocol == CollectionProtocols.RASTER and event == "stop"):
             message = {"event":event, "uuid":uuid, "protocol":protocol}
-        elif protocol == "raster" and event == "event":
+        elif protocol == CollectionProtocols.RASTER and event == "event":
             message = {"event":event, "uuid":uuid, "protocol":protocol, "row":kwargs["row"], "proc_flag":kwargs["proc_flag"]}
         else:
             raise Exception(f'Unhandled protocol/event combination: protocol={protocol} event={event}')

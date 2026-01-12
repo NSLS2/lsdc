@@ -13,6 +13,7 @@ except Exception as e:
   logger.error("daq_utils: ISPYB import error, %s" %e)
 
 import db_lib
+from config_params import CollectionProtocols
 
 global beamline
 beamline = os.environ["BEAMLINE_ID"]
@@ -222,7 +223,7 @@ def createDefaultRequest(sample_id,createVisit=True, basePath=None):
                "sweep_start": screenPhist,  "sweep_end": screenPhiend,
                "img_width": screenWidth,
                "exposure_time": screenExptime,
-               "protocol": "standard",
+               "protocol": CollectionProtocols.STANDARD,
                "detDist": screenDist,
                "parentReqID": -1,
                "basePath": basePath,

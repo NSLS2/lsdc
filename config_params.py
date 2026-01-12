@@ -156,3 +156,29 @@ class MountState(Enum):
 
 OPHYD_COLLECTIONS = {"amx": False, "fmx": False, "nyx": True}
 
+class CollectionProtocols(str, Enum):
+    STANDARD = "standard"
+    RASTER = "raster"
+    VECTOR = "vector"
+    BURN = "burn"
+    RASTER_SCREEN = "rasterScreen"
+    STEP_RASTER = "stepRaster"
+    STEP_VECTOR = "stepVector"
+    MULTI_COL = "multiCol"
+    MULTI_COL_Q = "multiColQ"
+    CHARACTERIZE = "characterize"
+    EDNA_COL = "ednaCol"
+    E_SCAN = "eScan"
+
+    @classmethod
+    def get_beamline_options(cls, beamline):
+        all_protocols = (cls.STANDARD, cls.RASTER, cls.VECTOR, cls.BURN, cls.RASTER_SCREEN,
+                         cls.STEP_RASTER, cls.STEP_VECTOR, cls.MULTI_COL, cls.CHARACTERIZE,
+                         cls.EDNA_COL)
+        beamline_options = {
+            "nyx": (cls.STANDARD, cls.RASTER, cls.VECTOR),
+            "amx": all_protocols,
+            "fmx": all_protocols
+        }
+
+        return beamline_options.get(beamline, ())
