@@ -370,10 +370,10 @@ class ControlMain(QtWidgets.QMainWindow):
         else:
             self.dewar_puck_radio.setChecked(True)
         self.dewar_puck_radio.toggled.connect(
-            lambda: self.toggle_special_puck(False)
+            lambda checked: self.toggle_special_puck(False) if checked else None
         )
         self.special_puck_radio.toggled.connect(
-            lambda: self.toggle_special_puck(True)
+            lambda checked: self.toggle_special_puck(True) if checked else None
         )
 
         hBoxRadioLayout1.addWidget(self.dewarViewRadio)
