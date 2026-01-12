@@ -172,7 +172,6 @@ class ControlMain(QtWidgets.QMainWindow):
         self.popupMessage.setStyleSheet("background-color: red")
         self.popupMessage.setModal(False)
         self.groupName = "skinner"
-        self.scannerType = getBlConfig("scannerType")
         self.centerMarkerCharSize = 20
         self.centerMarkerCharOffsetX = 12
         self.centerMarkerCharOffsetY = 18
@@ -226,23 +225,12 @@ class ControlMain(QtWidgets.QMainWindow):
         self.createSampleTab()
         self.userScreenDialog = UserScreenDialog(self)
         self.initCallbacks()
-        if self.scannerType != "PI":
-            self.motPos = {
-                "x": self.gon.x.val(),
-                "y": self.gon.y.val(),
-                "z": self.gon.z.val(),
-                "omega": self.gon.omega.val(),
-            }
-        else:
-            self.motPos = {
-                "x": self.gon.x.val(),
-                "y": self.gon.y.val(),
-                "z": self.gon.z.val(),
-                "omega": self.gon.omega.val(),
-                "fineX": self.sampFineX_pv.get(),
-                "fineY": self.sampFineY_pv.get(),
-                "fineZ": self.sampFineZ_pv.get(),
-            }
+        self.motPos = {
+            "x": self.gon.x.val(),
+            "y": self.gon.y.val(),
+            "z": self.gon.z.val(),
+            "omega": self.gon.omega.val(),
+        }
         self.staffScreenDialog = StaffScreenDialog(self, show=False)
         if daq_utils.beamline == "nyx":  # requires staffScreenDialog to be present
             self.staffScreenDialog.fastDPCheckBox.setDisabled(True)
@@ -1952,14 +1940,8 @@ class ControlMain(QtWidgets.QMainWindow):
         startY_pixels = 0
         zMotRBV = self.motPos["y"]
         yMotRBV = self.motPos["z"]
-        if self.scannerType == "PI":
-            fineYRBV = self.motPos["fineY"]
-            fineZRBV = self.motPos["fineZ"]
-            deltaYX = startYX - zMotRBV - fineZRBV
-            deltaYY = startYY - yMotRBV - fineYRBV
-        else:
-            deltaYX = startYX - zMotRBV
-            deltaYY = startYY - yMotRBV
+        deltaYX = startYX - zMotRBV
+        deltaYY = startYY - yMotRBV
         omegaRad = math.radians(self.motPos["omega"])
         newYY = (
             float(startY_pixels - (self.screenYmicrons2pixels(deltaYY)))
@@ -3166,20 +3148,11 @@ class ControlMain(QtWidgets.QMainWindow):
                     )
                     return  # means a raster failure, and not enough data to cover raster, caused a gui crash
                 
-
-                if (
-                    lenX > 180 and self.scannerType == "PI"
-                ):  # this is trying to figure out row direction
+                is_raster_inverted = 1 if daq_utils.beamline == "nyx" else 0
+                if i % 2 == is_raster_inverted:  # this is trying to figure out row direction
                     cellIndex = spotLineCounter
                 else:
-                    if daq_utils.beamline == "nyx":
-                        is_raster_inverted = 1
-                    else:
-                        is_raster_inverted = 0
-                    if i % 2 == is_raster_inverted:  # this is trying to figure out row direction
-                        cellIndex = spotLineCounter
-                    else:
-                        cellIndex = rowStartIndex + ((numsteps - 1) - j)
+                    cellIndex = rowStartIndex + ((numsteps - 1) - j)
                 
                 try:
                     my_array[cellIndex] = cellResult[cell_result_key]
@@ -3524,32 +3497,18 @@ class ControlMain(QtWidgets.QMainWindow):
             logger.error("bad value for beam width or beam height")
             self.popupServerMessage("bad value for beam width or beam height")
             return
-        if self.scannerType == "PI":
-            rasterDef = {
-                "rasterType": "normal",
-                "beamWidth": beamWidth,
-                "beamHeight": beamHeight,
-                "status": RasterStatus.NEW.value,
-                "x": self.gon.x.val() + self.sampFineX_pv.get(),
-                "y": self.gon.y.val() + self.sampFineY_pv.get(),
-                "z": self.gon.z.val() + self.sampFineZ_pv.get(),
-                "omega": self.gon.omega.val(),
-                "stepsize": stepsize,
-                "rowDefs": [],
-            }  # just storing step as microns, not using her
-        else:
-            rasterDef = {
-                "rasterType": "normal",
-                "beamWidth": beamWidth,
-                "beamHeight": beamHeight,
-                "status": RasterStatus.NEW.value,
-                "x": self.gon.x.val(),
-                "y": self.gon.y.val(),
-                "z": self.gon.z.val(),
-                "omega": self.gon.omega.val(),
-                "stepsize": stepsize,
-                "rowDefs": [],
-            }  # just storing step as microns, not using here
+        rasterDef = {
+            "rasterType": "normal",
+            "beamWidth": beamWidth,
+            "beamHeight": beamHeight,
+            "status": RasterStatus.NEW.value,
+            "x": self.gon.x.val(),
+            "y": self.gon.y.val(),
+            "z": self.gon.z.val(),
+            "omega": self.gon.omega.val(),
+            "stepsize": stepsize,
+            "rowDefs": [],
+        }  # just storing step as microns, not using here
         numsteps_h = int(
             raster_w / stepsizeXPix
         )  # raster_w = width,goes to numsteps horizonatl
@@ -5405,13 +5364,6 @@ class ControlMain(QtWidgets.QMainWindow):
         self.sampz_pv = PV(self.gon.z.readback.pvname)
         self.sampz_pv.add_callback(self.processSampMoveCB, motID="z")
 
-        if self.scannerType == "PI":
-            self.sampFineX_pv = PV(daq_utils.motor_dict["fineX"] + ".RBV")
-            self.sampFineX_pv.add_callback(self.processSampMoveCB, motID="fineX")
-            self.sampFineY_pv = PV(daq_utils.motor_dict["fineY"] + ".RBV")
-            self.sampFineY_pv.add_callback(self.processSampMoveCB, motID="fineY")
-            self.sampFineZ_pv = PV(daq_utils.motor_dict["fineZ"] + ".RBV")
-            self.sampFineZ_pv.add_callback(self.processSampMoveCB, motID="fineZ")
 
         self.omega_pv = PV(self.gon.omega.setpoint.pvname)
         self.omegaTweak_pv = PV(self.gon.omega.setpoint.pvname)
