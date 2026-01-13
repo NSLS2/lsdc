@@ -58,7 +58,7 @@ from gui.dialog import (
     CalculatorWindow,
     MultiColDialog,
 )
-from gui.widgets.log_widget import get_summary_widget
+from gui.widgets.log_widget import get_summary_widget, LogViewerWidget
 from gui.raster import RasterCell, RasterGroup
 from gui.vector import VectorMarker, VectorWidget
 from QPeriodicTable import QPeriodicTable
@@ -2480,7 +2480,7 @@ class ControlMain(QtWidgets.QMainWindow):
             return
 
         if self.protoComboBox.currentText() not in (CollectionProtocols.STANDARD,
-                                                    CollectionProtocols.VECTOR)
+                                                    CollectionProtocols.VECTOR):
             self.totalExptime_ledit.setText("----")
         else:
             try:

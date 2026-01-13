@@ -29,15 +29,16 @@ def get_summary_widget(path: Path):
     raise Exception(f"Unknown type for summary: {path.suffix}")  
 
 class LogViewerWidget(QWidget):
-    def __init__(self, log_file, max_height=500, parent=None):
+    def __init__(self, log_file=None, max_height=500, parent=None):
         super().__init__(parent)
-        self.log_file = Path(log_file)
         self.initUI(max_height)
 
-        self.last_position = 0
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.update_log)
-        self.timer.start(1000)  # Update every second
+        if log_file:
+            self.log_file = Path(log_file)
+            self.last_position = 0
+            self.timer = QTimer(self)
+            self.timer.timeout.connect(self.update_log)
+            self.timer.start(1000)  # Update every second
 
         self.auto_scroll = True  # Auto-scroll is enabled by default
 
