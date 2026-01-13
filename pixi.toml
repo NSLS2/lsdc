@@ -1,0 +1,65 @@
+[project]
+authors = ["vshekar1 <vshekar1@bnl.gov>"]
+channels = ["conda-forge"]
+name = "lsdc"
+platforms = ["linux-64"]
+version = "0.1.0"
+
+[tasks.fmx-gui]
+depends-on = ["setup-fmx"]
+cmd = "cd \"$INIT_CWD\" && python /nsls2/software/mx/daq/lsdc_fmx/lsdcGui.py"
+
+[tasks.fmx-remote]
+depends-on= ["setup-fmx"]
+cmd = "cd \"$INIT_CWD\" && ipython -i /nsls2/software/mx/daq/lsdc_fmx/daq_mainAux.py"
+
+[tasks.fmx-server]
+depends-on= ["setup-fmx"]
+cmd = "cd \"$INIT_CWD\" && ipython -i /nsls2/software/mx/daq/lsdc_fmx/server.py"
+
+[tasks.setup-fmx]
+cmd = "./bin/fmx_env.sh"
+
+[tasks.amx-gui]
+depends-on = ["setup-amx"]
+cmd = "cd \"$INIT_CWD\" && python /nsls2/software/mx/daq/lsdc_amx/lsdcGui.py"
+
+[tasks.amx-remote]
+depends-on= ["setup-amx"]
+cmd = "cd \"$INIT_CWD\" && ipython -i /nsls2/software/mx/daq/lsdc_amx/daq_mainAux.py"
+
+[tasks.amx-server]
+depends-on= ["setup-amx"]
+cmd = "cd \"$INIT_CWD\" && ipython -i /nsls2/software/mx/daq/lsdc_amx/server.py"
+
+[tasks.setup-amx]
+cmd = "./bin/amx_env.sh"
+# [tasks.setup-fmx.env]
+# PROJDIR = "/nsls2/software/mx/daq"
+# CONFIGDIR = "/nsls2/software/mx/daq/bnlpx_config"
+# LSDCHOME = "/nsls2/software/mx/daq/lsdc_fmx"
+# PYTHONPATH = ".:/nsls2/software/mx/daq/bnlpx_config:/opt/dectris/albula/4.0/python:/nsls2/software/mx/daq/lsdc_fmx"
+
+[dependencies]
+python = ">=3.13.5,<3.14"
+qtpy = ">=2.4.3,<3"
+requests = ">=2.32.4,<3"
+amostra = "==0.2.4"
+conftrak = ">=0.0.9,<0.0.10"
+analysisstore = ">=0.0.6,<0.0.7"
+pyqt = ">=5.15.11,<6"
+ipython = ">=9.7.0,<10"
+ophyd = ">=1.11.0,<2"
+xmltodict = ">=1.0.2,<2"
+mxtools = ">=1.0.4,<2"
+super_state_machine = ">=2.0.2,<3"
+databroker = ">=2.0.0b68,<3"
+nslsii = ">=0.11.4,<0.12"
+scikit-learn = ">=1.7.2,<2"
+glib = ">=2.86.1,<3"
+pymca = ">=5.9.4,<6"
+qt_epics = ">=0.0.4,<0.0.5"
+pydantic = ">=2.12.5,<3"
+
+[pypi-dependencies]
+opencv-python-headless = ">=4.11.0.86, <5"

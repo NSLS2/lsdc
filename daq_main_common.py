@@ -50,7 +50,6 @@ functions = [
     continue_data_collection,
     mountSample,
     unmountSample,
-    reprocessRaster,
     fastDPNodes,
     spotNodes,
     unmountCold,
@@ -122,7 +121,6 @@ def pybass_init():
   beamline_lib.read_db()
   beamline_lib.init_mots()
   daq_lib.init_diffractometer()
-
 
 def process_input(command_string):
   if (command_string == ""):

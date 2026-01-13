@@ -1390,7 +1390,7 @@ class ControlMain(QtWidgets.QMainWindow):
         fileHBoxLayout = QtWidgets.QHBoxLayout()
         fileHBoxLayout2 = QtWidgets.QHBoxLayout()
         self.controlMasterCheckBox = QCheckBox("Control Master")
-        self.controlMasterCheckBox.stateChanged.connect(self.changeControlMasterCB)
+        self.controlMasterCheckBox.toggled.connect(self.changeControlMasterCB)
         self.controlMasterCheckBox.setChecked(False)
         fileHBoxLayout.addWidget(self.controlMasterCheckBox)
         self.statusLabel = QtEpicsPVLabel(
@@ -1933,7 +1933,7 @@ class ControlMain(QtWidgets.QMainWindow):
             )  # this makes sure if things are locked, and someone tries to get control, their checkbox will uncheck itself
             self.popupServerMessage("Control is locked by staff. Please stand by.")
             return
-        if state == QtCore.Qt.Checked:
+        if state:
             self.controlMaster_pv.put(processID)
             if (
                 len(self.osc_range_ledit.text()) == 0
@@ -4872,7 +4872,7 @@ class ControlMain(QtWidgets.QMainWindow):
         self.beamSizeSignal.emit(beamSizeFlag)
 
     def controlMasterChangedCB(self, value=None, char_value=None, **kw):
-        controlMasterPID = value
+        controlMasterPID = int(value)
         self.controlMasterSignal.emit(controlMasterPID)
 
     def zebraArmStateChangedCB(self, value=None, char_value=None, **kw):

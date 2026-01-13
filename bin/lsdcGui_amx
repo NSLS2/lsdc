@@ -5,4 +5,4 @@ export LSDCHOME=${PROJDIR}lsdc_amx
 export PATH=/usr/local/bin:/usr/bin:/bin
 export PYTHONPATH=".:${CONFIGDIR}:/opt/dectris/albula/4.0/python:${LSDCHOME}"
 source ${CONFIGDIR}daq_env_amx.txt
-/opt/conda_envs/lsdc-gui-2023-2-latest/bin/python $LSDCHOME/lsdcGui.py&
+/nsls2/software/bin/pixi run --manifest-path $LSDCHOME/pixi.toml amx-gui

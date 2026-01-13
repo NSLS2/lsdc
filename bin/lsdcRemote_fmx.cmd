@@ -9,6 +9,4 @@ export matlab_distrib=${PROJDIR}/software/c3d/matlab_distrib
 export LD_LIBRARY_PATH=$matlab_distrib/bin/glnx86:$matlab_distrib/toolbox
 export PINALIGNDIR=${PROJDIR}pinAlign/pin_align-master/
 export MXPROCESSINGSCRIPTSDIR=${PROJDIR}mx-processing/
-# below not ideal as environment name also needed by daq_mainAux
-conda activate lsdc-server-2023-2-latest
-$LSDCHOME/daq_mainAux.py
+/nsls2/software/bin/pixi run --manifest-path $LSDCHOME/pixi.toml fmx-remote

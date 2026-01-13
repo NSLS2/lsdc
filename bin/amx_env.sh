@@ -1,8 +1,8 @@
+#!/bin/bash
 export PROJDIR=/nsls2/software/mx/daq/
 export CONFIGDIR=${PROJDIR}bnlpx_config/
-export LSDCHOME=${PROJDIR}lsdc_fmx
+export LSDCHOME=${PROJDIR}lsdc_amx
 
 export PATH=/usr/local/bin:/usr/bin:/bin
 export PYTHONPATH=".:${CONFIGDIR}:/opt/dectris/albula/4.0/python:${LSDCHOME}"
-source ${CONFIGDIR}daq_env.txt
-/nsls2/software/bin/pixi run --manifest-path $LSDCHOME/pixi.toml fmx-gui
+source ${CONFIGDIR}daq_env_amx.txt

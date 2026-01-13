@@ -44,12 +44,13 @@ config_bluesky_logging(level='INFO')
 from fmx_annealer import govStatusGet, govStateSet, fmxAnnealer, amxAnnealer # for using annealer specific to FMX and AMX
 from config_params import ON_MOUNT_OPTION, OnMountAvailOptions, BEAMSIZE_OPTIONS
 from mxbluesky.plans.loop_detection import detect_loop
-from mxbluesky.plans.top_view import  topview_optimized
 import json
 
 if daq_utils.beamline == 'fmx':
   from setenergy_lsdc import setELsdc
-
+if daq_utils.beamline == 'amx':
+  from mxbluesky.plans.top_view import  topview_optimized
+  
 
 from XSDataMXv1 import XSDataResultCharacterisation
 global rasterRowResultsList, processedRasterRowCount

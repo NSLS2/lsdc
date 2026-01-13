@@ -17,7 +17,8 @@ import socket
 import time
 import gov_lib
 import daq_lib
-from start_bs import db, gov_robot, govs
+# from start_bs import db, gov_robot, start_bs.govs
+import start_bs
 import logging
 
 
@@ -715,7 +716,7 @@ def setELsdc(energy,
     """
 
     desired_states  = ("SA", "AB")
-    if not gov_robot.state.get() in desired_states:
+    if not start_bs.gov_robot.state.get() in desired_states:
         print(f'Governor state not in one of {desired_states}, exiting')
         return -1
 
@@ -941,7 +942,7 @@ def beam_center_align(transSet='All'):
             return -1
        
     desired_states = ("SA", "AB")
-    if not gov_robot.state.get() in desired_states:
+    if not start_bs.gov_robot.state.get() in desired_states:
         print(f'Governor state not in one of {desired_states}, exiting.')
         return -1
     
@@ -956,7 +957,7 @@ def beam_center_align(transSet='All'):
     detectorCoverClose()
     
     # Transition to Governor state AB (Auto-align Beam)
-    gov_lib.setGovRobot(gov_robot, 'AB')
+    gov_lib.setGovRobot(start_bs.gov_robot, 'AB')
     
     # Set beam transmission that avoids scintillator saturation
     # Default values are defined in settings as lookup table
@@ -977,7 +978,7 @@ def beam_center_align(transSet='All'):
             yield from trans_set(transDefault, trans=trans_bcu)
             
     # Retract backlight
-    yield from bps.mv(light.y,govs.gov.Robot.dev.li.target_Out.get())
+    yield from bps.mv(light.y,start_bs.govs.gov.Robot.dev.li.target_Out.get())
     print('Light Y Out')
     
     # TODO: use "yield from bps.mv(...)" instead of .put(...) below.
@@ -1050,17 +1051,17 @@ def beam_center_align(transSet='All'):
         
         # Adjust Gonio Y so rotation axis is again aligned to beam
         gonioYDiff = beamHiMagDiffY * hiMagCal
-        posGyOld = govs.gov.Robot.dev.gy.target_Work.get()
+        posGyOld = start_bs.govs.gov.Robot.dev.gy.target_Work.get()
         posGyNew = posGyOld + gonioYDiff
         yield from bps.mv(gonio.gy, posGyNew)   # Move Gonio Y to new position
-        govs.gov.Robot.dev.gy.target_Work.set(posGyNew) # Set Governor Gonio Y Work position to new value
+        start_bs.govs.gov.Robot.dev.gy.target_Work.set(posGyNew) # Set Governor Gonio Y Work position to new value
         print('Gonio Y difference = %.3f' % gonioYDiff)
             
     yield from bps.mv(shutter_bcu.close, 1)
     print('BCU Shutter Closed')
     
     # Transition to Governor state SA (Sample Alignment)
-    gov_lib.setGovRobot(gov_robot, 'SA')
+    gov_lib.setGovRobot(start_bs.gov_robot, 'SA')
     
     # Set previous beam transmission
     if transSet != 'None':
@@ -1188,7 +1189,7 @@ def fmx_flux_reference(slit1GapList = [2000, 1000, 600, 400], slit1GapDefault = 
     
     # Put in diode
     yield from bps.mv(light.y,
-                      govs.gov.Robot.dev.li.target_Diode.get())
+                      start_bs.govs.gov.Robot.dev.li.target_Diode.get())
     
 
     # Open BCU shutter
@@ -1215,7 +1216,7 @@ def fmx_flux_reference(slit1GapList = [2000, 1000, 600, 400], slit1GapDefault = 
     
     # Retract diode
     yield from bps.mv(light.y,
-                      govs.gov.Robot.dev.li.target_In.get())
+                      start_bs.govs.gov.Robot.dev.li.target_In.get())
 
     # Set previous beam transmission
     if transSet != 'None':
@@ -1259,17 +1260,17 @@ def fmx_reference(slit1GapDefault = 1000, transSet='All'):
     fmx_reference()
         
     """
-    if not gov_robot.state.get() == "SA":
+    if not start_bs.gov_robot.state.get() == "SA":
         print('Not in Governor state SA, exiting')
         return
     
     # Transition to Governor state BL
-    gov_lib.setGovRobot(gov_robot, 'BL')
+    gov_lib.setGovRobot(start_bs.gov_robot, 'BL')
     
     yield from fmx_flux_reference(slit1GapDefault = slit1GapDefault, transSet = transSet)
     
     # Transition to Governor state SA
-    gov_lib.setGovRobot(gov_robot, 'SA')
+    gov_lib.setGovRobot(start_bs.gov_robot, 'SA')
     
     log_fmx_beamline_reference()
     
