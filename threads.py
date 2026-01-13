@@ -69,7 +69,7 @@ class VideoThread(QThread):
         self.old_mjpg_url = None
         self.new_mjpg_url = None
         self.video_capture = None
-        if self.mjpg_url and self.mjpg_url.lower().endswith(".mjpg"):
+        if self.mjpg_url:
             self.video_capture = cv2.VideoCapture(self.mjpg_url)
             self.old_mjpg_url = self.mjpg_url
             self.new_mjpg_url = self.mjpg_url
