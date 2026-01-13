@@ -28,6 +28,7 @@ import lsdcOlog
 from config_params import (
     BEAMSIZE_OPTIONS,
     CRYOSTREAM_ONLINE,
+    CURRENT_CYCLE,
     HUTCH_TIMER_DELAY,
     MINIMUM_RASTER_SIZE,
     SAMPLE_TIMER_DELAY,
@@ -3913,7 +3914,9 @@ class ControlMain(QtWidgets.QMainWindow):
                 # Proposal does not exist
                 return None
             for directory in response:
-                if directory["beamline"].lower() == daq_utils.beamline:
+                if (directory["beamline"].lower() == daq_utils.beamline 
+                   and directory["cycle"] in (CURRENT_CYCLE, 'commissioning')
+                 ):
                     self.proposal_directories[proposal_num] = directory["path"]
         
         return self.proposal_directories[proposal_num]

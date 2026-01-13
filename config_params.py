@@ -1,6 +1,7 @@
 import grp
 import os
 from enum import Enum
+import requests
 
 # BlConfig parameter variable names
 
@@ -121,10 +122,22 @@ IS_STAFF = (
     else False
 )
 
-EMBL_SERVER_PV_BASE = {
-    "amx": "XF:17IDB-ES:AMX{EMBL}",
-    "fmx": "XF:17IDC-ES:FMX{EMBL}"
-}
+def get_current_cycle():
+    try:
+        cycle_r = requests.get(
+            f"{os.environ['NSLS2_API_URL']}/v1/facility/nsls2/cycles/current"
+        )
+        cycle_r.raise_for_status()
+        cycle = cycle_r.json().get("cycle")
+    except requests.exceptions.HTTPError:
+        return None
+    if cycle is None:
+        return None
+    return cycle
+
+CURRENT_CYCLE = get_current_cycle()
+
+EMBL_SERVER_PV_BASE = {"amx": "XF:17IDB-ES:AMX{EMBL}", "fmx": "XF:17IDC-ES:FMX{EMBL}"}
 
 BEAMSIZE_OPTIONS = {
     "S": ["V0", "H0"],
