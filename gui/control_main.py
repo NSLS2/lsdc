@@ -175,7 +175,8 @@ class ControlMain(QtWidgets.QMainWindow):
         self.bluePen = QtGui.QPen(QtCore.Qt.blue)
         self.yellowPen = QtGui.QPen(QtCore.Qt.yellow)
         self.albulaInterface = AlbulaInterface(ip=os.environ["EIGER_DCU_IP"], 
-                                                 gov_message_pv_name=daq_utils.pvLookupDict["governorMessage"],)
+                                                 gov_message_pv_name=daq_utils.pvLookupDict["governorMessage"],
+                                                 python_path=os.environ["PYTHONPATH_ALBULA"])
 
         self.dewar_plate_pos_pv = PV(daq_utils.pvLookupDict["dewarPlatePos"])
         self.initUI()

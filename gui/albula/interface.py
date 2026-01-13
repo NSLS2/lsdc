@@ -62,7 +62,9 @@ class AlbulaInterface:
                 ],  # -u for unbuffered I/O, -i to keep stdin open
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 universal_newlines=True,
+                env=os.environ.copy()
             )
         
         if "ip" in kwargs and "gov_message_pv_name" in kwargs:
