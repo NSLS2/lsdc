@@ -1516,8 +1516,6 @@ class ControlMain(QtWidgets.QMainWindow):
         hBoxColParams25.addWidget(self.stillModeCheckBox)
         hBoxColParams25.addWidget(self.totalExptimeLabel)
         hBoxColParams25.addWidget(self.totalExptime_ledit)
-        # if (daq_utils.beamline == "fmx"):
-        #  hBoxColParams25.addWidget(calcLifetimeButton)
         hBoxColParams25.addWidget(self.sampleLifetimeLabel)
         hBoxColParams25.addWidget(self.sampleLifetimeReadback_ledit)
         hBoxColParams22 = QtWidgets.QHBoxLayout()
