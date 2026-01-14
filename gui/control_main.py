@@ -435,9 +435,9 @@ class ControlMain(QtWidgets.QMainWindow):
         colParamsGB = QtWidgets.QGroupBox()
         colParamsGB.setTitle("Acquisition")
         vBoxColParams1 = QtWidgets.QVBoxLayout()
-        colStartLabel = QtWidgets.QLabel("Oscillation Start:")
-        colStartLabel.setFixedWidth(140)
-        colStartLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.colStartLabel = QtWidgets.QLabel("Oscillation Start:")
+        self.colStartLabel.setFixedWidth(140)
+        self.colStartLabel.setAlignment(QtCore.Qt.AlignCenter)
         self.osc_start_ledit = QtWidgets.QLineEdit()
         self.setGuiValues({"osc_start": "0.0"})
         self.osc_start_ledit.setFixedWidth(60)
@@ -454,9 +454,9 @@ class ControlMain(QtWidgets.QMainWindow):
         )
         if daq_utils.beamline == "fmx":
             self.osc_end_ledit.textChanged.connect(self.calcLifetimeCB)
-        colRangeLabel = QtWidgets.QLabel("Oscillation Width:")
-        colRangeLabel.setFixedWidth(140)
-        colRangeLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.colRangeLabel = QtWidgets.QLabel("Oscillation Width:")
+        self.colRangeLabel.setFixedWidth(140)
+        self.colRangeLabel.setAlignment(QtCore.Qt.AlignCenter)
         self.osc_range_ledit = QtWidgets.QLineEdit()
         self.osc_range_ledit.setFixedWidth(60)
         self.osc_range_ledit.setValidator(QtGui.QDoubleValidator(0.001, 3600, 3))
@@ -469,13 +469,13 @@ class ControlMain(QtWidgets.QMainWindow):
         else:
             self.stillModeCheckBox.setChecked(False)
             self.osc_range_ledit.setEnabled(True)
-        colExptimeLabel = QtWidgets.QLabel("ExposureTime:")
+        self.colExptimeLabel = QtWidgets.QLabel("ExposureTime:")
         self.stillModeCheckBox.clicked.connect(self.stillModeUserPushCB)
         self.osc_range_ledit.textChanged[str].connect(
             functools.partial(self.totalExpChanged, "oscRange")
         )
-        colExptimeLabel.setFixedWidth(140)
-        colExptimeLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.colExptimeLabel.setFixedWidth(140)
+        self.colExptimeLabel.setAlignment(QtCore.Qt.AlignCenter)
         self.exp_time_ledit = QtWidgets.QLineEdit()
         self.exp_time_ledit.setFixedWidth(60)
         self.exp_time_ledit.textChanged[str].connect(self.totalExpChanged)
@@ -487,9 +487,9 @@ class ControlMain(QtWidgets.QMainWindow):
             )
         )
         self.exp_time_ledit.textChanged.connect(self.checkEntryState)
-        totalExptimeLabel = QtWidgets.QLabel("Total Exposure Time (s):")
-        totalExptimeLabel.setFixedWidth(155)
-        totalExptimeLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.totalExptimeLabel = QtWidgets.QLabel("Total Exposure Time (s):")
+        self.totalExptimeLabel.setFixedWidth(155)
+        self.totalExptimeLabel.setAlignment(QtCore.Qt.AlignCenter)
         self.totalExptime_ledit = QtWidgets.QLineEdit()
         self.totalExptime_ledit.setReadOnly(True)
         self.totalExptime_ledit.setFrame(False)
@@ -503,7 +503,7 @@ class ControlMain(QtWidgets.QMainWindow):
         )
         self.totalExptime_ledit.textChanged.connect(self.checkEntryState)
 
-        sampleLifetimeLabel = QtWidgets.QLabel("Estimated Sample Lifetime (s): ")
+        self.sampleLifetimeLabel = QtWidgets.QLabel("Estimated Sample Lifetime (s): ")
         if daq_utils.beamline == "amx":
             self.sampleLifetimeReadback = QtEpicsPVLabel(
                 daq_utils.pvLookupDict["sampleLifetime"], self, 70, 2
@@ -522,7 +522,7 @@ class ControlMain(QtWidgets.QMainWindow):
                 self.transmissionSetPoint = QtEpicsPVEntry(
                     daq_utils.pvLookupDict["RI_Atten_SP"], self, 60, 3
                 )
-                colTransmissionLabel = QtWidgets.QLabel("Transmission (RI) (0.0-1.0):")
+                self.colTransmissionLabel = QtWidgets.QLabel("Transmission (RI) (0.0-1.0):")
             else:
                 self.transmissionReadback = QtEpicsPVLabel(
                     daq_utils.pvLookupDict["transmissionRBV"], self, 60, 3
@@ -530,7 +530,7 @@ class ControlMain(QtWidgets.QMainWindow):
                 self.transmissionSetPoint = QtEpicsPVEntry(
                     daq_utils.pvLookupDict["transmissionSet"], self, 60, 3
                 )
-                colTransmissionLabel = QtWidgets.QLabel("Transmission (BCU) (0.0-1.0):")
+                self.colTransmissionLabel = QtWidgets.QLabel("Transmission (BCU) (0.0-1.0):")
         else:
             self.transmissionReadback = QtEpicsPVLabel(
                 daq_utils.pvLookupDict["transmissionRBV"], self, 60, 3
@@ -538,13 +538,13 @@ class ControlMain(QtWidgets.QMainWindow):
             self.transmissionSetPoint = QtEpicsPVEntry(
                 daq_utils.pvLookupDict["transmissionSet"], self, 60, 3
             )
-            colTransmissionLabel = QtWidgets.QLabel("Transmission (0.0-1.0):")
+            self.colTransmissionLabel = QtWidgets.QLabel("Transmission (0.0-1.0):")
         self.transmissionReadback_ledit = self.transmissionReadback.getEntry()
 
-        colTransmissionLabel.setAlignment(QtCore.Qt.AlignCenter)
-        colTransmissionLabel.setFixedWidth(190)
+        self.colTransmissionLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.colTransmissionLabel.setFixedWidth(190)
 
-        transmisionSPLabel = QtWidgets.QLabel("SetPoint:")
+        self.transmisionSPLabel = QtWidgets.QLabel("SetPoint:")
 
         self.transmission_ledit = self.transmissionSetPoint.getEntry()
         self.transmission_ledit.setValidator(
@@ -569,50 +569,50 @@ class ControlMain(QtWidgets.QMainWindow):
         self.beamsizeComboBox.activated[str].connect(self.beamsizeComboActivatedCB)
         if daq_utils.beamline == "amx" or self.energy_pv.get() < 9000:
             self.beamsizeComboBox.setEnabled(False)
-        colEnergyLabel = QtWidgets.QLabel("Energy (eV):")
-        colEnergyLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.colEnergyLabel = QtWidgets.QLabel("Energy (eV):")
+        self.colEnergyLabel.setAlignment(QtCore.Qt.AlignCenter)
         self.energyMotorEntry = QtEpicsPVLabel(
             daq_utils.motor_dict["energy"] + ".RBV", self, 70, 2
         )
         self.energyReadback = self.energyMotorEntry.getEntry()
-        energySPLabel = QtWidgets.QLabel("SetPoint:")
+        self.energySPLabel = QtWidgets.QLabel("SetPoint:")
         self.energyMoveLedit = QtEpicsPVEntry(
             daq_utils.motor_dict["energy"] + ".VAL", self, 75, 2
         )
         self.energy_ledit = self.energyMoveLedit.getEntry()
         self.energy_ledit.setValidator(QtGui.QDoubleValidator())
         self.energy_ledit.returnPressed.connect(self.moveEnergyMaxDeltaCB)
-        moveEnergyButton = QtWidgets.QPushButton("Move Energy")
-        moveEnergyButton.clicked.connect(self.moveEnergyCB)
+        self.moveEnergyButton = QtWidgets.QPushButton("Move Energy")
+        self.moveEnergyButton.clicked.connect(self.moveEnergyCB)
         hBoxColParams4 = QtWidgets.QHBoxLayout()
-        colBeamWLabel = QtWidgets.QLabel("Beam Width:")
-        colBeamWLabel.setFixedWidth(140)
-        colBeamWLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.colBeamWLabel = QtWidgets.QLabel("Beam Width:")
+        self.colBeamWLabel.setFixedWidth(140)
+        self.colBeamWLabel.setAlignment(QtCore.Qt.AlignCenter)
         self.beamWidth_ledit = QtWidgets.QLineEdit()
         self.beamWidth_ledit.setFixedWidth(60)
-        colBeamHLabel = QtWidgets.QLabel("Beam Height:")
-        colBeamHLabel.setFixedWidth(140)
-        colBeamHLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.colBeamHLabel = QtWidgets.QLabel("Beam Height:")
+        self.colBeamHLabel.setFixedWidth(140)
+        self.colBeamHLabel.setAlignment(QtCore.Qt.AlignCenter)
         self.beamHeight_ledit = QtWidgets.QLineEdit()
         self.beamHeight_ledit.setFixedWidth(60)
-        hBoxColParams4.addWidget(colBeamWLabel)
+        hBoxColParams4.addWidget(self.colBeamWLabel)
         hBoxColParams4.addWidget(self.beamWidth_ledit)
-        hBoxColParams4.addWidget(colBeamHLabel)
+        hBoxColParams4.addWidget(self.colBeamHLabel)
         hBoxColParams4.addWidget(self.beamHeight_ledit)
-        colResoLabel = QtWidgets.QLabel("Edge Resolution:")
-        colResoLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.colResoLabel = QtWidgets.QLabel("Edge Resolution:")
+        self.colResoLabel.setAlignment(QtCore.Qt.AlignCenter)
         self.resolution_ledit = QtWidgets.QLineEdit()
         self.resolution_ledit.setFixedWidth(60)
         self.resolution_ledit.setValidator(QtGui.QDoubleValidator())
         self.resolution_ledit.textEdited[str].connect(self.resoTextChanged)
         self.detDistLabel = QtWidgets.QLabel("Detector Dist.")
         #self.detDistLabel.setAlignment(QtCore.Qt.AlignCenter)
-        detDistRBLabel = QtWidgets.QLabel("Readback:")
+        self.detDistRBLabel = QtWidgets.QLabel("Readback:")
         self.detDistRBVLabel = QtEpicsPVLabel(
             daq_utils.motor_dict["detectorDist"] + ".RBV", self, 70
         )
         self.detDistTextChanged(self.detDistRBVLabel.getEntry().text())
-        detDistSPLabel = QtWidgets.QLabel("SetPoint:")
+        self.detDistSPLabel = QtWidgets.QLabel("SetPoint:")
         self.detDistMotorEntry = QtEpicsPVEntry(
             daq_utils.motor_dict["detectorDist"] + ".VAL", self, 70, 2
         )
@@ -634,8 +634,8 @@ class ControlMain(QtWidgets.QMainWindow):
         hBoxColParams6.setAlignment(QtCore.Qt.AlignLeft)
         hBoxColParams7 = QtWidgets.QHBoxLayout()
         hBoxColParams7.setAlignment(QtCore.Qt.AlignLeft)
-        centeringLabel = QtWidgets.QLabel("Sample Centering:")
-        centeringLabel.setFixedWidth(140)
+        self.centeringLabel = QtWidgets.QLabel("Sample Centering:")
+        self.centeringLabel.setFixedWidth(140)
         centeringOptionList = ["Interactive", "AutoLoop", "AutoRaster", "Testing"]
         self.centeringComboBox = QtWidgets.QComboBox(self)
         self.centeringComboBox.addItems(centeringOptionList)
@@ -684,7 +684,7 @@ class ControlMain(QtWidgets.QMainWindow):
         hBoxColParams6.addWidget(self.protoRasterRadio)
         hBoxColParams6.addWidget(self.protoVectorRadio)
         hBoxColParams6.addWidget(self.protoComboBox)
-        hBoxColParams7.addWidget(centeringLabel)
+        hBoxColParams7.addWidget(self.centeringLabel)
         hBoxColParams7.addWidget(self.centeringComboBox)
         self.processingOptionsFrame = QFrame()
         self.hBoxProcessingLayout1 = QtWidgets.QHBoxLayout()
