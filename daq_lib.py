@@ -758,7 +758,7 @@ def collect_detector_seq_hw(sweep_start,range_degrees,image_width,exposure_perio
 
   logger.info("collect %f degrees for %f seconds %d images exposure_period = %f exposure_time = %f" % (range_degrees,range_seconds,number_of_images,exposure_period,exposure_time))
   
-  if (protocol in (CollectionProtocols.STANDARD, CollectionProtocols.BURN):
+  if (protocol in (CollectionProtocols.STANDARD, CollectionProtocols.BURN)):
     logger.info("vectorSync " + str(time.time()))    
     daq_macros.vectorSync()
     logger.info("zebraDaq " + str(time.time()))

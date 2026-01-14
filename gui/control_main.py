@@ -595,7 +595,7 @@ class ControlMain(QtWidgets.QMainWindow):
         colBeamHLabel.setAlignment(QtCore.Qt.AlignCenter)
         self.beamHeight_ledit = QtWidgets.QLineEdit()
         self.beamHeight_ledit.setFixedWidth(60)
-        hBoxColParams4.addWidget(self.colBeamWLabel)
+        hBoxColParams4.addWidget(colBeamWLabel)
         hBoxColParams4.addWidget(self.beamWidth_ledit)
         hBoxColParams4.addWidget(colBeamHLabel)
         hBoxColParams4.addWidget(self.beamHeight_ledit)
@@ -4977,7 +4977,7 @@ class ControlMain(QtWidgets.QMainWindow):
         self.pauseButtonStateSignal.emit(pauseButtonStateVar)
 
     def initOphyd(self):
-        if daq_utils.beamline = "amx":
+        if daq_utils.beamline == "amx":
             ophyd_prefix = "XF:17IDB-ES:AMX"
         else:
             ophyd_prefix = "XF:17IDC-ES:FMX"
