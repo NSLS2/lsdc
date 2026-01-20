@@ -1,6 +1,7 @@
 import pandas
 from pandas.errors import EmptyDataError
 import db_lib
+from daq_lib import refreshGuiTree
 import sanitize_sheet
 import logging
 logger = logging.getLogger(__name__)
@@ -66,7 +67,8 @@ def insertSpreadsheetDict(d,owner):
 def importSpreadsheet(infilename,owner):
   try:
     d = parseSpreadsheet(infilename)
-    insertSpreadsheetDict(d,owner)    
+    insertSpreadsheetDict(d,owner)
+    refreshGuiTree() 
   except OSError as e:
     logger.error(f"Aborting import, bad spreadsheet file:  {infilename}")
   except EmptyDataError as e:
