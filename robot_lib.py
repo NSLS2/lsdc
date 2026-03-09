@@ -52,6 +52,12 @@ def recoverRobot():
 def dryGripper():
     robot.dryGripper()
 
+def recoverRobotFloco():
+    robot.recoverRobotFloco()
+
+def dryGripperFloco():
+    robot.dryGripperFloco()
+
 # TODO ask Edwin about these Dewar functions
 
 def DewarRefill(hours):

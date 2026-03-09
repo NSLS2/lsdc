@@ -48,6 +48,7 @@ config_bluesky_logging(level='INFO')
 from fmx_annealer import govStatusGet, govStateSet, fmxAnnealer, amxAnnealer # for using annealer specific to FMX and AMX
 from config_params import ON_MOUNT_OPTION, OnMountAvailOptions, BEAMSIZE_OPTIONS
 from mxbluesky.plans import detect_loop, topview_optimized
+import json
 
 if daq_utils.beamline == 'fmx':
   from setenergy_lsdc import setELsdc
@@ -299,12 +300,24 @@ def recoverCS8():
 
 def run_recovery_procedure(stop=True):
   """
-  Manual recovery procedure used in daq_lib.flocoStopOperations and daq_lib.flocoContinueOperations
+  Manual recovery procedure used in daq_lib.floco_stop_operations and daq_lib.floco_continue_operations
   """
+  RESET  = "\033[0m"
+  BOLD = "\033[1m"
+  RED    = "\033[31m"
+  GREEN  = "\033[32m"
+  YELLOW = "\033[33m"
   logger.info(f"Running recovery procedure: {'stop operations' if stop else 'continue operations'}")
+
   def check_robot():
-    if not getBlConfig("robot_online") or not getBlConfig("mountEnabled"):
-      raise ValueError("Robot is offline or mount is disabled, sample found in gripper. Stopping recovery...")
+    if not getBlConfig("robot_online"):
+      logger.info(f"{YELLOW}Robot was off, running robotOn(){RESET}")
+      robotOn()
+
+    if not getBlConfig("mountEnabled"):
+      logger.info(f"{YELLOW}Mounting was disabled. Running enableMount(){RESET}")
+      enableMount()
+      # raise ValueError(f"{RED}{BOLD}Robot is offline or mount is disabled. Stopping recovery...{RESET}")
 
   def run_home_pin():
     from start_bs import home_pins
@@ -315,31 +328,61 @@ def run_recovery_procedure(stop=True):
   
   def check_robot_speed():
     if not robot_arm.is_full_speed():
-      logger.error("Robot arm speed is NOT 100%")
+      logger.error(f"{RED}{BOLD}Robot arm speed is NOT 100%{RESET}")
 
   def check_beam():
     if not (getPvDesc("beamAvailable") or getBlConfig(BEAM_CHECK) == 0):
-      logger.error("Beam not available, please open shutter")
+      logger.error(f"{RED}{BOLD}Beam not available, please open shutter{RESET}")
 
-  steps_to_run = {"Recover robot": robot_lib.recoverRobot, 
-                  "Check robot status": check_robot, 
-                  "Dry gripper": robot_lib.dryGripper, 
-                  "Home pin": run_home_pin, }
+  def check_gonio():
+    print(f"BoostStatus: {getPvDesc('boostStatus') == 0}" )
+    print(f'Mount status {daq_lib.get_field("mounted_pin") != ""}')
+    print(f'Sample detected: {getPvDesc("sampleDetected") == 0}')
+    if (getPvDesc("boostStatus") != 0 
+       or daq_lib.get_field("mounted_pin") != ''
+       or getPvDesc("sampleDetected") == 0):
+      logger.error("Pin is mounted on gonio")
+      raise Exception(f"{RED}{BOLD}Gonio has a sample, stopping recovery procedure{RESET}")
+
+  def set_fts():
+    # Value is set to 9 because 0.1 seconds is the 10th option in the css dropdown!
+    force_torque_sensor.put(9)
+
   if stop:
-    steps_to_run.update({"Disable mount": disableMount, "Robot off": robotOff})
+    steps_to_run = {
+      "Logging": logMe,
+      "Recover robot": robot_lib.recoverRobot,
+      "Setting FTS to 0.1 sec polling": set_fts, 
+      "Disable mount": disableMount, 
+      "Robot off": robotOff}
   else:
-    steps_to_run.update({"Enable mount": enableMount, "Robot on": robotOn})
-  
-  steps_to_run.update({"Move Governor to SE": gov_state_to_se, })
-  if not stop:
-    steps_to_run.update({"Checking robot arm speed": check_robot_speed,
-                       "Checking beam": check_beam})
+    steps_to_run = {
+      "Logging": logMe,
+      "Checking sample in gonio": check_gonio,
+      "Recover robot": robot_lib.recoverRobotFloco,
+      "Setting FTS to 0.1 sec polling": set_fts, 
+      "Check robot status": check_robot, 
+      "Dry gripper": robot_lib.dryGripperFloco, 
+      "Home pin": run_home_pin, 
+      "Enable mount": enableMount, 
+      "Robot on": robotOn, 
+      "Move Governor to SE": gov_state_to_se,
+      "Checking robot arm speed": check_robot_speed,
+      "Checking beam": check_beam}
 
-  for i, (step_message, func) in enumerate(steps_to_run.items()):
-    logger.info(f"Step {i+1} of {len(steps_to_run)}: {step_message}")
-    func()
-    logger.info(f"Completed step: {step_message}")
-  
+  try:
+    daq_lib.set_field("program_state","Running floco recovery")
+    for i, (step_message, func) in enumerate(steps_to_run.items()):
+      logger.info(f"{YELLOW}Executing step {i+1} of {len(steps_to_run)}:{RESET} {GREEN}{step_message}{RESET}")
+      func()
+      # logger.info(f"{GREEN}Completed step: {step_message}{RESET}")
+  except Exception as e:
+    logger.info(f"{RED}Exception while running floco recovery{RESET} : {e}")
+    if "unrecognized location" in str(e).lower():
+      message = "Unrecognized location, Manual recovery required"
+      logger.info(f"{RED}Recovery aborted: {message}{RESET}")
+  finally:
+    daq_lib.set_field("program_state","Program Ready")
 
 def run_top_view_optimized():
     RE(topview_optimized())
@@ -4349,11 +4392,13 @@ def setAttenRI():
 def robotOn():
   """robotOn() : use the robot to mount samples"""
   setBlConfig("robot_online",1)
+  daq_lib.gui_message(json.dumps({"robot_online": True}))
 
 
 def robotOff():
   """robotOff() : fake mounting samples"""  
   setBlConfig("robot_online",0)
+  daq_lib.gui_message(json.dumps({"robot_online": False}))
 
 
 def zebraVecDaqSetup(angle_start,imgWidth,exposurePeriodPerImage,numImages,filePrefix,data_directory_name,file_number_start,scanEncoder=3): #scan encoder 0=x, 1=y,2=z,3=omega
@@ -4467,6 +4512,14 @@ def queueCollectOff():
   """queueCollectOff() : do not allow creating requests for samples that are not mounted"""  
   setBlConfig("queueCollect",0)
 
+def unmountColdOn():
+  setBlConfig(UNMOUNT_COLD_CHECK, 1)
+  daq_lib.gui_message(json.dumps({"unmount_cold": True}))
+
+def unmountColdOff():
+  setBlConfig(UNMOUNT_COLD_CHECK, 0)
+  daq_lib.gui_message(json.dumps({"unmount_cold": False}))
+
 def guiLocal(): #monitor omega RBV
   """guiLocal() : show the readback of the Omega motor as it's moving. Can lead to lags when operating remotely with reduced bandwidth."""
   setBlConfig("omegaMonitorPV","RBV")
@@ -4527,10 +4580,12 @@ def backoffDetector():
 def disableMount():
   """disableMount() : turn off robot mounting. Usually done in an error situation where we want staff intervention before resuming."""
   setBlConfig("mountEnabled",0)
+  daq_lib.gui_message(json.dumps({"enable_mount": False}))
 
 def enableMount():
   """enableMount() : allow robot mounting"""
   setBlConfig("mountEnabled",1)
+  daq_lib.gui_message(json.dumps({"enable_mount": True}))
 
 def set_beamsize(sizeV, sizeH):
   if (sizeV == 'V0'):

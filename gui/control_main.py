@@ -161,6 +161,8 @@ class ControlMain(QtWidgets.QMainWindow):
     lowMagCursorChangeSignal = QtCore.Signal(int, str)
     cryostreamTempSignal = QtCore.Signal(object)
     sampleZoomChangeSignal = QtCore.Signal(object)
+    gov_state_change_signal = QtCore.Signal(str)
+    dewar_plate_change_signal = QtCore.Signal(int)
 
     def __init__(self):
         super(ControlMain, self).__init__()
@@ -184,6 +186,8 @@ class ControlMain(QtWidgets.QMainWindow):
         if daq_utils.beamline != "nyx":
           self.albulaInterface = AlbulaInterface(ip=os.environ["EIGER_DCU_IP"], 
                                                  gov_message_pv_name=daq_utils.pvLookupDict["governorMessage"],)
+
+        self.dewar_plate_pos_pv = PV(daq_utils.pvLookupDict["dewarPlatePos"])
         self.initUI()
         self.initOphyd()
         self.govStateMessagePV = PV(daq_utils.pvLookupDict["governorMessage"])
@@ -1570,7 +1574,7 @@ class ControlMain(QtWidgets.QMainWindow):
         
 
         self.hutchCornerCamThread = VideoThread(
-            parent=self, delay=HUTCH_TIMER_DELAY, url=getBlConfig("hutchCornerCamURL")
+            parent=self, delay=HUTCH_TIMER_DELAY, url=getBlConfig("hutchCornerCamURL") + "?resolution=320x180"
         )
         self.hutchCornerCamThread.frame_ready.connect(
             lambda frame: self.updateCam(self.pixmap_item_HutchCorner, frame)
@@ -1578,7 +1582,7 @@ class ControlMain(QtWidgets.QMainWindow):
         self.hutchCornerCamThread.start()
 
         self.hutchTopCamThread = VideoThread(
-            parent=self, delay=HUTCH_TIMER_DELAY, url=getBlConfig("hutchTopCamURL")
+            parent=self, delay=HUTCH_TIMER_DELAY, url=getBlConfig("hutchTopCamURL") + "?resolution=320x180"
         )
         self.hutchTopCamThread.frame_ready.connect(
             lambda frame: self.updateCam(self.pixmap_item_HutchTop, frame)
@@ -1606,6 +1610,27 @@ class ControlMain(QtWidgets.QMainWindow):
                 )
         except:
             pass
+
+    def manage_gov_state_change(self, state: str):
+        # This function reacts to changes in governor state
+        # Currently changes what camera angle is shown in the center
+        if state in ("state SE", "transition SA to SE"):
+            logger.info("Govstate: %s", state)
+            self.sampleCameraThread.updateCam("http://xf17id1b-webcam1.nsls2.bnl.local/axis-cgi/mjpg/video.cgi?resolution=640x360")
+        elif state in ("transition SE to TA"):
+            logger.info("Govstate: %s", state)
+            self.sampleCameraThread.updateCam("http://xf17id1b-webcam4.nsls2.bnl.local/axis-cgi/mjpg/video.cgi?resolution=640x360")
+        elif state in ("state TA"):
+            logger.info("Govstate: %s", state)
+            self.sampleCameraThread.updateCam(self.capture)
+        elif state in ("state SA"):
+            logger.info("Govstate: %s", state)
+            self.sampleCameraThread.updateCam(self.capture)
+            
+
+    def update_dewar_plate_position(self, state: int):
+        position = int(state) if state else "Rotating"
+        self.dewar_plate_position_status_widget.setText(f"Plate Position: {position}")
 
     def hideRastersCB(self, state):
         if state == QtCore.Qt.Checked:
@@ -5143,6 +5168,12 @@ class ControlMain(QtWidgets.QMainWindow):
         pauseButtonStateVar = value
         self.pauseButtonStateSignal.emit(pauseButtonStateVar)
 
+    def manage_gov_state_change_cb(self, value=None, char_value=None, **kw):
+        self.gov_state_change_signal.emit(char_value)
+    
+    def dewar_plate_position_cb(self, value=None, char_value=None, **kw):
+        self.dewar_plate_change_signal.emit(value)
+
     def initOphyd(self):
         if daq_utils.beamline == "nyx":
             # initialize devices
@@ -5212,8 +5243,18 @@ class ControlMain(QtWidgets.QMainWindow):
         exitAction.setStatusTip("Exit application")
         exitAction.triggered.connect(self.closeAll)
         self.statusBar()
-        self.queue_collect_status_widget = QtWidgets.QLabel("Queue Collect: ON")
+        self.statusBar().setStyleSheet("QStatusBar { font-size: 14pt; }")
+        queue_collect_status = "ON" if getBlConfig("queueCollect") else "OFF"
+        self.queue_collect_status_widget = QtWidgets.QLabel(f"Queue Collect: {queue_collect_status}")
+        self.dewar_plate_position_status_widget = QtWidgets.QLabel(f"Plate Position: {int(self.dewar_plate_pos_pv.get())}")
+        sep = QtWidgets.QFrame()
+        sep.setFrameShape(QtWidgets.QFrame.VLine)
+        sep.setFrameShadow(QtWidgets.QFrame.Sunken)
+        sep.setLineWidth(1)
         self.statusBar().addPermanentWidget(self.queue_collect_status_widget)
+        self.statusBar().addPermanentWidget(sep)
+        self.statusBar().addPermanentWidget(self.dewar_plate_position_status_widget)
+        
 
         menubar = self.menuBar()
         fileMenu = menubar.addMenu("&File")
@@ -5458,6 +5499,12 @@ class ControlMain(QtWidgets.QMainWindow):
         self.lowMagCursorChangeSignal.connect(self.processLowMagCursorChange)
         self.lowMagCursorX_pv.add_callback(self.processLowMagCursorChangeCB, ID="x")
         self.lowMagCursorY_pv.add_callback(self.processLowMagCursorChangeCB, ID="y")
+        
+        self.gov_state_change_signal.connect(self.manage_gov_state_change)
+        self.govStateMessagePV.add_callback(self.manage_gov_state_change_cb)
+
+        self.dewar_plate_change_signal.connect(self.update_dewar_plate_position)
+        self.dewar_plate_pos_pv.add_callback(self.dewar_plate_position_cb)
 
     def popupServerMessage(self, message_s):
         if self.popUpMessageInit:
@@ -5467,7 +5514,38 @@ class ControlMain(QtWidgets.QMainWindow):
         if message_s == "killMessage":
             return
         else:
-            self.popupMessage.showMessage(message_s)
+            try:
+                broadcast_command = json.loads(message_s)
+                self.processServerCommand(broadcast_command)
+            except json.JSONDecodeError:
+                self.popupMessage.showMessage(message_s)
+            except Exception as e:
+                logger.error(f"Could not process command: {e}")
+
+    def processServerCommand(self, command: "dict[str, Any]"):
+        """
+        Process a command broadcasted from the server
+        """
+        if "highlight_cells" in command:
+            if self.rasterList:
+                raster_item: RasterGroup = self.rasterList[-1]["graphicsItem"]
+                raster_item.set_highlighted_cells(command["highlight_cells"])
+        if "robot_online" in command:
+            self.staffScreenDialog.robotOnCheckBox.setChecked(command["robot_online"])
+        if "enable_mount" in command:
+            self.staffScreenDialog.enableMountCheckBox.setChecked(command["enable_mount"])
+        if "beam_check" in command:
+            self.staffScreenDialog.beamCheckOnCheckBox.setChecked(command["beam_check"])
+        if "queue_collect" in command:
+            self.staffScreenDialog.queueCollectOnCheckBox.setChecked(command["queue_collect"])
+            self.userScreenDialog.queueCollectOnCheckBox.setChecked(command["queue_collect"])
+            # Update status widget and unmount-cold control based on queue_collect state
+            self.queue_collect_status_widget.setText(
+                f"Queue Collect: {'ON' if command['queue_collect'] else 'OFF'}"
+            )
+            self.staffScreenDialog.gripperUnmountColdCheckBox.setEnabled(command["queue_collect"])
+        if "unmount_cold" in command:
+            self.staffScreenDialog.gripperUnmountColdCheckBox.setChecked(command["unmount_cold"])
 
     def printServerMessage(self, message_s):
         if self.textWindowMessageInit:
