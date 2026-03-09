@@ -401,7 +401,7 @@ def unmountCold():
     set_mounted_pin_data(currentMountedSampleID, mount_state=MountState.CURRENTLY_UNMOUNTING.value)
     if robot_lib.unmountRobotSample(gov_robot, puckPos,pinPos,currentMountedSampleID):
       db_lib.deleteCompletedRequestsforSample(currentMountedSampleID)      
-      if getBlConfig("robot_online"):
+      if getBlConfig("robot_online") and not getBlConfig("special_mount_enabled"):
         robot_lib.parkGripper()
       clearMountedSample()
       setPvDesc("robotGovActive",1)
