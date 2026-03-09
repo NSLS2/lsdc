@@ -1,4 +1,20 @@
 import numpy as np
+import logging
+import db_lib, daq_utils
+
+logger = logging.getLogger()
+
+def get_score_vals(cellResults, scoreOption):
+  """
+  Returns a numpy 1d-array that stores the selected scores as a flattened array
+  """
+  score_vals = np.zeros(len(cellResults))
+  for i, res in enumerate(cellResults):
+    try:
+      score_vals[i] = float(res[scoreOption])
+    except TypeError:
+      logger.debug(f"Option {scoreOption} not found for {res}")
+  return score_vals
 
 
 def calculate_matrix_index(k, M, N, pattern="horizontal"):
@@ -108,3 +124,25 @@ def get_flattened_indices_of_max_col(raster_def, max_col):
         )
 
     return indices
+
+def peakfind_maxburn(array, num_iter):
+    '''
+    Collection center finding for multiCol protocol
+    
+    Input 2D array, find max element, store max index in list,
+    then set max element and its 8 neighbors to zero (a.k.a. burn this spot)
+    
+    Repeat until all elements set to zero, or maximum number of iterations reached
+    
+    Returns center list, and "burnt" array
+    '''
+    arr_work = array.copy()
+    indices = []
+    iterate = 1
+    while arr_work.max() != 0 and iterate <= num_iter:
+        iterate = iterate + 1
+        i, j = np.unravel_index(np.argmax(arr_work), arr_work.shape)
+        indices.append((i, j))
+        arr_work[max(i-1, 0):i+2, max(j-1, 0):j+2] = 0
+    return indices, arr_work
+

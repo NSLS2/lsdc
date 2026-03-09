@@ -63,7 +63,8 @@ from gui.dialog import (
     SnapCommentDialog,
     StaffScreenDialog,
     UserScreenDialog,
-    CalculatorWindow
+    CalculatorWindow,
+    MultiColDialog,
 )
 from gui.widgets.log_widget import get_summary_widget
 from gui.raster import RasterCell, RasterGroup
@@ -782,14 +783,10 @@ class ControlMain(QtWidgets.QMainWindow):
         )  # something for criteria to decide on which hotspots to collect on for multi-xtal
         self.hBoxMultiColParamsLayout1 = QtWidgets.QHBoxLayout()
         self.hBoxMultiColParamsLayout1.setAlignment(QtCore.Qt.AlignLeft)
-        multiColCutoffLabel = QtWidgets.QLabel("Diffraction Cutoff")
-        multiColCutoffLabel.setFixedWidth(110)
-        self.multiColCutoffEdit = QtWidgets.QLineEdit(
-            "320"
-        )  # may need to store this in DB at some point, it's a silly number for now
-        self.multiColCutoffEdit.setFixedWidth(60)
-        self.hBoxMultiColParamsLayout1.addWidget(multiColCutoffLabel)
-        self.hBoxMultiColParamsLayout1.addWidget(self.multiColCutoffEdit)
+        self.multi_col_button = QtWidgets.QPushButton("Select Multicol Centers")
+        self.multi_col_button.clicked.connect(self.add_multicol)
+        self.hBoxMultiColParamsLayout1.addWidget(self.multi_col_button)
+        
         self.multiColParamsFrame.setLayout(self.hBoxMultiColParamsLayout1)
         self.characterizeParamsFrame = QFrame()
         vBoxCharacterizeParams1 = QtWidgets.QVBoxLayout()
@@ -1252,6 +1249,7 @@ class ControlMain(QtWidgets.QMainWindow):
         focusMinusButton.clicked.connect(functools.partial(self.focusTweakCB, -5))
         annealButton = QtWidgets.QPushButton("Anneal")
         annealButton.clicked.connect(self.annealButtonCB)
+        annealButton.hide()
         annealTimeLabel = QtWidgets.QLabel("Time")
         self.annealTime_ledit = QtWidgets.QLineEdit()
         self.annealTime_ledit.setFixedWidth(40)
@@ -2458,6 +2456,7 @@ class ControlMain(QtWidgets.QMainWindow):
         )
         self.vecLenLabelOutput.setText(str(int(vector_length)))
         self.vecSpeedLabelOutput.setText(str(int(vector_speed)))
+        self.calcLifetimeCB()
         return x_vec, y_vec, z_vec, vector_length
 
     def totalExpChanged(self, text):
@@ -2858,6 +2857,19 @@ class ControlMain(QtWidgets.QMainWindow):
                 logger.info(comm_s)
         else:
             self.popupServerMessage("You don't have control")
+
+    def add_multicol(self):
+        if self.selectedSampleRequest and self.selectedSampleRequest.get("request_type") == "raster":
+            raster_results = db_lib.getResultsforRequest(self.selectedSampleRequest["uid"])
+            
+            for result in raster_results:
+                if result["result_type"] == 'rasterResult':
+                    raster_result = result
+                    break
+            else:
+                return
+            multicol_dialog = MultiColDialog(parent=self, raster_req=self.selectedSampleRequest, raster_result=raster_result)
+            multicol_dialog.show()
 
     def moveEnergyCB(self):
         if self.controlEnabled():
