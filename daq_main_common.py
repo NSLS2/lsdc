@@ -84,11 +84,9 @@ functions = [
     backoffDetector,
     enableMount,
     robotOn,
-    set_energy
+    set_energy,
+    anneal,
     ]
-
-if daq_utils.beamline != "nyx":
-  functions = functions + [anneal]
 
 whitelisted_functions: "Dict[str, Callable]" = {
     func.__name__: func for func in functions
