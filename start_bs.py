@@ -43,8 +43,6 @@ import bluesky.plans as bp
 from bluesky.run_engine import RunEngine
 RE = RunEngine()
 beamline = os.environ["BEAMLINE_ID"]
-from nslsii import configure_kafka_publisher
-configure_kafka_publisher(RE, beamline)
 from databroker import Broker
 db = Broker.named(beamline)
 RE.md = new_md

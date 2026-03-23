@@ -15,7 +15,6 @@ from beamline_support import getPvValFromDescriptor as getPvDesc, setPvValFromDe
 import db_lib
 from daq_utils import getBlConfig
 from config_params import *
-from kafka_producer import send_kafka_message
 from start_bs import govs, gov_robot, flyer, RE, gonio, robot_arm, dewar
 import gov_lib
 from bluesky.preprocessors import finalize_wrapper
@@ -726,8 +725,6 @@ def collectData(currentRequest):
     logger.error('caught key error in logging: %s' % e)
 
   # collection finished, start processing
-  if reqObj["protocol"] in (CollectionProtocols.STANDARD, CollectionProtocols.VECTOR, CollectionProtocols.RASTER):
-    send_kafka_message(topic=f'{daq_utils.beamline}.lsdc.documents', event='stop', uuid=currentRequest['uid'], protocol=reqObj["protocol"])
   if prot in (CollectionProtocols.VECTOR, CollectionProtocols.STANDARD, CollectionProtocols.STEP_VECTOR):
     if daq_utils.beamline != "nyx":
       seqNum = flyer.detector.cam.sequence_id.get()
