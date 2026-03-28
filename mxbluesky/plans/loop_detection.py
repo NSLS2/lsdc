@@ -91,10 +91,6 @@ def detect_loop(sample_detection: "Dict[str, float|int]"):
     yield from bps.mv(gonio.o, sample_detection["face_on_omega"]+90)
     yield from trigger_two_click()
 
-    try:
-        yield from bp.count([two_click_low], 1)
-    except FailedStatus:
-        yield from bp.count([two_click_low], 1)
     
     loop_detector.get_threshold.set(True)
     loop_detector.x_start.set(int(box_coords_face[0]-mean_x))
