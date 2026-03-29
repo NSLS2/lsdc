@@ -358,10 +358,30 @@ class ControlMain(QtWidgets.QMainWindow):
         self.dewarViewRadio.toggled.connect(
             functools.partial(self.dewarViewToggledCB, "dewarView")
         )
+        self.puck_type_radio_group = QtWidgets.QButtonGroup()
+        self.special_puck_radio = QtWidgets.QRadioButton("Special Puck")
+        self.dewar_puck_radio = QtWidgets.QRadioButton("Dewar Puck")
+        self.puck_type_radio_group.addButton(self.special_puck_radio)
+        self.puck_type_radio_group.addButton(self.dewar_puck_radio)
+        puck_type_radio_layout = QtWidgets.QHBoxLayout()
+        puck_type_radio_layout.addWidget(self.dewar_puck_radio)
+        puck_type_radio_layout.addWidget(self.special_puck_radio)
+        if getBlConfig("special_mount_enabled"):
+            self.special_puck_radio.setChecked(True)
+        else:
+            self.dewar_puck_radio.setChecked(True)
+        self.dewar_puck_radio.toggled.connect(
+            lambda checked: self.toggle_special_puck(False) if checked else None
+        )
+        self.special_puck_radio.toggled.connect(
+            lambda checked: self.toggle_special_puck(True) if checked else None
+        )
+
         hBoxRadioLayout1.addWidget(self.dewarViewRadio)
         hBoxRadioLayout1.addWidget(self.priorityViewRadio)
         self.viewRadioGroup.addButton(self.dewarViewRadio)
         vBoxDFlayout.addLayout(hBoxRadioLayout1)
+        vBoxDFlayout.addLayout(puck_type_radio_layout)
         vBoxDFlayout.addWidget(self.dewarTree)
         vBoxDFlayout.addWidget(self.follow_current_request_checkbox)
         queueSelectedButton = QtWidgets.QPushButton("Queue All Selected")
@@ -1587,6 +1607,10 @@ class ControlMain(QtWidgets.QMainWindow):
         serverCheckThread = ServerCheckThread(parent=self, delay=SERVER_CHECK_DELAY)
         serverCheckThread.visit_dir_changed.connect(QApplication.instance().quit)
         serverCheckThread.start()
+
+    def toggle_special_puck(self, activate_special: bool):
+        setBlConfig("special_mount_enabled", activate_special)
+        self.dewarTree.refreshTreeDewarView(hard_refresh=True)
 
     def updateCam(self, pixmapItem: "QGraphicsPixmapItem", frame):
         if pixmapItem == self.pixmap_item:
