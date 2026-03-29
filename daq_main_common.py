@@ -84,7 +84,9 @@ functions = [
     backoffDetector,
     enableMount,
     robotOn,
-    set_energy
+    set_energy,
+    set_cryostream_ramp_rate,
+    set_cryostream_temp
     ]
 
 if daq_utils.beamline != "nyx":
