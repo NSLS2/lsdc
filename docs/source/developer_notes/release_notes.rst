@@ -2,6 +2,28 @@
  Release History
 =================
 
+2.0.4 (2024-05-20, a.k.a. 2024-2)
+=================================
+
+Fixes and other changes
+-----------------------
+
+* GUI
+  * Albula will show blank image if detector is restarted
+  * Added "Unmount cold" and "End visit" buttons to main button panel
+  * Gonio only moves (specifically omega) if in SA and moved by server not GUI directly
+  * Cryostream temp for AMX 
+  * Faster raster rendering
+  * FMX set energy UI added
+  * Removed 3-click centering
+  * Added minimum limit to number of steps in a raster
+
+* Server
+  * Added an optimized automated collection with top cam and loop detection ML model
+  * Expanded server function whitelist
+  * FMX set energy plans added
+  * Added a check to detect sample on gonio after mount (wait for ice to melt)
+
 2.0.3 (2024-01-22, a.k.a. 2024-1)
 =================================
 
