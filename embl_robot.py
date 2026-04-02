@@ -66,7 +66,7 @@ class EMBLRobot:
       setPvDesc("warmupThreshold",savedThreshold)
 
 
-    def recoverRobot(self):
+    def _recoverRobot(self, raise_on_error=False):
       try:
         self.rebootEMBL()
         time.sleep(8.0)
@@ -74,15 +74,25 @@ class EMBLRobot:
         if bLoaded:
           daq_macros.robotOff()
           daq_macros.disableMount()
-          daq_lib.gui_message("Found a sample in the gripper - CALL STAFF! disableMount() executed.")
+          message = "FATAL ROBOT ERROR Found a sample in the gripper - CALL STAFF! disableMount() and robotOff() executed."
+          daq_lib.gui_message(message)
+          if raise_on_error:
+            raise Exception(message)
         else:
           RobotControlLib.runCmd("goHome")
       except Exception as e:
         e_s = str(e)
         daq_lib.gui_message("ROBOT Recover failed! " + e_s)
+        if raise_on_error:
+          raise
 
+    def recoverRobot(self):
+      self._recoverRobot()
 
-    def dryGripper(self):
+    def recoverRobotFloco(self):
+      self._recoverRobot(raise_on_error=True)
+
+    def _dryGripper(self, raise_on_error=False):
       try:
         saveThreshold = getPvDesc("warmupThresholdRBV")
         setPvDesc("warmupThreshold",50)
@@ -92,6 +102,14 @@ class EMBLRobot:
         e_s = str(e)
         daq_lib.gui_message("Dry gripper failed! " + e_s)
         setPvDesc("warmupThreshold",saveThreshold)
+        if raise_on_error:
+          raise
+
+    def dryGripper(self):
+      self._dryGripper()
+
+    def dryGripperFloco(self):
+      self._dryGripper(raise_on_error=True)
 
     def DewarAutoFillOn(self):
       RobotControlLib.runCmd("turnOnAutoFill")

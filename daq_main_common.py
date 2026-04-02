@@ -83,8 +83,17 @@ functions = [
     unlatchGov,
     backoffDetector,
     enableMount,
+    disableMount,
     robotOn,
-    set_energy
+    robotOff,
+    set_energy,
+    anneal,
+    beamCheckOn,
+    beamCheckOff,
+    queueCollectOn,
+    queueCollectOff,
+    unmountColdOn,
+    unmountColdOff
     ]
 
 if daq_utils.beamline != "nyx":
