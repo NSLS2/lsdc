@@ -448,7 +448,6 @@ class DewarTree(QtWidgets.QTreeView):
                 ]:
                     self.proposal_membership[proposal_id] = True
                 else:
-                    logger.info(f"Users not found in response: {response}")
                     self.proposal_membership[proposal_id] = False
         except Exception as e:
             logger.exception(e)
@@ -677,6 +676,9 @@ class DewarTree(QtWidgets.QTreeView):
                 selectedSampleRequest = db_lib.getRequestByID(itemData)
                 self.selectedSampleID = selectedSampleRequest["sample"]
                 db_lib.deleteRequest(selectedSampleRequest["uid"])
+                for row in range(item.rowCount()):
+                    child_item = item.child(row)
+                    db_lib.deleteRequest(str(child_item.data(32)))
                 if selectedSampleRequest["request_obj"]["protocol"] in (
                     CollectionProtocols.RASTER,
                     CollectionProtocols.STEP_RASTER,
