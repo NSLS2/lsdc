@@ -243,6 +243,7 @@ class ControlMain(QtWidgets.QMainWindow):
         )  # this is to fix the current val being overwritten by reso
         self.proposalID = -999999
         self.sampleCameraMutex = QMutex()
+        self.camera_mutexs = defaultdict(QMutex)
         if len(sys.argv) > 1:
             if sys.argv[1] == "master":
                 self.changeControlMasterCB(1)
@@ -1510,11 +1511,9 @@ class ControlMain(QtWidgets.QMainWindow):
         self.dewarTree.refreshTreeDewarView(hard_refresh=True)
 
     def updateCam(self, pixmapItem: "QGraphicsPixmapItem", frame):
-        if pixmapItem == self.pixmap_item:
-            with QMutexLocker(self.sampleCameraMutex):
-                pixmapItem.setPixmap(frame)
-        else:
-            pixmapItem.setPixmap(frame)
+        with QMutexLocker(self.camera_mutexs[pixmapItem]):
+            pixmap = QtGui.QPixmap.fromImage(frame)
+            pixmapItem.setPixmap(pixmap)
 
     def amx_fmx_parameter_layout(self):
 

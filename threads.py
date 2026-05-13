@@ -2,7 +2,6 @@ from qtpy.QtCore import QThread, Signal, QPoint, Qt, QObject, QRunnable
 from qtpy import QtGui
 from PIL import Image, ImageQt
 import os
-import sys
 import urllib
 from io import BytesIO
 import logging
@@ -11,8 +10,6 @@ import raddoseLib
 from pathlib import Path
 import cv2
 import time
-import numpy as np
-import requests
 
 logger = logging.getLogger()
 
@@ -39,7 +36,12 @@ class VideoThread(QThread):
                     self.showing_error = True
 
         if self.video_capture:
-            if self.new_mjpg_url != self.old_mjpg_url:
+            if self.new_mjpg_url != self.old_mjpg_url and self.new_mjpg_url is not None:
+                try:
+                    self.video_capture.release()
+                finally:
+                    self.video_capture = None
+                self.video_capture = cv2.VideoCapture(self.new_mjpg_url)
                 self.video_capture.open(self.new_mjpg_url)
                 self.old_mjpg_url = self.new_mjpg_url 
             retval,self.currentFrame = self.video_capture.read()
@@ -48,16 +50,21 @@ class VideoThread(QThread):
                 #logger.debug('no frame read from stream URL - ensure the URL does not end with newline and that the filename is correct')
                 return
 
+            now = time.monotonic() * 1000
+            if  now <= self.next_emit:
+                return
+            self.next_emit = now + self.delay
+
             height,width=self.currentFrame.shape[:2]
             qimage= QtGui.QImage(self.currentFrame,width,height,3*width,QtGui.QImage.Format_RGB888)
+            qimage = qimage.copy()
             qimage = qimage.rgbSwapped()
-            pixmap_orig = QtGui.QPixmap.fromImage(qimage)
             if self.width and self.height:
-                pixmap_orig = pixmap_orig.scaled(self.width, self.height)
+                qimage = qimage.scaledToHeight(self.height)
 
             
         if not self.showing_error:
-            self.frame_ready.emit(pixmap_orig)
+            self.frame_ready.emit(qimage)
             
         
     def __init__(self, *args, delay=1000, url='', mjpg_url=None, width=None, height=None,**kwargs):
@@ -76,16 +83,15 @@ class VideoThread(QThread):
             self.mjpg_url = None
         self.showing_error = False
         self.is_running = True
+        self.next_emit = time.monotonic() * 1000
         QThread.__init__(self, *args, **kwargs)
     
     def updateCam(self, url):
-        if url.lower().endswith(".mjpg"):
-            self.new_mjpg_url = url
+        self.new_mjpg_url = url
         
     def run(self):
         while self.is_running:
             self.camera_refresh()
-            self.msleep(self.delay)
 
     
     def stop(self):
@@ -121,12 +127,13 @@ class ServerCheckThread(QThread):
     visit_dir_changed = Signal()
     def __init__(self, *args, delay=SERVER_CHECK_DELAY, **kwargs):
         self.delay = delay
+        self.is_running = True
         QThread.__init__(self, *args, **kwargs)
 
     def run(self):
         import db_lib
         beamline = os.environ["BEAMLINE_ID"]
-        while True:
+        while self.is_running:
             if Path(db_lib.getBeamlineConfigParam(beamline, "visitDirectory")).resolve() != Path.cwd():
                 message = "The server visit directory has changed, stopping!"
                 logger.error(message)
@@ -135,6 +142,9 @@ class ServerCheckThread(QThread):
                 break
             self.msleep(self.delay)
 
+    def stop(self):
+        self.is_running = False
+        self.wait()
 
 class SignalObject(QObject):
     finished = Signal(object)
