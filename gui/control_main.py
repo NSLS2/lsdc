@@ -117,45 +117,8 @@ def get_request_object_escan(
 
 
 class ControlMain(QtWidgets.QMainWindow):
-    # 1/13/15 - are these necessary?
-    Signal = QtCore.Signal()
-    refreshTreeSignal = QtCore.Signal()
-    serverMessageSignal = QtCore.Signal(str)
-    serverPopupMessageSignal = QtCore.Signal(str)
-    programStateSignal = QtCore.Signal(str)
-    pauseButtonStateSignal = QtCore.Signal(str)
-
-    xrecRasterSignal = QtCore.Signal(str)
-    choochResultSignal = QtCore.Signal(str)
-    energyChangeSignal = QtCore.Signal(float)
-    mountedPinSignal = QtCore.Signal(int)
-    beamSizeSignal = QtCore.Signal(float)
-    controlMasterSignal = QtCore.Signal(int)
-    zebraArmStateSignal = QtCore.Signal(int)
-    govRobotSeReachSignal = QtCore.Signal(int)
-    govRobotSaReachSignal = QtCore.Signal(int)
-    govRobotDaReachSignal = QtCore.Signal(int)
-    govRobotBlReachSignal = QtCore.Signal(int)
-    detMessageSignal = QtCore.Signal(str)
-    sampleFluxSignal = QtCore.Signal(float)
-    zebraPulseStateSignal = QtCore.Signal(int)
-    stillModeStateSignal = QtCore.Signal(int)
-    zebraDownloadStateSignal = QtCore.Signal(int)
-    zebraSentTriggerStateSignal = QtCore.Signal(int)
-    zebraReturnedTriggerStateSignal = QtCore.Signal(int)
-    fastShutterSignal = QtCore.Signal(float)
-    gripTempSignal = QtCore.Signal(float)
-    ringCurrentSignal = QtCore.Signal(float)
-    threeClickSignal = QtCore.Signal(str)
-    sampleExposedSignal = QtCore.Signal(float)
-    sampMoveSignal = QtCore.Signal(int, str)
-    roiChangeSignal = QtCore.Signal(int, str)
-    highMagCursorChangeSignal = QtCore.Signal(int, str)
-    lowMagCursorChangeSignal = QtCore.Signal(int, str)
-    cryostreamTempSignal = QtCore.Signal(object)
+    # Signal used for zoom-level switching → camera thread (not a PV bridge).
     sampleZoomChangeSignal = QtCore.Signal(object)
-    gov_state_change_signal = QtCore.Signal(str)
-    dewar_plate_change_signal = QtCore.Signal(int)
 
     def __init__(self):
         super(ControlMain, self).__init__()
@@ -2209,9 +2172,6 @@ class ControlMain(QtWidgets.QMainWindow):
         newY = newYX + newYY
         return newY
 
-    def processROIChange(self, posRBV, ID):
-        pass
-
     def processLowMagCursorChange(self, posRBV, ID):
         zoomedCursorX = self.getBeamCenterX() - self.centerMarkerCharOffsetX
         zoomedCursorY = self.getBeamCenterY() - self.centerMarkerCharOffsetY
@@ -2567,11 +2527,6 @@ class ControlMain(QtWidgets.QMainWindow):
             self.userScreenDialog.zebraReturnedTriggerCheckBox.setChecked(True)
         else:
             self.userScreenDialog.zebraReturnedTriggerCheckBox.setChecked(False)
-
-    def processControlMasterNew(self, controlPID):
-        logger.info("in callback controlPID = " + str(controlPID))
-        if abs(int(controlPID)) != self.processID:
-            self.controlMasterCheckBox.setChecked(False)
 
     def processChoochResult(self, choochResultFlag):
         if choochResultFlag == "0":
@@ -3340,7 +3295,6 @@ class ControlMain(QtWidgets.QMainWindow):
     def center3LoopCB(self):
         logger.info("3-click center loop")
         self.threeClickCount = 1
-        self.threeClickSignal.emit('{} more clicks'.format(str(4-self.threeClickCount)))
         #time.sleep(0.3)
         self.click3Button.setStyleSheet("background-color: yellow")
         self.send_to_server("mvaDescriptor", ["omega", 0])
@@ -4047,7 +4001,6 @@ class ControlMain(QtWidgets.QMainWindow):
         '''
         if self.threeClickCount > 0:  # 3-click centering
             self.threeClickCount = self.threeClickCount + 1
-            self.threeClickSignal.emit('{} more clicks'.format(str(4-self.threeClickCount)))
             #adding drawing for three click centering
             logger.info('Drawing 3 click line {} at x_value: {} and y_value {}'.format(self.threeClickCount, x_click, y_click))
             self.threeClickLines.append(
@@ -4078,7 +4031,7 @@ class ControlMain(QtWidgets.QMainWindow):
             self.aux_send_to_server(*comm_s)
         if self.threeClickCount == 4:
             self.threeClickCount = 0
-            self.threeClickSignal.emit('0')
+            self.processThreeClickCentering('0')
             self.click3Button.setStyleSheet("background-color: None")
             #removing drawing for three cick centering
             logger.info('Removing 3 click lines')
@@ -5107,151 +5060,6 @@ class ControlMain(QtWidgets.QMainWindow):
                     )
             self.refreshCollectionParams(self.selectedSampleRequest)
 
-    def processXrecRasterCB(self, value=None, char_value=None, **kw):
-        xrecFlag = value
-        if xrecFlag != "0":
-            self.xrecRasterSignal.emit(xrecFlag)
-
-    def processChoochResultsCB(self, value=None, char_value=None, **kw):
-        choochFlag = value
-        if choochFlag != "0":
-            self.choochResultSignal.emit(choochFlag)
-
-    def processEnergyChangeCB(self, value=None, char_value=None, **kw):
-        energyVal = float(value)
-        self.energyChangeSignal.emit(energyVal)
-
-    def mountedPinChangedCB(self, value=None, char_value=None, **kw):
-        mountedPinPos = value
-        self.mountedPinSignal.emit(mountedPinPos)
-
-    def beamSizeChangedCB(self, value=None, char_value=None, **kw):
-        beamSizeFlag = float(value)
-        self.beamSizeSignal.emit(beamSizeFlag)
-
-    def controlMasterChangedCB(self, value=None, char_value=None, **kw):
-        controlMasterPID = int(value)
-        self.controlMasterSignal.emit(controlMasterPID)
-
-    def zebraArmStateChangedCB(self, value=None, char_value=None, **kw):
-        armState = int(value)
-        self.zebraArmStateSignal.emit(armState)
-
-    def govRobotSeReachChangedCB(self, value=None, char_value=None, **kw):
-        armState = int(value)
-        self.govRobotSeReachSignal.emit(armState)
-
-    def govRobotSaReachChangedCB(self, value=None, char_value=None, **kw):
-        armState = int(value)
-        self.govRobotSaReachSignal.emit(armState)
-
-    def govRobotDaReachChangedCB(self, value=None, char_value=None, **kw):
-        armState = int(value)
-        self.govRobotDaReachSignal.emit(armState)
-
-    def govRobotBlReachChangedCB(self, value=None, char_value=None, **kw):
-        armState = int(value)
-        self.govRobotBlReachSignal.emit(armState)
-
-    def detMessageChangedCB(self, value=None, char_value=None, **kw):
-        state = char_value
-        self.detMessageSignal.emit(state)
-
-    def sampleFluxChangedCB(self, value=None, char_value=None, **kw):
-        state = float(value)
-        self.sampleFluxSignal.emit(state)
-
-    def zebraPulseStateChangedCB(self, value=None, char_value=None, **kw):
-        state = int(value)
-        self.zebraPulseStateSignal.emit(state)
-
-    def stillModeStateChangedCB(self, value=None, char_value=None, **kw):
-        state = int(value)
-        self.stillModeStateSignal.emit(state)
-
-    def zebraDownloadStateChangedCB(self, value=None, char_value=None, **kw):
-        state = int(value)
-        self.zebraDownloadStateSignal.emit(state)
-
-    def zebraSentTriggerStateChangedCB(self, value=None, char_value=None, **kw):
-        state = int(value)
-        self.zebraSentTriggerStateSignal.emit(state)
-
-    def zebraReturnedTriggerStateChangedCB(self, value=None, char_value=None, **kw):
-        state = int(value)
-        self.zebraReturnedTriggerStateSignal.emit(state)
-
-    def shutterChangedCB(self, value=None, char_value=None, **kw):
-        shutterVal = float(value)
-        self.fastShutterSignal.emit(shutterVal)
-
-    def gripTempChangedCB(self, value=None, char_value=None, **kw):
-        gripVal = float(value)
-        self.gripTempSignal.emit(gripVal)
-
-    def cryostreamTempChangedCB(self, value=None, char_value=None, **kw):
-        cryostreamTemp = value
-        self.cryostreamTempSignal.emit(cryostreamTemp)
-
-    def ringCurrentChangedCB(self, value=None, char_value=None, **kw):
-        ringCurrentVal = value
-        self.ringCurrentSignal.emit(ringCurrentVal)
-
-    def beamAvailableChangedCB(self, value=None, char_value=None, **kw):
-        threeClickVal = char_value
-        self.threeClickSignal.emit(threeClickVal)
-
-    def sampleExposedChangedCB(self, value=None, char_value=None, **kw):
-        sampleExposedVal = value
-        self.sampleExposedSignal.emit(sampleExposedVal)
-
-    def processSampMoveCB(self, value=None, char_value=None, **kw):
-        posRBV = int(value)
-        motID = kw["motID"]
-        self.sampMoveSignal.emit(posRBV, motID)
-
-    def processROIChangeCB(self, value=None, char_value=None, **kw):
-        posRBV = int(value)
-        ID = kw["ID"]
-        self.roiChangeSignal.emit(posRBV, ID)
-
-    def processHighMagCursorChangeCB(self, value=None, char_value=None, **kw):
-        posRBV = int(value)
-        ID = kw["ID"]
-        self.highMagCursorChangeSignal.emit(posRBV, ID)
-
-    def processLowMagCursorChangeCB(self, value=None, char_value=None, **kw):
-        posRBV = int(value)
-        ID = kw["ID"]
-        self.lowMagCursorChangeSignal.emit(posRBV, ID)
-
-    def treeChangedCB(self, value=None, char_value=None, **kw):
-        if self.processID != self.treeChanged_pv.get():
-            self.refreshTreeSignal.emit()
-
-    def serverMessageCB(self, value=None, char_value=None, **kw):
-        serverMessageVar = char_value
-        self.serverMessageSignal.emit(serverMessageVar)
-
-    def serverPopupMessageCB(self, value=None, char_value=None, **kw):
-        serverMessageVar = char_value
-        self.serverPopupMessageSignal.emit(serverMessageVar)
-
-    def programStateCB(self, value=None, char_value=None, **kw):
-        programStateVar = value
-        self.programStateSignal.emit(programStateVar)
-
-    def pauseButtonStateCB(self, value=None, char_value=None, **kw):
-        pauseButtonStateVar = value
-        self.pauseButtonStateSignal.emit(pauseButtonStateVar)
-
-    def manage_gov_state_change_cb(self, value=None, char_value=None, **kw):
-        self.gov_state_change_signal.emit(char_value)
-    
-    def dewar_plate_position_cb(self, value=None, char_value=None, **kw):
-        value = int(value)
-        self.dewar_plate_change_signal.emit(value)
-
     def initOphyd(self):
         if daq_utils.beamline == "amx":
             ophyd_prefix = "XF:17IDB-ES:AMX"
@@ -5412,15 +5220,30 @@ class ControlMain(QtWidgets.QMainWindow):
         QtWidgets.QApplication.instance().quit()
 
     def initCallbacks(self):
-        self.beamSizeSignal.connect(self.processBeamSize)
-        self.beamSize_pv.add_callback(self.beamSizeChangedCB)
+        # Keep all bridge objects in a list so they are not garbage-collected.
+        self._pv_bridges: list = []
 
+        def _bridge(pv_or_name, slot, **kwargs):
+            b = custom_pv.EpicsQtBridge(pv_or_name, slot, **kwargs)
+            self._pv_bridges.append(b)
+            return b
+
+        # ---- beam size -------------------------------------------------------
+        _bridge(self.beamSize_pv, self.processBeamSize,
+                transform=lambda v, cv, **kw: float(v))
+
+        # ---- tree refresh (gate: skip if this process wrote the PV) ----------
         self.treeChanged_pv = PV(daq_utils.beamlineComm + "live_q_change_flag")
-        self.refreshTreeSignal.connect(self.dewarTree.refreshTreeThreaded)
-        self.treeChanged_pv.add_callback(self.treeChangedCB)
+        _bridge(self.treeChanged_pv,
+                lambda _: self.dewarTree.refreshTreeThreaded(),
+                predicate=lambda v, cv, **kw: self.processID != self.treeChanged_pv.get())
+
+        # ---- mounted pin -----------------------------------------------------
         self.mountedPin_pv = custom_pv.MountedPinPV(daq_utils.beamlineComm + "mounted_pin")
-        self.mountedPinSignal.connect(self.processMountedPin)
-        self.mountedPin_pv.add_callback(self.mountedPinChangedCB)
+        _bridge(self.mountedPin_pv, self.processMountedPin,
+                transform=lambda v, cv, **kw: v)
+
+        # ---- write-only / command PVs (no callbacks needed) ------------------
         det_stop_pv = daq_utils.pvLookupDict["stopEiger"]
         logger.info("setting stop Eiger detector PV: %s" % det_stop_pv)
         self.stopDet_pv = PV(det_stop_pv)
@@ -5433,135 +5256,160 @@ class ControlMain(QtWidgets.QMainWindow):
         rz_reboot_pv = daq_utils.pvLookupDict["zebraRebootIOC"]
         logger.info("setting zebra reboot ioc PV: %s" % rz_reboot_pv)
         self.rebootZebraIOC_pv = PV(rz_reboot_pv)
-        self.zebraArmedPV = PV(daq_utils.pvLookupDict["zebraArmStatus"])
-        self.zebraArmStateSignal.connect(self.processZebraArmState)
-        self.zebraArmedPV.add_callback(self.zebraArmStateChangedCB)
 
+        # ---- zebra arm state -------------------------------------------------
+        self.zebraArmedPV = PV(daq_utils.pvLookupDict["zebraArmStatus"])
+        _bridge(self.zebraArmedPV, self.processZebraArmState,
+                transform=lambda v, cv, **kw: int(v))
+
+        # ---- governor robot reach states -------------------------------------
         self.govRobotSeReachPV = PV(daq_utils.pvLookupDict["govRobotSeReach"])
-        self.govRobotSeReachSignal.connect(self.processGovRobotSeReach)
-        self.govRobotSeReachPV.add_callback(self.govRobotSeReachChangedCB)
+        _bridge(self.govRobotSeReachPV, self.processGovRobotSeReach,
+                transform=lambda v, cv, **kw: int(v))
 
         self.govRobotSaReachPV = PV(daq_utils.pvLookupDict["govRobotSaReach"])
-        self.govRobotSaReachSignal.connect(self.processGovRobotSaReach)
-        self.govRobotSaReachPV.add_callback(self.govRobotSaReachChangedCB)
+        _bridge(self.govRobotSaReachPV, self.processGovRobotSaReach,
+                transform=lambda v, cv, **kw: int(v))
 
         self.govRobotDaReachPV = PV(daq_utils.pvLookupDict["govRobotDaReach"])
-        self.govRobotDaReachSignal.connect(self.processGovRobotDaReach)
-        self.govRobotDaReachPV.add_callback(self.govRobotDaReachChangedCB)
+        _bridge(self.govRobotDaReachPV, self.processGovRobotDaReach,
+                transform=lambda v, cv, **kw: int(v))
 
         self.govRobotBlReachPV = PV(daq_utils.pvLookupDict["govRobotBlReach"])
-        self.govRobotBlReachSignal.connect(self.processGovRobotBlReach)
-        self.govRobotBlReachPV.add_callback(self.govRobotBlReachChangedCB)
+        _bridge(self.govRobotBlReachPV, self.processGovRobotBlReach,
+                transform=lambda v, cv, **kw: int(v))
 
+        # ---- detector message ------------------------------------------------
         self.detectorMessagePV = PV(daq_utils.pvLookupDict["eigerStatMessage"])
-        self.detMessageSignal.connect(self.processDetMessage)
-        self.detectorMessagePV.add_callback(self.detMessageChangedCB)
+        _bridge(self.detectorMessagePV, self.processDetMessage, use_char=True)
 
-        self.sampleFluxSignal.connect(self.processSampleFlux)
-        self.sampleFluxPV.add_callback(self.sampleFluxChangedCB)
+        # ---- sample flux -----------------------------------------------------
+        _bridge(self.sampleFluxPV, self.processSampleFlux,
+                transform=lambda v, cv, **kw: float(v))
 
-        self.stillModeStateSignal.connect(self.processStillModeState)
-        self.stillModeStatePV.add_callback(self.stillModeStateChangedCB)
+        # ---- still mode state ------------------------------------------------
+        _bridge(self.stillModeStatePV, self.processStillModeState,
+                transform=lambda v, cv, **kw: int(v))
 
+        # ---- zebra states ----------------------------------------------------
         self.zebraPulsePV = PV(daq_utils.pvLookupDict["zebraPulseStatus"])
-        self.zebraPulseStateSignal.connect(self.processZebraPulseState)
-        self.zebraPulsePV.add_callback(self.zebraPulseStateChangedCB)
+        _bridge(self.zebraPulsePV, self.processZebraPulseState,
+                transform=lambda v, cv, **kw: int(v))
 
         self.zebraDownloadPV = PV(daq_utils.pvLookupDict["zebraDownloading"])
-        self.zebraDownloadStateSignal.connect(self.processZebraDownloadState)
-        self.zebraDownloadPV.add_callback(self.zebraDownloadStateChangedCB)
+        _bridge(self.zebraDownloadPV, self.processZebraDownloadState,
+                transform=lambda v, cv, **kw: int(v))
 
         self.zebraSentTriggerPV = PV(daq_utils.pvLookupDict["zebraSentTriggerStatus"])
-        self.zebraSentTriggerStateSignal.connect(self.processZebraSentTriggerState)
-        self.zebraSentTriggerPV.add_callback(self.zebraSentTriggerStateChangedCB)
+        _bridge(self.zebraSentTriggerPV, self.processZebraSentTriggerState,
+                transform=lambda v, cv, **kw: int(v))
 
-        self.zebraReturnedTriggerPV = PV(
-            daq_utils.pvLookupDict["zebraTriggerReturnStatus"]
-        )
-        self.zebraReturnedTriggerStateSignal.connect(
-            self.processZebraReturnedTriggerState
-        )
-        self.zebraReturnedTriggerPV.add_callback(
-            self.zebraReturnedTriggerStateChangedCB
-        )
+        self.zebraReturnedTriggerPV = PV(daq_utils.pvLookupDict["zebraTriggerReturnStatus"])
+        _bridge(self.zebraReturnedTriggerPV, self.processZebraReturnedTriggerState,
+                transform=lambda v, cv, **kw: int(v))
 
+        # ---- control master --------------------------------------------------
         self.controlMaster_pv = PV(daq_utils.beamlineComm + "zinger_flag")
-        self.controlMasterSignal.connect(self.processControlMaster)
-        self.controlMaster_pv.add_callback(self.controlMasterChangedCB)
+        _bridge(self.controlMaster_pv, self.processControlMaster,
+                transform=lambda v, cv, **kw: int(v))
 
+        # ---- beam centre (no callbacks, reads only) --------------------------
         self.beamCenterX_pv = PV(daq_utils.pvLookupDict["beamCenterX"])
         self.beamCenterY_pv = PV(daq_utils.pvLookupDict["beamCenterY"])
 
+        # ---- chooch / xrec flags (suppress "0" values) -----------------------
         self.choochResultFlag_pv = PV(daq_utils.beamlineComm + "choochResultFlag")
-        self.choochResultSignal.connect(self.processChoochResult)
-        self.choochResultFlag_pv.add_callback(self.processChoochResultsCB)
+        _bridge(self.choochResultFlag_pv, self.processChoochResult,
+                use_char=True,
+                predicate=lambda v, cv, **kw: cv != "0")
+
         self.xrecRasterFlag_pv = PV(daq_utils.beamlineComm + "xrecRasterFlag")
         self.xrecRasterFlag_pv.put("0")
-        self.xrecRasterSignal.connect(self.displayXrecRaster)
-        self.xrecRasterFlag_pv.add_callback(self.processXrecRasterCB)
+        _bridge(self.xrecRasterFlag_pv, self.displayXrecRaster,
+                use_char=True,
+                predicate=lambda v, cv, **kw: cv != "0")
+
+        # ---- server / program state messages ---------------------------------
         self.message_string_pv = PV(daq_utils.beamlineComm + "message_string")
-        self.serverMessageSignal.connect(self.printServerMessage)
-        self.message_string_pv.add_callback(self.serverMessageCB)
-        self.popup_message_string_pv = PV(
-            daq_utils.beamlineComm + "gui_popup_message_string"
-        )
-        self.serverPopupMessageSignal.connect(self.popupServerMessage)
-        self.popup_message_string_pv.add_callback(self.serverPopupMessageCB)
+        _bridge(self.message_string_pv, self.printServerMessage, use_char=True)
+
+        self.popup_message_string_pv = PV(daq_utils.beamlineComm + "gui_popup_message_string")
+        _bridge(self.popup_message_string_pv, self.popupServerMessage, use_char=True)
+
         self.program_state_pv = PV(daq_utils.beamlineComm + "program_state")
-        self.programStateSignal.connect(self.colorProgramState)
-        self.program_state_pv.add_callback(self.programStateCB)
+        _bridge(self.program_state_pv, self.colorProgramState,
+                transform=lambda v, cv, **kw: v)
+
         self.pause_button_state_pv = PV(daq_utils.beamlineComm + "pause_button_state")
-        self.pauseButtonStateSignal.connect(self.changePauseButtonState)
-        self.pause_button_state_pv.add_callback(self.pauseButtonStateCB)
+        _bridge(self.pause_button_state_pv, self.changePauseButtonState,
+                transform=lambda v, cv, **kw: v)
 
-        self.energyChangeSignal.connect(self.processEnergyChange)
-        self.energy_pv.add_callback(self.processEnergyChangeCB, motID="x")
+        # ---- energy ----------------------------------------------------------
+        _bridge(self.energy_pv, self.processEnergyChange,
+                transform=lambda v, cv, **kw: float(v))
 
+        # ---- sample motor positions (multi-arg: emit (posRBV, motID) tuple) --
         self.sampx_pv = PV(self.gon.x.readback.pvname)
-        self.sampMoveSignal.connect(self.processSampMove)
-        self.sampx_pv.add_callback(self.processSampMoveCB, motID="x")
         self.sampy_pv = PV(self.gon.y.readback.pvname)
-        self.sampy_pv.add_callback(self.processSampMoveCB, motID="y")
         self.sampz_pv = PV(self.gon.z.readback.pvname)
-        self.sampz_pv.add_callback(self.processSampMoveCB, motID="z")
-
+        for _pv, _mid in [(self.sampx_pv, "x"), (self.sampy_pv, "y"), (self.sampz_pv, "z")]:
+            _bridge(_pv,
+                    lambda t: self.processSampMove(*t),
+                    transform=lambda v, cv, _m=_mid, **kw: (int(v), _m))
 
         self.omega_pv = PV(self.gon.omega.setpoint.pvname)
         self.omegaTweak_pv = PV(self.gon.omega.setpoint.pvname)
         self.sampyTweak_pv = PV(self.gon.y.setpoint.pvname)
         self.sampzTweak_pv = PV(self.gon.z.setpoint.pvname)
+        # Monitoring omega RBV lets the graphics track the real position while
+        # the textfield widget monitors the setpoint separately.
         self.omegaRBV_pv = PV(self.gon.omega.readback.pvname)
-        self.omegaRBV_pv.add_callback(
-            self.processSampMoveCB, motID="omega"
-        )  # I think monitoring this allows for the textfield to monitor val and this to deal with the graphics. Else next line has two callbacks on same thing.
+        _bridge(self.omegaRBV_pv,
+                lambda t: self.processSampMove(*t),
+                transform=lambda v, cv, **kw: (int(v), "omega"))
+
+        # ---- shutter PVs -----------------------------------------------------
         self.photonShutterOpen_pv = PV(daq_utils.pvLookupDict["photonShutterOpen"])
         self.photonShutterClose_pv = PV(daq_utils.pvLookupDict["photonShutterClose"])
         self.fastShutterRBV_pv = PV(daq_utils.motor_dict["fastShutter"] + ".RBV")
-        self.fastShutterSignal.connect(self.processFastShutter)
-        self.fastShutterRBV_pv.add_callback(self.shutterChangedCB)
-        self.gripTempSignal.connect(self.processGripTemp)
-        self.gripTemp_pv.add_callback(self.gripTempChangedCB)
-        if getBlConfig(CRYOSTREAM_ONLINE):
-            self.cryostreamTempSignal.connect(self.processCryostreamTemp)
-            self.cryostreamTemp_pv.add_callback(self.cryostreamTempChangedCB)
-        self.ringCurrentSignal.connect(self.processRingCurrent)
-        self.ringCurrent_pv.add_callback(self.ringCurrentChangedCB)
-        self.threeClickSignal.connect(self.processThreeClickCentering)
-        self.beamAvailable_pv.add_callback(self.beamAvailableChangedCB)
-        self.sampleExposedSignal.connect(self.processSampleExposed)
-        self.sampleExposed_pv.add_callback(self.sampleExposedChangedCB)
-        self.highMagCursorChangeSignal.connect(self.processHighMagCursorChange)
-        self.highMagCursorX_pv.add_callback(self.processHighMagCursorChangeCB, ID="x")
-        self.highMagCursorY_pv.add_callback(self.processHighMagCursorChangeCB, ID="y")
-        self.lowMagCursorChangeSignal.connect(self.processLowMagCursorChange)
-        self.lowMagCursorX_pv.add_callback(self.processLowMagCursorChangeCB, ID="x")
-        self.lowMagCursorY_pv.add_callback(self.processLowMagCursorChangeCB, ID="y")
-        
-        self.gov_state_change_signal.connect(self.manage_gov_state_change)
-        self.govStateMessagePV.add_callback(self.manage_gov_state_change_cb)
+        _bridge(self.fastShutterRBV_pv, self.processFastShutter,
+                transform=lambda v, cv, **kw: float(v))
 
-        self.dewar_plate_change_signal.connect(self.update_dewar_plate_position)
-        self.dewar_plate_pos_pv.add_callback(self.dewar_plate_position_cb)
+        # ---- temperatures ----------------------------------------------------
+        _bridge(self.gripTemp_pv, self.processGripTemp,
+                transform=lambda v, cv, **kw: float(v))
+        if getBlConfig(CRYOSTREAM_ONLINE):
+            _bridge(self.cryostreamTemp_pv, self.processCryostreamTemp,
+                    transform=lambda v, cv, **kw: v)
+
+        # ---- storage ring current -------------------------------------------
+        _bridge(self.ringCurrent_pv, self.processRingCurrent,
+                transform=lambda v, cv, **kw: v)
+
+        # ---- beam available → beam-available label ---------------------------
+        _bridge(self.beamAvailable_pv, self.processThreeClickCentering, use_char=True)
+
+        # ---- sample exposed --------------------------------------------------
+        _bridge(self.sampleExposed_pv, self.processSampleExposed,
+                transform=lambda v, cv, **kw: v)
+
+        # ---- camera cursor positions (multi-arg) ----------------------------
+        for _pv, _id in [(self.highMagCursorX_pv, "x"), (self.highMagCursorY_pv, "y")]:
+            _bridge(_pv,
+                    lambda t: self.processHighMagCursorChange(*t),
+                    transform=lambda v, cv, _i=_id, **kw: (int(v), _i))
+
+        for _pv, _id in [(self.lowMagCursorX_pv, "x"), (self.lowMagCursorY_pv, "y")]:
+            _bridge(_pv,
+                    lambda t: self.processLowMagCursorChange(*t),
+                    transform=lambda v, cv, _i=_id, **kw: (int(v), _i))
+
+        # ---- governor state message ------------------------------------------
+        _bridge(self.govStateMessagePV, self.manage_gov_state_change, use_char=True)
+
+        # ---- dewar plate position -------------------------------------------
+        _bridge(self.dewar_plate_pos_pv, self.update_dewar_plate_position,
+                transform=lambda v, cv, **kw: int(v))
 
     def popupServerMessage(self, message_s):
         if self.popUpMessageInit:
