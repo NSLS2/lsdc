@@ -249,6 +249,7 @@ class ControlMain(QtWidgets.QMainWindow):
                 self.changeControlMasterCB(1)
                 self.controlMasterCheckBox.setChecked(True)
         self.XRFInfoDict = self.parseXRFTable()  # I don't like this
+        self.protoComboActivatedCB("")
         # self.dewarTree.refreshTreeDewarView()
 
     def eventFilter(self, obj, event):
@@ -456,6 +457,7 @@ class ControlMain(QtWidgets.QMainWindow):
         self.colStartLabel = QtWidgets.QLabel("Oscillation Start:")
         self.colStartLabel.setFixedWidth(140)
         self.colStartLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.colStartLabel.setStyleSheet("color: #228B22;")
         self.osc_start_ledit = QtWidgets.QLineEdit()
         self.setGuiValues({"osc_start": "0.0"})
         self.osc_start_ledit.setFixedWidth(60)
@@ -463,6 +465,7 @@ class ControlMain(QtWidgets.QMainWindow):
         self.colEndLabel = QtWidgets.QLabel("Oscillation Range:")
         self.colEndLabel.setAlignment(QtCore.Qt.AlignCenter)
         self.colEndLabel.setFixedWidth(140)
+        self.colEndLabel.setStyleSheet("color: #228B22;")
         self.osc_end_ledit = QtWidgets.QLineEdit()
         self.setGuiValues({"osc_end": "180.0"})
         self.osc_end_ledit.setFixedWidth(60)
@@ -475,6 +478,7 @@ class ControlMain(QtWidgets.QMainWindow):
         self.colRangeLabel = QtWidgets.QLabel("Oscillation Width:")
         self.colRangeLabel.setFixedWidth(140)
         self.colRangeLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.colRangeLabel.setStyleSheet("color: #228B22;")
         self.osc_range_ledit = QtWidgets.QLineEdit()
         self.osc_range_ledit.setFixedWidth(60)
         self.osc_range_ledit.setValidator(QtGui.QDoubleValidator(0.001, 3600, 3))
@@ -530,8 +534,19 @@ class ControlMain(QtWidgets.QMainWindow):
         elif daq_utils.beamline == "fmx":
             calcLifetimeButton = QtWidgets.QPushButton("Calc. Lifetime")
             calcLifetimeButton.clicked.connect(self.calcLifetimeCB)
-            self.sampleLifetimeReadback_ledit = QtWidgets.QLabel()
+            self.sampleLifetimeReadback_ledit = QtWidgets.QLineEdit()
+            self.sampleLifetimeReadback_ledit.setReadOnly(True)
             self.calcLifetimeCB()
+        # Make the lifetime row visually similar in height to "normal" input rows
+        # so that the Detector Dist row lines up better with Column 3's rows.
+        ref_height = self.exp_time_ledit.sizeHint().height()
+        self.sampleLifetimeReadback_ledit.setFixedWidth(60)
+        self.sampleLifetimeReadback_ledit.setMinimumHeight(ref_height)
+        self.sampleLifetimeReadback_ledit.setMaximumHeight(ref_height)
+        self.sampleLifetimeReadback_ledit.setSizePolicy(
+            QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed
+        )
+
         if daq_utils.beamline in ("fmx"):
             if getBlConfig("attenType") == "RI":
                 self.transmissionReadback = QtEpicsPVLabel(
@@ -540,7 +555,7 @@ class ControlMain(QtWidgets.QMainWindow):
                 self.transmissionSetPoint = QtEpicsPVEntry(
                     daq_utils.pvLookupDict["RI_Atten_SP"], self, 60, 3
                 )
-                self.colTransmissionLabel = QtWidgets.QLabel("Transmission (RI) (0.0-1.0):")
+                self.colTransmissionLabel = QtWidgets.QLabel("Trans.(0-1):")
             else:
                 self.transmissionReadback = QtEpicsPVLabel(
                     daq_utils.pvLookupDict["transmissionRBV"], self, 60, 3
@@ -548,7 +563,7 @@ class ControlMain(QtWidgets.QMainWindow):
                 self.transmissionSetPoint = QtEpicsPVEntry(
                     daq_utils.pvLookupDict["transmissionSet"], self, 60, 3
                 )
-                self.colTransmissionLabel = QtWidgets.QLabel("Transmission (BCU) (0.0-1.0):")
+                self.colTransmissionLabel = QtWidgets.QLabel("Trans.(0-1):")
         else:
             self.transmissionReadback = QtEpicsPVLabel(
                 daq_utils.pvLookupDict["transmissionRBV"], self, 60, 3
@@ -556,13 +571,14 @@ class ControlMain(QtWidgets.QMainWindow):
             self.transmissionSetPoint = QtEpicsPVEntry(
                 daq_utils.pvLookupDict["transmissionSet"], self, 60, 3
             )
-            self.colTransmissionLabel = QtWidgets.QLabel("Transmission (0.0-1.0):")
+            self.colTransmissionLabel = QtWidgets.QLabel("Trans.(0-1):")
         self.transmissionReadback_ledit = self.transmissionReadback.getEntry()
+        self.colTransmissionLabel.setStyleSheet("color: #228B22;")
 
         self.colTransmissionLabel.setAlignment(QtCore.Qt.AlignCenter)
         self.colTransmissionLabel.setFixedWidth(190)
 
-        self.transmisionSPLabel = QtWidgets.QLabel("SetPoint:")
+        self.transmisionSPLabel = QtWidgets.QLabel("Set:")
 
         self.transmission_ledit = self.transmissionSetPoint.getEntry()
         self.transmission_ledit.setValidator(
@@ -579,6 +595,7 @@ class ControlMain(QtWidgets.QMainWindow):
         setTransButton = QtWidgets.QPushButton("Set Trans")
         setTransButton.clicked.connect(self.setTransCB)
         self.beamsizeLabel = QtWidgets.QLabel("BeamSize:")
+        self.beamsizeLabel.setStyleSheet("color: #228B22;")
         beamSizeOptionList = BEAMSIZE_OPTIONS.keys()
         current_index = int(self.beamSize_pv.get())
         self.beamsizeComboBox = QtWidgets.QComboBox(self)
@@ -593,7 +610,7 @@ class ControlMain(QtWidgets.QMainWindow):
             daq_utils.motor_dict["energy"] + ".RBV", self, 70, 2
         )
         self.energyReadback = self.energyMotorEntry.getEntry()
-        self.energySPLabel = QtWidgets.QLabel("SetPoint:")
+        self.energySPLabel = QtWidgets.QLabel("Set:")
         self.energyMoveLedit = QtEpicsPVEntry(
             daq_utils.motor_dict["energy"] + ".VAL", self, 75, 2
         )
@@ -618,19 +635,21 @@ class ControlMain(QtWidgets.QMainWindow):
         hBoxColParams4.addWidget(self.colBeamHLabel)
         hBoxColParams4.addWidget(self.beamHeight_ledit)
         self.colResoLabel = QtWidgets.QLabel("Edge Resolution:")
+        self.colResoLabel.setStyleSheet("color: #228B22;")
         self.colResoLabel.setAlignment(QtCore.Qt.AlignCenter)
         self.resolution_ledit = QtWidgets.QLineEdit()
         self.resolution_ledit.setFixedWidth(60)
         self.resolution_ledit.setValidator(QtGui.QDoubleValidator())
         self.resolution_ledit.textEdited[str].connect(self.resoTextChanged)
         self.detDistLabel = QtWidgets.QLabel("Detector Dist.")
+        self.detDistLabel.setStyleSheet("color: #228B22;")
         #self.detDistLabel.setAlignment(QtCore.Qt.AlignCenter)
         self.detDistRBLabel = QtWidgets.QLabel("Readback:")
         self.detDistRBVLabel = QtEpicsPVLabel(
             daq_utils.motor_dict["detectorDist"] + ".RBV", self, 70
         )
         self.detDistTextChanged(self.detDistRBVLabel.getEntry().text())
-        self.detDistSPLabel = QtWidgets.QLabel("SetPoint:")
+        self.detDistSPLabel = QtWidgets.QLabel("Set:")
         self.detDistMotorEntry = QtEpicsPVEntry(
             daq_utils.motor_dict["detectorDist"] + ".VAL", self, 70, 2
         )
@@ -704,6 +723,20 @@ class ControlMain(QtWidgets.QMainWindow):
         hBoxColParams6.addWidget(self.protoComboBox)
         hBoxColParams7.addWidget(self.centeringLabel)
         hBoxColParams7.addWidget(self.centeringComboBox)
+
+        # hBoxColParams7.addSpacing(-190)
+        hBoxColParams7.addWidget(self.colEnergyLabel)
+        hBoxColParams7.addWidget(self.energyReadback)
+        hBoxColParams7.addWidget(self.energySPLabel)
+
+        if daq_utils.beamline == "fmx" and getBlConfig(SET_ENERGY_CHECK):
+            # For FMX with SET_ENERGY_CHECK, show a button instead of free text SP
+            hBoxColParams7.addWidget(self.moveEnergyButton)
+        else:
+            # Other cases: show the text entry for the setpoint
+            hBoxColParams7.addWidget(self.energy_ledit)
+
+        hBoxColParams7.addStretch(1)
         self.processingOptionsFrame = QFrame()
         self.hBoxProcessingLayout1 = QtWidgets.QHBoxLayout()
         self.hBoxProcessingLayout1.setAlignment(QtCore.Qt.AlignLeft)
@@ -838,41 +871,53 @@ class ControlMain(QtWidgets.QMainWindow):
         setVectorStartButton.clicked.connect(
             lambda: self.setVectorPointCB("vector_start")
         )
+        setVectorStartButton.hide()
         setVectorEndButton = QtWidgets.QPushButton("Vector\nEnd")
         setVectorEndButton.setStyleSheet("background-color: red")
         setVectorEndButton.clicked.connect(lambda: self.setVectorPointCB("vector_end"))
+        setVectorEndButton.hide()
 
         self.vecLine = None
-        vectorFPPLabel = QtWidgets.QLabel("Number of Wedges")
+        vectorFPPLabel = QtWidgets.QLabel("wedges")
         self.vectorFPP_ledit = QtWidgets.QLineEdit("1")
         self.vectorFPP_ledit.setValidator(QIntValidator(self))
-        vecLenLabel = QtWidgets.QLabel("    Length(microns):")
+
+        # length / speed readbacks
+        vecLenLabel = QtWidgets.QLabel("length (um):")
         self.vecLenLabelOutput = QtWidgets.QLabel("---")
-        vecSpeedLabel = QtWidgets.QLabel("    Speed(microns/s):")
+        vecSpeedLabel = QtWidgets.QLabel("speed (um/s):")
         self.vecSpeedLabelOutput = QtWidgets.QLabel("---")
-        hBoxVectorLayout1.addWidget(setVectorStartButton)
-        hBoxVectorLayout1.addWidget(setVectorEndButton)
-        hBoxVectorLayout1.addWidget(vectorFPPLabel)
-        hBoxVectorLayout1.addWidget(self.vectorFPP_ledit)
-        hBoxVectorLayout1.addWidget(vecLenLabel)
-        hBoxVectorLayout1.addWidget(self.vecLenLabelOutput)
-        hBoxVectorLayout1.addWidget(vecSpeedLabel)
-        hBoxVectorLayout1.addWidget(self.vecSpeedLabelOutput)
-        vector_widgets_layout = QtWidgets.QVBoxLayout()
-        vector_widgets_layout.addLayout(hBoxVectorLayout1)
-        hBoxVectorLayout2 = QtWidgets.QHBoxLayout()
+
+        # Quick vector controls
         setVectorButton = QtWidgets.QPushButton("Set Quick\nVector")
-        setVectorButton.clicked.connect(lambda: self.setVectorPointCB("full_vector"))
-        vector_length_label = QtWidgets.QLabel("Quick vector length (microns)")
+        setVectorButton.clicked.connect(
+            lambda: self.setVectorPointCB("full_vector")
+        )
+        vector_length_label = QtWidgets.QLabel("Quick vector length (um)")
         self.vector_length_ledit = QtWidgets.QLineEdit("40")
         self.vector_length_ledit.setValidator(QIntValidator(self))
-        
-        hBoxVectorLayout2.addWidget(setVectorButton)
-        hBoxVectorLayout2.addWidget(vector_length_label)
-        hBoxVectorLayout2.addWidget(self.vector_length_ledit)
-        
-        vector_widgets_layout.addLayout(hBoxVectorLayout2)
-        self.vectorParamsFrame.setLayout(vector_widgets_layout)
+        self.vector_length_ledit.setFixedWidth(70)  # make this a bit shorter
+        self.vector_length_ledit.textChanged.connect(self.calcLifetimeCB)
+
+        # Single-row layout:
+        #   Set Quick Vector | Quick vector length (um) | wedges | length | speed
+        hBoxVectorLayout = QtWidgets.QHBoxLayout()
+        hBoxVectorLayout.addWidget(setVectorButton)
+        hBoxVectorLayout.addSpacing(8)
+        hBoxVectorLayout.addWidget(vector_length_label)
+        hBoxVectorLayout.addWidget(self.vector_length_ledit)
+        hBoxVectorLayout.addSpacing(12)
+        hBoxVectorLayout.addWidget(vectorFPPLabel)
+        hBoxVectorLayout.addWidget(self.vectorFPP_ledit)
+        hBoxVectorLayout.addSpacing(12)
+        hBoxVectorLayout.addWidget(vecLenLabel)
+        hBoxVectorLayout.addWidget(self.vecLenLabelOutput)
+        hBoxVectorLayout.addSpacing(12)
+        hBoxVectorLayout.addWidget(vecSpeedLabel)
+        hBoxVectorLayout.addWidget(self.vecSpeedLabelOutput)
+        hBoxVectorLayout.addStretch(1)
+
+        self.vectorParamsFrame.setLayout(hBoxVectorLayout)
 
         paramsGridGB = QtWidgets.QGroupBox()
         paramsGridGB.setTitle("Acquisition")
@@ -880,7 +925,6 @@ class ControlMain(QtWidgets.QMainWindow):
         paramSubspace = self.amx_fmx_parameter_layout()
 
         improvedParamSpacing = QtWidgets.QVBoxLayout()
-        improvedParamSpacing.addWidget(self.stillModeCheckBox)
         improvedParamSpacing.addLayout(paramSubspace)
         improvedParamSpacing.addLayout(hBoxColParams7)
         improvedParamSpacing.addLayout(hBoxColParams6)
@@ -901,6 +945,9 @@ class ControlMain(QtWidgets.QMainWindow):
         self.albulaDispCheckBox.setChecked(False)
         hBoxDisplayOptionLayout.addWidget(self.albulaDispCheckBox)
         vBoxMainColLayout.addWidget(paramsGridGB)
+
+        hBoxQueueButtons = QHBoxLayout()
+        vBoxMainColLayout.addLayout(hBoxQueueButtons)
 
         vBoxMainColLayout.addWidget(self.dataPathGB)
         visit_path = Path(getBlConfig("visitDirectory"))
@@ -953,20 +1000,18 @@ class ControlMain(QtWidgets.QMainWindow):
         editScreenParamsButton.clicked.connect(self.editScreenParamsCB)
         vBoxMainSetup.addWidget(self.mainToolBox)
         #vBoxMainSetup.addLayout(hBoxPriorityLayout1)
-        hBoxQueueButtons = QHBoxLayout()
         hBoxQueueButtons.addWidget(queueSampleButton)
         hBoxQueueButtons.addWidget(editSampleButton)
         hBoxQueueButtons.addWidget(cloneRequestButton)
         hBoxQueueButtons.addWidget(editScreenParamsButton)
-        vBoxMainSetup.addLayout(hBoxQueueButtons)
         self.mainSetupFrame.setLayout(vBoxMainSetup)
         self.VidFrame = QFrame()
         self.VidFrame.setFixedWidth(680)
         vBoxVidLayout = QtWidgets.QVBoxLayout()
-        self.captureLowMag = None
-        self.captureHighMag = None
-        self.captureHighMagZoom = None
-        self.captureLowMagZoom = None
+        self.captureLowMag = daq_utils.lowMagCamURL
+        self.captureHighMag = daq_utils.highMagCamURL
+        self.captureHighMagZoom = daq_utils.highMagZoomCamURL
+        self.captureLowMagZoom = daq_utils.lowMagZoomCamURL
         if daq_utils.has_xtalview:
             if self.zoom3FrameRatePV.get() != 0:
                 _thread.start_new_thread(self.initVideo2, (0.25,))  # highMag
@@ -1209,6 +1254,7 @@ class ControlMain(QtWidgets.QMainWindow):
         magLevelLabel = QtWidgets.QLabel("Vid:")
         snapshotButton = QtWidgets.QPushButton("SnapShot")
         snapshotButton.clicked.connect(self.saveVidSnapshotButtonCB)
+        snapshotButton.hide()
         self.hideRastersCheckBox = QCheckBox("Hide\nRasters")
         self.hideRastersCheckBox.setChecked(False)
         self.hideRastersCheckBox.stateChanged.connect(self.hideRastersCB)
@@ -1516,66 +1562,265 @@ class ControlMain(QtWidgets.QMainWindow):
             pixmapItem.setPixmap(pixmap)
 
     def amx_fmx_parameter_layout(self):
-
-        hBoxColParams1 = QtWidgets.QHBoxLayout()
+        # Keep FMX lifetime callback behavior sane (avoid multiple connects)
         if daq_utils.beamline == "fmx":
+            try:
+                self.osc_end_ledit.textChanged.disconnect(self.calcLifetimeCB)
+            except TypeError:
+                # Not connected yet; that's fine
+                pass
             self.osc_end_ledit.textChanged.connect(self.calcLifetimeCB)
-        hBoxColParams1.addWidget(self.colStartLabel)
-        hBoxColParams1.addWidget(self.osc_start_ledit)
-        hBoxColParams1.addWidget(self.colEndLabel)
-        hBoxColParams1.addWidget(self.osc_end_ledit)
-        hBoxColParams2 = QtWidgets.QHBoxLayout()
-        hBoxColParams2.addWidget(self.colRangeLabel)
-        hBoxColParams2.addWidget(self.osc_range_ledit)
 
-        hBoxColParams2.addWidget(self.colExptimeLabel)
-        hBoxColParams2.addWidget(self.exp_time_ledit)
-        hBoxColParams25 = QtWidgets.QHBoxLayout()
-        hBoxColParams25.addWidget(self.stillModeCheckBox)
-        hBoxColParams25.addWidget(self.totalExptimeLabel)
-        hBoxColParams25.addWidget(self.totalExptime_ledit)
-        # if (daq_utils.beamline == "fmx"):
-        #  hBoxColParams25.addWidget(calcLifetimeButton)
-        hBoxColParams25.addWidget(self.sampleLifetimeLabel)
-        hBoxColParams25.addWidget(self.sampleLifetimeReadback_ledit)
-        hBoxColParams22 = QtWidgets.QHBoxLayout()
-        hBoxColParams3 = QtWidgets.QHBoxLayout()
+        main = QtWidgets.QHBoxLayout()
+        main.setSpacing(8)
+        main.setContentsMargins(4, 2, 4, 2)
 
-        hBoxColParams3.addWidget(self.colEnergyLabel)
-        hBoxColParams3.addWidget(self.energyReadback)
-        hBoxColParams3.addWidget(self.energySPLabel)
-        if daq_utils.beamline == "fmx":
-            if getBlConfig(SET_ENERGY_CHECK):
-                hBoxColParams3.addWidget(self.moveEnergyButton)
+        # ---- helper: "normal" row with shared column label width ----
+        def make_row(label_widget, value_widgets, label_width=None):
+            """
+            Row where the label uses a shared fixed width (per column),
+            so labels in that column line up and values mostly align.
+            """
+            row = QtWidgets.QHBoxLayout()
+            row.setContentsMargins(0, 0, 0, 0)
+            row.setSpacing(4)
+
+            if label_width is not None:
+                label_widget.setMinimumWidth(label_width)
+                label_widget.setMaximumWidth(label_width)
+
+            # left-justify label text within that width
+            label_widget.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
+            row.addWidget(label_widget)
+
+            # small gap between label and value(s)
+            row.addSpacing(4)
+
+            if isinstance(value_widgets, (list, tuple)):
+                for w in value_widgets:
+                    row.addWidget(w)
             else:
-                hBoxColParams3.addWidget(self.energy_ledit)
-        else:
-            hBoxColParams3.addWidget(self.energy_ledit)
-        
-        hBoxColParams22.addWidget(self.colTransmissionLabel)
-        hBoxColParams22.addWidget(self.transmissionReadback_ledit)
-        hBoxColParams22.addWidget(self.transmisionSPLabel)
-        hBoxColParams22.addWidget(self.transmission_ledit)
-        hBoxColParams22.insertSpacing(5, 100)
-        hBoxColParams22.addWidget(self.beamsizeLabel)
-        hBoxColParams22.addWidget(self.beamsizeComboBox)
-        hBoxColParams4 = QtWidgets.QHBoxLayout()
-        hBoxColParams4.addWidget(self.colBeamWLabel)
-        hBoxColParams4.addWidget(self.beamWidth_ledit)
-        hBoxColParams4.addWidget(self.colBeamHLabel)
-        hBoxColParams4.addWidget(self.beamHeight_ledit)
-        hBoxColParams3.addWidget(self.detDistLabel)
-        hBoxColParams3.addWidget(self.detDistRBVLabel.getEntry())
-        hBoxColParams3.addWidget(self.detDistSPLabel)
-        hBoxColParams3.addWidget(self.detDistMotorEntry.getEntry())
+                row.addWidget(value_widgets)
 
-        paramSubspace = QtWidgets.QVBoxLayout()
-        paramSubspace.addLayout(hBoxColParams1)
-        paramSubspace.addLayout(hBoxColParams2)
-        paramSubspace.addLayout(hBoxColParams25)
-        paramSubspace.addLayout(hBoxColParams22)
-        paramSubspace.addLayout(hBoxColParams3)
-        return paramSubspace
+            row.addStretch(1)
+            return row
+
+        # ---- helper: tight row, label only as wide as its text ----
+        def make_tight_row(label_widget, value_widgets):
+            """
+            Row where the label is only as wide as its text, and the
+            value widgets start immediately after. Used for Energy and
+            Detector Distance so there's minimal space after the label.
+            """
+            row = QtWidgets.QHBoxLayout()
+            row.setContentsMargins(0, 0, 0, 0)
+            row.setSpacing(2)
+
+            natural_width = label_widget.sizeHint().width()
+            label_widget.setMinimumWidth(natural_width)
+            label_widget.setMaximumWidth(natural_width)
+            label_widget.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
+            row.addWidget(label_widget)
+
+            # very small gap before values
+            row.addSpacing(2)
+
+            if isinstance(value_widgets, (list, tuple)):
+                for w in value_widgets:
+                    row.addWidget(w)
+            else:
+                row.addWidget(value_widgets)
+
+            row.addStretch(1)
+            return row
+
+        # ---- compute label widths per column ----
+        col1_labels = [
+            self.colStartLabel,   # Oscillation Start
+            self.colRangeLabel,   # Oscillation Width
+            self.colEndLabel,     # Oscillation Range
+        ]
+
+        col2_labels = [
+            self.colExptimeLabel,     # Exposure Time
+            self.totalExptimeLabel,   # Total Exposure Time
+            self.sampleLifetimeLabel, # Estimated Sample Lifetime
+        ]
+
+        col3_labels = [
+            self.colTransmissionLabel,
+            self.beamsizeLabel,
+            self.colResoLabel,
+            # self.doseMultiplierLabel,
+        ]
+
+        def max_width(widgets):
+            return max(w.sizeHint().width() for w in widgets)
+
+        col1_width = max_width(col1_labels)
+        col2_width = max_width(col2_labels)
+        col3_width = max_width(col3_labels)
+
+        # Narrow column 3 so labels + values are closer together
+        col3_width = min(col3_width, 95)
+
+        # ---- modest width hints for busy rows (Energy / Det / Transmission) ----
+        # Energy row widgets
+        self.energyReadback.setFixedWidth(80)
+        self.energySPLabel.setFixedWidth(24)
+        if hasattr(self, "energy_ledit"):
+            self.energy_ledit.setFixedWidth(80)
+        if hasattr(self, "moveEnergyButton"):
+            self.moveEnergyButton.setFixedWidth(90)
+
+        # Detector distance widgets
+        det_rbv = self.detDistRBVLabel.getEntry()
+        det_sp  = self.detDistSPLabel
+        det_set = self.detDistMotorEntry.getEntry()
+
+        det_rbv.setFixedWidth(80)
+        det_sp.setFixedWidth(24)
+        det_set.setFixedWidth(60)
+
+        # Transmission widgets
+        self.transmissionReadback_ledit.setFixedWidth(40)
+        self.transmisionSPLabel.setFixedWidth(24)
+        self.transmission_ledit.setFixedWidth(40)
+
+        # -----------------------
+        # Column 1: Osc / Energy
+        # -----------------------
+        col1 = QtWidgets.QVBoxLayout()
+        col1.setContentsMargins(0, 0, 0, 0)
+        col1.setSpacing(4)
+
+        # A narrower label width for osc rows
+        osc_label_width = min(col1_width, 110)   # tune 100–120 to taste
+
+        # Oscillation Start
+        col1.addLayout(
+            make_row(self.colStartLabel,
+                     self.osc_start_ledit,
+                     label_width=osc_label_width)
+        )
+
+        # Oscillation Width (colRangeLabel)
+        col1.addLayout(
+            make_row(self.colRangeLabel,
+                     self.osc_range_ledit,
+                     label_width=osc_label_width)
+        )
+
+        # Oscillation Range (colEndLabel)
+        col1.addLayout(
+            make_row(self.colEndLabel,
+                     self.osc_end_ledit,
+                     label_width=osc_label_width)
+        )
+
+        #        # Energy (eV) + set  -> tight row so values come right after label
+        #        energy_value_widgets = [self.energyReadback, self.energySPLabel]
+        #        if daq_utils.beamline == "fmx" and getBlConfig(SET_ENERGY_CHECK):
+        #            energy_value_widgets.append(self.moveEnergyButton)
+        #        else:
+        #            energy_value_widgets.append(self.energy_ledit)
+        #
+        #        col1.addLayout(
+        #            make_tight_row(self.colEnergyLabel, energy_value_widgets)
+        #        )
+
+        col1.addStretch(1)
+
+        # -----------------------------
+        # Column 2: Time / Lifetime / Dist
+        # -----------------------------
+        lifetime_group = QtWidgets.QGroupBox()
+        lifetime_group_layout = QtWidgets.QVBoxLayout()
+        det_dist_group = QtWidgets.QGroupBox()
+        det_dist_group_layout = QtWidgets.QVBoxLayout()
+        col2 = QtWidgets.QVBoxLayout()
+        col2.setContentsMargins(0, 0, 0, 0)
+        col2.setSpacing(4)
+
+
+        # Total Exposure Time
+        lifetime_group_layout.addLayout(
+            make_row(self.totalExptimeLabel,
+                     self.totalExptime_ledit,
+                     label_width=col2_width)
+        )
+
+        # Estimated Sample Lifetime
+        lifetime_group_layout.addLayout(
+            make_row(self.sampleLifetimeLabel,
+                     self.sampleLifetimeReadback_ledit,
+                     label_width=col2_width)
+        )
+        lifetime_group.setLayout(lifetime_group_layout)
+
+        col2.addWidget(lifetime_group)
+
+        # Detector distance (RBV + SP) -> tight row
+        det_widgets = [det_rbv, det_sp, det_set]
+        det_dist_group_layout.addLayout(
+            make_tight_row(self.detDistLabel, det_widgets)
+        )
+        # Edge resolution
+        det_dist_group_layout.addLayout(
+            make_row(self.colResoLabel,
+                     self.resolution_ledit,
+                     label_width=col2_width)
+        )
+        det_dist_group.setLayout(det_dist_group_layout)
+        col2.addWidget(det_dist_group)
+
+        col2.addStretch(1)
+
+        # --------------------------------
+        # Column 3: Transmission / Beam / Edge / Dose  (aligned, narrow)
+        # --------------------------------
+        col3 = QtWidgets.QVBoxLayout()
+        col3.setContentsMargins(0, 0, 0, 0)
+        col3.setSpacing(4)
+
+        # Exposure Time
+        col3.addLayout(
+            make_row(self.colExptimeLabel,
+                     self.exp_time_ledit,
+                     label_width=col3_width)
+        )
+
+        # Transmission (RBV + Set + SP)
+        trans_widgets = [
+            self.transmissionReadback_ledit,
+            self.transmisionSPLabel,
+            self.transmission_ledit,
+        ]
+        col3.addLayout(
+            make_row(self.colTransmissionLabel,
+                     trans_widgets,
+                     label_width=col3_width)
+        )
+
+        # Beamsize
+        col3.addLayout(
+            make_row(self.beamsizeLabel,
+                     self.beamsizeComboBox,
+                     label_width=col3_width)
+        )
+
+
+        col3.addStretch(1)
+
+        # Add the three columns to the main horizontal layout
+        main.addLayout(col1)
+        main.addSpacing(8)
+        main.addLayout(col2)
+        main.addSpacing(8)
+        main.addLayout(col3)
+        main.addStretch(1)  # extra space, if any, sits on the far right
+
+        return main
 
     def annealButtonCB(self):
         try:
@@ -2074,7 +2319,6 @@ class ControlMain(QtWidgets.QMainWindow):
             )
 
     def processSampMove(self, posRBV, motID):
-        #      print "new " + motID + " pos=" + str(posRBV)
         self.motPos[motID] = posRBV
         if self.centeringMarksList:
             for mark in self.centeringMarksList:
@@ -2242,7 +2486,7 @@ class ControlMain(QtWidgets.QMainWindow):
             self.sampleExposedLabel.setStyleSheet("background-color: #99FF66;")
 
     def processBeamSize(self, beamSizeFlag):
-        self.beamsizeComboBox.setCurrentIndex(beamSizeFlag)
+        self.beamsizeComboBox.setCurrentIndex(int(beamSizeFlag))
 
     def processEnergyChange(self, energyVal):
         if daq_utils.beamline != "amx":
@@ -2406,7 +2650,6 @@ class ControlMain(QtWidgets.QMainWindow):
 
         elif protocol == CollectionProtocols.STEP_RASTER:
             self.rasterParamsFrame.show()
-            self.processingOptionsFrame.show()
         elif protocol in (CollectionProtocols.MULTI_COL, CollectionProtocols.MULTI_COL_Q):
             self.rasterParamsFrame.show()
             self.osc_start_ledit.setEnabled(False)
@@ -2414,14 +2657,8 @@ class ControlMain(QtWidgets.QMainWindow):
             self.multiColParamsFrame.show()
         elif protocol in (CollectionProtocols.VECTOR, CollectionProtocols.STEP_VECTOR):
             self.vectorParamsFrame.show()
-            self.processingOptionsFrame.show()
         elif protocol in (CollectionProtocols.CHARACTERIZE, CollectionProtocols.EDNA_COL):
             self.characterizeParamsFrame.show()
-            self.processingOptionsFrame.show()
-        elif protocol in (CollectionProtocols.STANDARD, CollectionProtocols.BURN):
-            self.processingOptionsFrame.show()
-        else:
-            pass
 
     def rasterStepChanged(self, text):
         self.beamWidth_ledit.setText(text)
@@ -2621,7 +2858,14 @@ class ControlMain(QtWidgets.QMainWindow):
             pass
 
     def beamsizeComboActivatedCB(self, text):
-        self.send_to_server("set_beamsize", BEAMSIZE_OPTIONS[text])
+        if self.controlEnabled():
+            self.send_to_server("set_beamsize", BEAMSIZE_OPTIONS[text])
+            self.beamsizeComboBox.setEnabled(False)
+            self.calcLifetimeCB()
+        else:
+            self.popupServerMessage("You don't have control")
+            current_index = int(self.beamSize_pv.get())
+            self.beamsizeComboBox.setCurrentIndex(current_index)
 
     def protoComboActivatedCB(self, text):
         self.showProtParams()
@@ -2892,6 +3136,16 @@ class ControlMain(QtWidgets.QMainWindow):
                 pass
 
         try:
+            # Get current beam size setting
+            # current_beamsize = list(BEAMSIZE_OPTIONS.keys())[self.beamsizeComboBox.currentIndex()]
+            current_beamsize = self.beamsizeComboBox.currentText()
+            
+            # Get user dose multiplier
+            try:
+                dm_user = float(self.userScreenDialog.doseMultiplier_ledit.text())
+            except:
+                dm_user = 1.0
+            
             wedge = float(self.osc_end_ledit.text())
             raddose_thread = RaddoseThread(
                 parent=self,
@@ -2902,6 +3156,8 @@ class ControlMain(QtWidgets.QMainWindow):
                 wedge=wedge,
                 flux=sampleFlux,
                 verbose=True,
+                dm_user=dm_user,
+                beamsize_type=current_beamsize,
             )
             raddose_thread.lifetime.connect(
                 lambda lifetime: self.setLifetimeCB(lifetime)
@@ -4531,7 +4787,6 @@ class ControlMain(QtWidgets.QMainWindow):
         self.processSampMove(self.sampz_pv.get(), "z")
 
     def drawVector(self):
-        self.protoVectorRadio.setChecked(True)
         center_x = self.centerMarker.x() + self.centerMarkerCharOffsetX
         center_y = self.centerMarker.y() + self.centerMarkerCharOffsetY
         center = (center_x, center_y)
@@ -4863,7 +5118,7 @@ class ControlMain(QtWidgets.QMainWindow):
             self.choochResultSignal.emit(choochFlag)
 
     def processEnergyChangeCB(self, value=None, char_value=None, **kw):
-        energyVal = value
+        energyVal = float(value)
         self.energyChangeSignal.emit(energyVal)
 
     def mountedPinChangedCB(self, value=None, char_value=None, **kw):
@@ -4871,7 +5126,7 @@ class ControlMain(QtWidgets.QMainWindow):
         self.mountedPinSignal.emit(mountedPinPos)
 
     def beamSizeChangedCB(self, value=None, char_value=None, **kw):
-        beamSizeFlag = value
+        beamSizeFlag = float(value)
         self.beamSizeSignal.emit(beamSizeFlag)
 
     def controlMasterChangedCB(self, value=None, char_value=None, **kw):
@@ -4879,23 +5134,23 @@ class ControlMain(QtWidgets.QMainWindow):
         self.controlMasterSignal.emit(controlMasterPID)
 
     def zebraArmStateChangedCB(self, value=None, char_value=None, **kw):
-        armState = value
+        armState = int(value)
         self.zebraArmStateSignal.emit(armState)
 
     def govRobotSeReachChangedCB(self, value=None, char_value=None, **kw):
-        armState = value
+        armState = int(value)
         self.govRobotSeReachSignal.emit(armState)
 
     def govRobotSaReachChangedCB(self, value=None, char_value=None, **kw):
-        armState = value
+        armState = int(value)
         self.govRobotSaReachSignal.emit(armState)
 
     def govRobotDaReachChangedCB(self, value=None, char_value=None, **kw):
-        armState = value
+        armState = int(value)
         self.govRobotDaReachSignal.emit(armState)
 
     def govRobotBlReachChangedCB(self, value=None, char_value=None, **kw):
-        armState = value
+        armState = int(value)
         self.govRobotBlReachSignal.emit(armState)
 
     def detMessageChangedCB(self, value=None, char_value=None, **kw):
@@ -4903,35 +5158,35 @@ class ControlMain(QtWidgets.QMainWindow):
         self.detMessageSignal.emit(state)
 
     def sampleFluxChangedCB(self, value=None, char_value=None, **kw):
-        state = value
+        state = float(value)
         self.sampleFluxSignal.emit(state)
 
     def zebraPulseStateChangedCB(self, value=None, char_value=None, **kw):
-        state = value
+        state = int(value)
         self.zebraPulseStateSignal.emit(state)
 
     def stillModeStateChangedCB(self, value=None, char_value=None, **kw):
-        state = value
+        state = int(value)
         self.stillModeStateSignal.emit(state)
 
     def zebraDownloadStateChangedCB(self, value=None, char_value=None, **kw):
-        state = value
+        state = int(value)
         self.zebraDownloadStateSignal.emit(state)
 
     def zebraSentTriggerStateChangedCB(self, value=None, char_value=None, **kw):
-        state = value
+        state = int(value)
         self.zebraSentTriggerStateSignal.emit(state)
 
     def zebraReturnedTriggerStateChangedCB(self, value=None, char_value=None, **kw):
-        state = value
+        state = int(value)
         self.zebraReturnedTriggerStateSignal.emit(state)
 
     def shutterChangedCB(self, value=None, char_value=None, **kw):
-        shutterVal = value
+        shutterVal = float(value)
         self.fastShutterSignal.emit(shutterVal)
 
     def gripTempChangedCB(self, value=None, char_value=None, **kw):
-        gripVal = value
+        gripVal = float(value)
         self.gripTempSignal.emit(gripVal)
 
     def cryostreamTempChangedCB(self, value=None, char_value=None, **kw):
@@ -4943,7 +5198,7 @@ class ControlMain(QtWidgets.QMainWindow):
         self.ringCurrentSignal.emit(ringCurrentVal)
 
     def beamAvailableChangedCB(self, value=None, char_value=None, **kw):
-        threeClickVal = value
+        threeClickVal = char_value
         self.threeClickSignal.emit(threeClickVal)
 
     def sampleExposedChangedCB(self, value=None, char_value=None, **kw):
@@ -4951,22 +5206,22 @@ class ControlMain(QtWidgets.QMainWindow):
         self.sampleExposedSignal.emit(sampleExposedVal)
 
     def processSampMoveCB(self, value=None, char_value=None, **kw):
-        posRBV = value
+        posRBV = int(value)
         motID = kw["motID"]
         self.sampMoveSignal.emit(posRBV, motID)
 
     def processROIChangeCB(self, value=None, char_value=None, **kw):
-        posRBV = value
+        posRBV = int(value)
         ID = kw["ID"]
         self.roiChangeSignal.emit(posRBV, ID)
 
     def processHighMagCursorChangeCB(self, value=None, char_value=None, **kw):
-        posRBV = value
+        posRBV = int(value)
         ID = kw["ID"]
         self.highMagCursorChangeSignal.emit(posRBV, ID)
 
     def processLowMagCursorChangeCB(self, value=None, char_value=None, **kw):
-        posRBV = value
+        posRBV = int(value)
         ID = kw["ID"]
         self.lowMagCursorChangeSignal.emit(posRBV, ID)
 
@@ -4994,6 +5249,7 @@ class ControlMain(QtWidgets.QMainWindow):
         self.gov_state_change_signal.emit(char_value)
     
     def dewar_plate_position_cb(self, value=None, char_value=None, **kw):
+        value = int(value)
         self.dewar_plate_change_signal.emit(value)
 
     def initOphyd(self):
@@ -5347,6 +5603,10 @@ class ControlMain(QtWidgets.QMainWindow):
             self.staffScreenDialog.gripperUnmountColdCheckBox.setEnabled(command["queue_collect"])
         if "unmount_cold" in command:
             self.staffScreenDialog.gripperUnmountColdCheckBox.setChecked(command["unmount_cold"])
+        if "set_beamsize" in command:
+            self.beamsizeComboBox.setEnabled(True)
+            current_index = int(self.beamSize_pv.get())
+            self.beamsizeComboBox.setCurrentIndex(current_index)
 
     def printServerMessage(self, message_s):
         if self.textWindowMessageInit:
