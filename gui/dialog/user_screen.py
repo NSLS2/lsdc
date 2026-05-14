@@ -2,7 +2,7 @@ import logging
 import typing
 
 from qt_epics.QtEpicsPVLabel import QtEpicsPVLabel
-from qtpy import QtCore, QtWidgets
+from qtpy import QtCore, QtWidgets, QtGui
 from qtpy.QtWidgets import QCheckBox
 from config_params import ON_MOUNT_OPTION
 import daq_utils
@@ -145,6 +145,16 @@ class UserScreenDialog(QtWidgets.QFrame):
             self.temp_ramp_button = QtWidgets.QPushButton("Set Ramp Rate")
             self.temp_ramp_button.clicked.connect(self.setRamp)
 
+            if daq_utils.beamline == "fmx":
+                # Dose Factor controls
+                self.doseMultiplierLabel = QtWidgets.QLabel("Dose Factor: ")
+                # self.doseMultiplierLabel.setStyleSheet("color: #228B22;")
+                self.doseMultiplier_ledit = QtWidgets.QLineEdit("1.0")
+                self.doseMultiplier_ledit.setValidator(QtGui.QDoubleValidator(0.001, 100.0, 3))
+                self.doseMultiplier_ledit.setMaxLength(6)
+                self.doseMultiplier_ledit.setMaximumWidth(50)  # Keep dose factor input compact
+                self.doseMultiplier_ledit.textChanged.connect(self.parent.calcLifetimeCB)
+
         sampleFluxLabelDesc = QtWidgets.QLabel("Sample Flux:")
         sampleFluxLabelDesc.setFixedWidth(80)
         self.sampleFluxLabel = QtWidgets.QLabel()
@@ -171,10 +181,14 @@ class UserScreenDialog(QtWidgets.QFrame):
             hBoxRamp.addWidget(temp_ramp_label)
             hBoxRamp.addWidget(self.temp_ramp_ledit)
             hBoxRamp.addWidget(self.temp_ramp_button)
+            hBoxDoseFactor = QtWidgets.QHBoxLayout()
+            hBoxDoseFactor.addWidget(self.doseMultiplierLabel)
+            hBoxDoseFactor.addWidget(self.doseMultiplier_ledit)
             vBoxBeam.addLayout(hBoxBeam1)
             vBoxBeam.addLayout(hBoxBeam2)
             vBoxBeam.addLayout(hBoxTemp)
             vBoxBeam.addLayout(hBoxRamp)
+            vBoxBeam.addLayout(hBoxDoseFactor)
         vBoxBeam.addLayout(hBoxBeam3)
         beamGB.setLayout(vBoxBeam)
 
