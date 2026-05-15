@@ -31,3 +31,16 @@ def standardize_readback(cls):
     return cls
 
 from .generic import *
+from .governor import Governor
+from .goniometer import Goniometer
+from .vector_program import VectorProgram
+from .cameras import LowMagCamera, HighMagCamera, TopViewCamera
+from .detector import Detector
+from .attenuation import Attenuation
+from .optics import Optics
+from .sample_environment import SampleEnvironment
+from .click_center import ClickCenter
+from .misc import Misc
+from .ioc_control import IOCControl
+from .diagnostics import Diagnostics
+from .beamline_devices import BeamlineDevices
