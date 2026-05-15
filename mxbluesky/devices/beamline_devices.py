@@ -2,8 +2,8 @@
 
 Usage::
 
-    bl = BeamlineDevices.from_beamline("fmx", name="bl")
-    bl = BeamlineDevices.from_beamline("amx", name="bl")
+    bl = BeamlineDevices.from_beamline("fmx", comm_prefix="XF:17IDC-ES:FMX{Comm}", name="bl")
+    bl = BeamlineDevices.from_beamline("amx", comm_prefix="XF:17IDB-ES:AMX{Comm}", name="bl")
 
 After construction every subsystem is accessible as an attribute, e.g.::
 
@@ -30,6 +30,8 @@ Sub-devices
   misc          : Misc
   ioc_control   : IOCControl
   diagnostics   : Diagnostics
+  zebra         : Zebra
+  comm          : CommIOC
 
 Top-level signals (beamline-specific PVs that don't fit a single prefix):
   flux            : EpicsSignalRO  — instantaneous photon flux
@@ -50,6 +52,8 @@ from mxbluesky.devices.click_center     import ClickCenter
 from mxbluesky.devices.misc             import Misc
 from mxbluesky.devices.ioc_control      import IOCControl
 from mxbluesky.devices.diagnostics      import Diagnostics
+from mxbluesky.devices.zebra            import Zebra
+from mxbluesky.devices.comm             import CommIOC
 
 
 class BeamlineDevices:
@@ -58,7 +62,11 @@ class BeamlineDevices:
     Not an ophyd Device — use ``from_beamline`` to construct.
     """
 
+    def __init__(self) -> None:
+        self._beamline = ""
+
     # Sub-device type hints (for IDE support)
+    _beamline:      str
     governor:      Governor
     goniometer:    Goniometer
     vector:        VectorProgram
@@ -73,17 +81,25 @@ class BeamlineDevices:
     misc:          Misc
     ioc_control:   IOCControl
     diagnostics:   Diagnostics
+    zebra:         Zebra
+    comm:          CommIOC
     flux:          EpicsSignalRO
     sample_lifetime: "EpicsSignalRO | None"
 
     # ------------------------------------------------------------------
     @classmethod
-    def from_beamline(cls, beamline: str, name: str = "bl") -> "BeamlineDevices":
+    def from_beamline(
+        cls,
+        beamline: str,
+        comm_prefix: str,
+        name: str = "bl",
+    ) -> "BeamlineDevices":
         """Instantiate every sub-device for the given beamline.
 
         Parameters
         ----------
         beamline : {"fmx", "amx"}
+        comm_prefix : beamline communication IOC prefix (daq_utils.beamlineComm)
         name     : prefix used when constructing ophyd device names.
         """
         bl = beamline.lower()
@@ -94,9 +110,9 @@ class BeamlineDevices:
         obj._beamline = bl
 
         if bl == "fmx":
-            _build_fmx(obj, name)
+            _build_fmx(obj, name, comm_prefix)
         else:
-            _build_amx(obj, name)
+            _build_amx(obj, name, comm_prefix)
 
         return obj
 
@@ -108,7 +124,7 @@ class BeamlineDevices:
 # Private builders
 # ---------------------------------------------------------------------------
 
-def _build_fmx(obj: BeamlineDevices, name: str) -> None:
+def _build_fmx(obj: BeamlineDevices, name: str, comm_prefix: str) -> None:
     """Populate *obj* with FMX devices."""
     _BL  = "XF:17ID"
     es   = f"{_BL}C-ES:FMX"    # XF:17IDC-ES:FMX
@@ -215,6 +231,16 @@ def _build_fmx(obj: BeamlineDevices, name: str) -> None:
         name=f"{name}_diagnostics",
     )
 
+    obj.zebra = Zebra(
+        f"{es}{{Zeb:3}}:",
+        name=f"{name}_zebra",
+    )
+
+    obj.comm = CommIOC(
+        comm_prefix,
+        name=f"{name}_comm",
+    )
+
     # Beamline-specific top-level signals
     obj.flux = EpicsSignalRO(
         f"{a_op}{{Mono:DCM-flux}}",
@@ -223,7 +249,7 @@ def _build_fmx(obj: BeamlineDevices, name: str) -> None:
     obj.sample_lifetime = None  # not present on FMX
 
 
-def _build_amx(obj: BeamlineDevices, name: str) -> None:
+def _build_amx(obj: BeamlineDevices, name: str, comm_prefix: str) -> None:
     """Populate *obj* with AMX devices."""
     _BL  = "XF:17ID"
     es   = f"{_BL}B-ES:AMX"    # XF:17IDB-ES:AMX
@@ -326,6 +352,16 @@ def _build_amx(obj: BeamlineDevices, name: str) -> None:
         home_pin_z_pv   =f"{ct}{{SDC:04-Ax:6}}StartHome",
         # pi_commands_pv intentionally omitted (AMX has no PIcommands)
         name=f"{name}_diagnostics",
+    )
+
+    obj.zebra = Zebra(
+        f"{es}{{Zeb:2}}:",
+        name=f"{name}_zebra",
+    )
+
+    obj.comm = CommIOC(
+        comm_prefix,
+        name=f"{name}_comm",
     )
 
     # Beamline-specific top-level signals

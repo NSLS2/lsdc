@@ -43,4 +43,5 @@ from .click_center import ClickCenter
 from .misc import Misc
 from .ioc_control import IOCControl
 from .diagnostics import Diagnostics
+from .comm import CommIOC
 from .beamline_devices import BeamlineDevices
