@@ -88,9 +88,11 @@ class EMBLRobot:
 
     def recoverRobot(self):
       self._recoverRobot()
+      RobotControlLib.initialize()
 
     def recoverRobotFloco(self):
       self._recoverRobot(raise_on_error=True)
+      RobotControlLib.initialize()
 
     def _dryGripper(self, raise_on_error=False):
       try:
@@ -384,7 +386,7 @@ class EMBLRobot:
             try: #make sure workposThread is finished before proceeding to robotGovActive check
               timeout = 20
               start_time = time.time()
-              while self.workposThread.isAlive():
+              while self.workposThread.is_alive():
                 time.sleep(0.5)
                 if time.time() - start_time > timeout:
                   raise Exception(f'setWorkposThread failed to finish before {timeout}s timeout')
@@ -425,11 +427,7 @@ class EMBLRobot:
         if daq_utils.beamline == "fmx":
             beamline_lib.mvaDescriptor("omega", 0)
         logger.info("Setting SE state")
-        if daq_utils.beamline == "amx":
-          wait = False
-        else:
-          wait = True
-        gov_lib.setGovRobot(gov_robot, "SE")
+        gov_lib.setGovRobot(gov_robot, "SE", wait=True)
         logger.info("Done setting SE")
         logger.info("unmounting " + str(puckPos) + " " + str(pinPos) + " " + str(sampID))
         logger.info("absPos = " + str(absPos))

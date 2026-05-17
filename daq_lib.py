@@ -23,6 +23,7 @@ import logging
 from utils import validation
 import requests
 import threading
+import json
 logger = logging.getLogger(__name__)
 
 if daq_utils.beamline in ["amx", "fmx"]:
@@ -39,7 +40,7 @@ global message_string_pv
 global gui_popup_message_string_pv
 global data_directory_name
 global currentIspybDCID
-
+currentIspybDCID = 1
 global fastDPNodeCount
 fastDPNodeCount = 4
 global fastDPNodeCounter

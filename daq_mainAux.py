@@ -33,6 +33,12 @@ handler2.setFormatter(myformat)
 logger.addHandler(handler1)
 logger.addHandler(handler2)
 
+# Add stream handlers to output in the terminal
+console_handler = logging.StreamHandler()  # or just StreamHandler()
+console_handler.setFormatter(myformat)
+
+logger.addHandler(console_handler)
+
 sitefilename = ""
 global command_list,immediate_command_list,z
 command_list = []
