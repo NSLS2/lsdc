@@ -2128,8 +2128,8 @@ class ControlMain(QtWidgets.QMainWindow):
                 filePrefix = db_lib.getRequestByID(reqID)["request_obj"]["file_prefix"]
                 imagePath = f"{getBlConfig('visitDirectory')}/snapshots/{filePrefix}{int(now)}.jpg"
             else:
-                if self.dataPathGB.prefix_ledit.text() != "":
-                    imagePath = f"{getBlConfig('visitDirectory')}/snapshots/{self.dataPathGB.prefix_ledit.text()}{int(now)}.jpg"
+                if self.dataPathGB.getFilePrefix() != "":
+                    imagePath = f"{getBlConfig('visitDirectory')}/snapshots/{self.dataPathGB.getFilePrefix()}{int(now)}.jpg"
                 else:
                     imagePath = f"{getBlConfig('visitDirectory')}/snapshots/capture{int(now)}.jpg"
         else:
@@ -4121,11 +4121,11 @@ class ControlMain(QtWidgets.QMainWindow):
             if (
                 singleRequest == 1
             ):  # a touch kludgy, but I want to be able to edit parameters for multiple requests w/o screwing the data loc info
-                reqObj["file_prefix"] = str(self.dataPathGB.prefix_ledit.text())
+                reqObj["file_prefix"] = str(self.dataPathGB.getFilePrefix())
                 reqObj["basePath"] = getBlConfig("visitDirectory")
                 reqObj["directory"] = str(self.dataPathGB.dataPath_ledit.text())
                 reqObj["file_number_start"] = int(
-                    self.dataPathGB.file_numstart_ledit.text()
+                    self.dataPathGB.getFileNumstart()
                 )
             reqObj["attenuation"] = float(self.transmission_ledit.text())
             reqObj["slit_width"] = float(self.beamWidth_ledit.text())
@@ -4350,12 +4350,12 @@ class ControlMain(QtWidgets.QMainWindow):
                     colRequest["request_obj"],
                     self.periodicTable.eltCurrent.symbol,
                     runNum,
-                    self.EScanDataPathGB.prefix_ledit.text(),
+                    self.EScanDataPathGB.getFilePrefix(),
                     self.EScanDataPathGB.base_path_ledit.text(),
                     sampleName,
                     containerID,
                     samplePositionInContainer,
-                    self.EScanDataPathGB.file_numstart_ledit.text(),
+                    self.EScanDataPathGB.getFileNumstart(),
                     self.exp_time_ledit.text(),
                     targetEnergy,
                     self.escan_steps_ledit.text(),
@@ -4426,7 +4426,7 @@ class ControlMain(QtWidgets.QMainWindow):
                         reqObj["exposure_time"] = float(self.exp_time_ledit.text())
                         reqObj["resolution"] = float(self.resolution_ledit.text())
                         reqObj["file_prefix"] = str(
-                            self.dataPathGB.prefix_ledit.text() + "_C" + str(i + 1)
+                            self.dataPathGB.getFilePrefix() + "_C" + str(i + 1)
                         )
                         reqObj["basePath"] = getBlConfig("visitDirectory")
                         reqObj["directory"] = (
@@ -4444,7 +4444,7 @@ class ControlMain(QtWidgets.QMainWindow):
                             + "/"
                         )
                         reqObj["file_number_start"] = int(
-                            self.dataPathGB.file_numstart_ledit.text()
+                            self.dataPathGB.getFileNumstart()
                         )
                         reqObj["attenuation"] = float(self.transmission_ledit.text())
                         reqObj["slit_width"] = float(self.beamWidth_ledit.text())
@@ -4557,7 +4557,7 @@ class ControlMain(QtWidgets.QMainWindow):
                     + "/"
                     + str(daq_utils.getVisitName())
                     + "/"
-                    + str(self.dataPathGB.prefix_ledit.text())
+                    + str(self.dataPathGB.getFilePrefix())
                     + "/"
                     + str(runNum)
                     + "/"
@@ -4567,9 +4567,9 @@ class ControlMain(QtWidgets.QMainWindow):
                     + "/"
                 )
                 reqObj["basePath"] = getBlConfig("visitDirectory")
-                reqObj["file_prefix"] = str(self.dataPathGB.prefix_ledit.text())
+                reqObj["file_prefix"] = str(self.dataPathGB.getFilePrefix())
                 reqObj["file_number_start"] = int(
-                    self.dataPathGB.file_numstart_ledit.text()
+                    self.dataPathGB.getFileNumstart()
                 )
                 if abs(reqObj["sweep_end"] - reqObj["sweep_start"]) < 5.0:
                     reqObj["fastDP"] = False
