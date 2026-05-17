@@ -161,17 +161,26 @@ def continue_data_collection():
   set_field("pause_button_state","Pause")  
 
 
-def abort_data_collection(flag):
+def abort_data_collection(flag, action=None):
   global datafile_name,abort_flag,image_started
 
   if (flag==2): #stop queue after current collection
     abort_flag = 2
-    if unpause_evt.is_set():
-      unpause_evt.clear()
+    if action in ("pause", "stop"):
+      if unpause_evt.is_set():
+        unpause_evt.clear()
       set_field("pause_button_state", "Continue")
-    else:
-      unpause_evt.set()
+    elif action in ("resume", "continue", "unpause"):
+      if not unpause_evt.is_set():
+        unpause_evt.set()
       set_field("pause_button_state", "Pause")
+    else:
+      if unpause_evt.is_set():
+        unpause_evt.clear()
+        set_field("pause_button_state", "Continue")
+      else:
+        unpause_evt.set()
+        set_field("pause_button_state", "Pause")
     return
   gui_message("Aborting. This may take a minute or more.")  
   while not (getPvDesc("VectorActive")): #only stop if actually collecting
@@ -548,9 +557,9 @@ def runDCQueue(): #maybe don't run rasters from here???
 
     
 
-def stopDCQueue(flag):
+def stopDCQueue(flag, action=None):
   logger.info("stopping queue in daq server " + str(flag))
-  abort_data_collection(int(flag))
+  abort_data_collection(int(flag), action=action)
 
 
 
@@ -905,4 +914,3 @@ def setProposalID(proposalID):
 
 def getProposalID():
   return daq_utils.getProposalID()
-

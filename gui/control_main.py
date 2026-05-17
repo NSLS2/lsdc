@@ -4820,8 +4820,9 @@ class ControlMain(QtWidgets.QMainWindow):
         self.aux_send_to_server("stopDCQueue", [1])
 
     def stopQueueCB(self):
-        logger.info("stopping queue")
-        self.aux_send_to_server("stopDCQueue", [2])
+        action = "pause" if self.pauseQueueButton.text().find("Pause") != -1 else "resume"
+        logger.info(f"queue control requested: {action}")
+        self.aux_send_to_server("stopDCQueue", [2], {"action": action})
 
     def mountSampleCB(self):
         if getBlConfig("mountEnabled") == 0:
@@ -5446,6 +5447,7 @@ class ControlMain(QtWidgets.QMainWindow):
             kwargs = {}
         return json.dumps(
             {
+                "id": time.time_ns(),
                 "function": function_name,
                 "args": args,
                 "kwargs": kwargs,
