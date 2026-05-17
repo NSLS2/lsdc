@@ -63,3 +63,4 @@ pydantic = ">=2.12.5,<3"
 
 [pypi-dependencies]
 opencv-python-headless = ">=4.11.0.86, <5"
+summarytable = ">=0.1.8, <0.2"
