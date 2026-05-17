@@ -1,25 +1,12 @@
-from typing import Callable, Optional, Type
+from typing import Any, Callable, Optional, Type
 
 from epics import PV
-from qtpy.QtCore import QObject, Signal
+from qtpy import QtCore
 
 
-class MountedPinPV(PV):
-
-    def get(self, *args, **kwargs):
-        value = str(super().get(*args, **kwargs))
-        return value.split(",")[0]
-
-    def get_pin_state(self):
-        value = str(super().get()).split(",")
-        if len(value) == 2:
-            return value[1]
-        return None
-
-
-class EpicsQtBridge(QObject):
+class SignalQtBridge(QtCore.QObject):
     """
-    Bridges an EPICS PV change callback to a Qt slot via a thread-safe signal.
+    Bridges an EPICS PV or ophyd Signal callback to a Qt slot.
 
     Eliminates the repetitive boilerplate of declaring a unique Signal subclass
     attribute, writing a one-liner ``pv.add_callback`` wrapper that emits it,
@@ -30,9 +17,9 @@ class EpicsQtBridge(QObject):
 
     Parameters
     ----------
-    pv_or_name : PV | str
-        Existing PV instance (a callback is added to it) **or** a PV name
-        string (a new PV is created internally with ``auto_monitor=True``).
+    signal_or_name : object | str
+        Existing EPICS PV object, ophyd Signal-like object, or a PV name
+        string (creates an EPICS PV with ``auto_monitor=True``).
     slot : callable
         Qt slot or any callable invoked on the main thread when the PV
         changes.  It receives exactly one argument – the emitted value.
@@ -48,7 +35,7 @@ class EpicsQtBridge(QObject):
         ``predicate(value, char_value, **kw) -> bool`` evaluated before
         emitting.  The signal is suppressed when this returns ``False``.
     custom_pv_class : type[PV], optional
-        PV subclass to instantiate when *pv_or_name* is a string.
+        PV subclass to instantiate when *signal_or_name* is a string.
     **callback_kwargs
         Extra keyword arguments forwarded verbatim to ``pv.add_callback()``.
         They are accessible inside *transform* / *predicate* via ``**kw``.
@@ -57,20 +44,20 @@ class EpicsQtBridge(QObject):
     --------
     Simple scalar (float):
 
-    >>> bridge = EpicsQtBridge(
+    >>> bridge = SignalQtBridge(
     ...     "MY:ENERGY:RBV", self.processEnergyChange,
     ...     transform=lambda v, cv, **kw: float(v),
     ... )
 
     String PV:
 
-    >>> bridge = EpicsQtBridge(
+    >>> bridge = SignalQtBridge(
     ...     my_existing_pv, self.printServerMessage, use_char=True
     ... )
 
     Conditional emission:
 
-    >>> bridge = EpicsQtBridge(
+    >>> bridge = SignalQtBridge(
     ...     flag_pv, self.handleResult,
     ...     use_char=True,
     ...     predicate=lambda v, cv, **kw: cv != "0",
@@ -78,18 +65,18 @@ class EpicsQtBridge(QObject):
 
     Multi-argument slot (emit a tuple, unpack in lambda):
 
-    >>> bridge = EpicsQtBridge(
+    >>> bridge = SignalQtBridge(
     ...     samp_pv,
     ...     lambda t: self.processSampMove(*t),
     ...     transform=lambda v, cv, _mid="x", **kw: (int(v), _mid),
     ... )
     """
 
-    signal = Signal(object)
+    signal = QtCore.Signal(object)
 
     def __init__(
         self,
-        pv_or_name,
+        signal_or_name,
         slot: Callable,
         *,
         use_char: bool = False,
@@ -102,24 +89,45 @@ class EpicsQtBridge(QObject):
         self.use_char = use_char
         self.transform = transform
         self.predicate = predicate
+        self._subscription_token: Any = None
+        self._epics_callback_index: Any = None
 
         self.signal.connect(slot)
 
-        if isinstance(pv_or_name, str):
+        if isinstance(signal_or_name, str):
             pv_class = custom_pv_class if custom_pv_class is not None else PV
             if not issubclass(pv_class, PV):
                 raise TypeError("custom_pv_class must be PV or a subclass of PV")
-            self.pv = pv_class(pv_or_name, auto_monitor=True)
+            self.source = pv_class(signal_or_name, auto_monitor=True)
         else:
-            self.pv = pv_or_name
+            self.source = signal_or_name
 
-        self.pv.add_callback(self._on_pv_changed, **callback_kwargs)
+        if hasattr(self.source, "add_callback"):
+            self._epics_callback_index = self.source.add_callback(
+                self._on_epics_changed,
+                **callback_kwargs,
+            )
+        elif hasattr(self.source, "subscribe"):
+            event_type = callback_kwargs.pop("event_type", "value")
+            run = callback_kwargs.pop("run", False)
+            if callback_kwargs:
+                unknown = ", ".join(sorted(callback_kwargs))
+                raise TypeError(f"Unsupported ophyd subscribe kwargs: {unknown}")
+            self._subscription_token = self.source.subscribe(
+                self._on_ophyd_changed,
+                event_type=event_type,
+                run=run,
+            )
+        else:
+            raise TypeError(
+                "signal_or_name must be EPICS PV name, EPICS PV object, or ophyd Signal-like object"
+            )
 
     # ------------------------------------------------------------------
     # EPICS callback (runs in a CA background thread)
     # ------------------------------------------------------------------
 
-    def _on_pv_changed(self, value=None, char_value=None, **kw):
+    def _emit_if_allowed(self, value=None, char_value=None, **kw):
         if self.predicate is not None and not self.predicate(value, char_value, **kw):
             return
 
@@ -134,13 +142,27 @@ class EpicsQtBridge(QObject):
         # delivers the value to the slot on the main GUI thread.
         self.signal.emit(result)
 
+    def _on_epics_changed(self, value=None, char_value=None, **kw):
+        self._emit_if_allowed(value=value, char_value=char_value, **kw)
+
+    def _on_ophyd_changed(self, value=None, old_value=None, obj=None, **kw):
+        self._emit_if_allowed(value=value, char_value=str(value), old_value=old_value, obj=obj, **kw)
+
     # ------------------------------------------------------------------
     # Convenience pass-throughs so callers can still do bridge.get() /
     # bridge.put() without reaching into bridge.pv directly.
     # ------------------------------------------------------------------
 
     def get(self, *args, **kwargs):
-        return self.pv.get(*args, **kwargs)
+        return self.source.get(*args, **kwargs)
 
     def put(self, *args, **kwargs):
-        self.pv.put(*args, **kwargs)
+        self.source.put(*args, **kwargs)
+
+    def close(self):
+        if self._subscription_token is not None and hasattr(self.source, "unsubscribe"):
+            self.source.unsubscribe(self._subscription_token)
+            self._subscription_token = None
+        if self._epics_callback_index is not None and hasattr(self.source, "remove_callback"):
+            self.source.remove_callback(self._epics_callback_index)
+            self._epics_callback_index = None

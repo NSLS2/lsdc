@@ -77,7 +77,7 @@ class DewarDialog(QtWidgets.QDialog):
             self.dewarPos = n
             db_lib.removePuckFromDewar(daq_utils.beamline, int(n))
             self.allButtonList[int(n)].setText("Empty")
-            self.parent.treeChanged_pv.put(1)
+            self.parent.queue_change_signal.put(1)
         else:
             self.dewarPos = n
             self.accept()

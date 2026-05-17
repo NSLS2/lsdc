@@ -16,7 +16,7 @@ Instantiation::
     optics = Optics("XF:17IDA-OP:AMX", name="optics")   # AMX
 """
 
-from ophyd import Component as Cpt, Device, EpicsMotor, EpicsSignalRO
+from ophyd import Component as Cpt, Device, EpicsMotor, EpicsSignal, EpicsSignalRO
 
 
 class Optics(Device):
@@ -32,3 +32,5 @@ class Optics(Device):
     # --- FMX-only: slits ---
     slit1_x_gap = Cpt(EpicsMotor,    "{Slt:1-Ax:XGap}Mtr")   # slit1XGap (FMX only)
     slit1_y_gap = Cpt(EpicsMotor,    "{Slt:1-Ax:YGap}Mtr")   # slit1YGap (FMX only)
+    slit1_x_gap_setpoint = Cpt(EpicsSignal, "{Slt:1-Ax:XGap}Mtr.VAL", lazy=True)
+    slit1_y_gap_setpoint = Cpt(EpicsSignal, "{Slt:1-Ax:YGap}Mtr.VAL", lazy=True)

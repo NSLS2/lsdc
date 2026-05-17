@@ -204,8 +204,8 @@ class DewarTree(QtWidgets.QTreeView):
         font.setItalic(True)
         font.setOverline(True)
         item.setFont(font)
-        if self.parent.mountedPin_pv.get_pin_state() is not None:
-            state = self.parent.mountedPin_pv.get_pin_state()
+        if self.parent.get_mounted_pin_state() is not None:
+            state = self.parent.get_mounted_pin_state()
             mount_state = MountState(state)
             if sample_name is None:
                 sample_name = item.text()
@@ -331,11 +331,11 @@ class DewarTree(QtWidgets.QTreeView):
             item.setText(position_s)
             item.setData(sample_id, 32)
             item.setData("sample", 33)
-            if hasattr(self.parent, "mountedPin_pv") and sample_id == self.parent.mountedPin_pv.get():
+            if sample_id == self.parent.get_mounted_sample_id():
                 self.set_mounted_sample(item, position_s)
             else:
                 self.set_unmounted_sample(item)
-            if hasattr(self.parent, "mountedPin_pv") and sample_id == self.parent.mountedPin_pv.get():
+            if sample_id == self.parent.get_mounted_sample_id():
                 mountedIndex = self.model.indexFromItem(item)
             # looking for the selected item
             if sample_id == self.parent.selectedSampleID:
@@ -507,7 +507,7 @@ class DewarTree(QtWidgets.QTreeView):
         )["content"]
         maxPucks = len(dewarContents)
         requestedSampleList = []
-        mountedPin = self.parent.mountedPin_pv.get()
+        mountedPin = self.parent.get_mounted_sample_id()
         for i in range(
             len(self.orderedRequests)
         ):  # I need a list of samples for parent nodes
@@ -600,7 +600,7 @@ class DewarTree(QtWidgets.QTreeView):
                 else:
                     db_lib.updatePriority(reqID, 0)
                 item.setBackground(QtGui.QColor("white"))
-                self.parent.treeChanged_pv.put(
+                self.parent.queue_change_signal.put(
                     self.parent.processID
                     #1
                 )  # the idea is touch the pv, but have this gui instance not refresh
@@ -619,7 +619,7 @@ class DewarTree(QtWidgets.QTreeView):
             if (itemDataType == "request") and item.isCheckable():
                 selectedSampleRequest = db_lib.getRequestByID(itemData)
                 db_lib.updatePriority(itemData, 5000)
-        self.parent.treeChanged_pv.put(1)
+        self.parent.queue_change_signal.put(1)
 
     def deQueueAllSelectedCB(self):
         selmod = self.selectionModel()
@@ -632,7 +632,7 @@ class DewarTree(QtWidgets.QTreeView):
             if (itemDataType == "request") and item.isCheckable():
                 selectedSampleRequest = db_lib.getRequestByID(itemData)
                 db_lib.updatePriority(itemData, 0)
-        self.parent.treeChanged_pv.put(1)
+        self.parent.queue_change_signal.put(1)
 
     def confirmDelete(self, numReq):
         if numReq:
@@ -698,7 +698,7 @@ class DewarTree(QtWidgets.QTreeView):
                                                                         CollectionProtocols.STEP_VECTOR):
                     self.parent.clearVectorCB()
         self.parent.progressDialog.close()
-        self.parent.treeChanged_pv.put(1)
+        self.parent.queue_change_signal.put(1)
 
     def expandAllCB(self):
         self.expandAll()

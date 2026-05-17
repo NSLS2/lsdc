@@ -77,7 +77,7 @@ class MultiColDialog(QtWidgets.QDialog):
             parent_req_id = self.raster_result['result_obj']["parentReqID"]
             #current_omega = self._parent.gon.omega.get()
             self.addMultiRequestLocation(self.raster_result["request"], hitCoords, flattened_index, float(self._parent.osc_end_ledit.text()))
-        self._parent.treeChanged_pv.put(1)
+        self._parent.queue_change_signal.put(1)
         self.accept()
 
 
@@ -113,6 +113,6 @@ class MultiColDialog(QtWidgets.QDialog):
         newReqObj["xia2"] = False
         newReqObj["runNum"] = runNum
         newReqObj["parentReqID"] = parentReqID
-        newReqObj["energy"] = self._parent.energy_pv.get()
+        newReqObj["energy"] = self._parent.energy_readback.get()
         newReqObj["wavelength"] = daq_utils.energy2wave(newReqObj["energy"])
         newRequestUID = db_lib.addRequesttoSample(sampleID,newReqObj["protocol"],daq_utils.owner,newReqObj,priority=6000,proposalID=daq_utils.getProposalID())

@@ -33,17 +33,20 @@ class Diagnostics(Device):
     """BPM total current, pin-homer triggers, and PI command channel."""
 
     total_current_bcu = FCpt(EpicsSignalRO, "{self._total_current_pv}")   # totalCurrentBCU
+    ring_current      = FCpt(EpicsSignalRO, "{self._ring_current_pv}")    # ringCurrent
     home_pin_y        = FCpt(EpicsSignal,   "{self._home_pin_y_pv}")      # homePinY
     home_pin_z        = FCpt(EpicsSignal,   "{self._home_pin_z_pv}")      # homePinZ
     pi_commands       = FCpt(EpicsSignal,   "{self._pi_commands_pv}",  lazy=True)  # PIcommands (FMX only)
 
     def __init__(self, *args,
                  total_current_pv,
+                 ring_current_pv,
                  home_pin_y_pv,
                  home_pin_z_pv,
                  pi_commands_pv="",
                  **kwargs):
         self._total_current_pv = total_current_pv
+        self._ring_current_pv  = ring_current_pv
         self._home_pin_y_pv    = home_pin_y_pv
         self._home_pin_z_pv    = home_pin_z_pv
         self._pi_commands_pv   = pi_commands_pv

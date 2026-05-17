@@ -39,7 +39,7 @@ class UserScreenDialog(QtWidgets.QFrame):
         hBoxColParams1.addWidget(self.BLbutton)
         govLabel2 = QtWidgets.QLabel("Current Governor State:")
         self.governorMessage = QtEpicsPVLabel(
-            daq_utils.pvLookupDict["governorMessage"],
+            self.parent.bl_devices.governor.message.pvname,
             self,
             140,
             highlight_on_change=False,
@@ -121,7 +121,7 @@ class UserScreenDialog(QtWidgets.QFrame):
             slit1XSPLabel = QtWidgets.QLabel("SetPoint:")
             self.slit1XMotor_ledit = QtWidgets.QLineEdit()
             self.slit1XMotor_ledit.returnPressed.connect(self.setSlit1XCB)
-            self.slit1XMotor_ledit.setText(str(self.parent.slit1XGapSP_pv.get()))
+            self.slit1XMotor_ledit.setText(str(self.parent.slit1_x_gap_setpoint.get()))
 
             slit1YLabel = QtWidgets.QLabel("Slit 1 Y Gap:")
             slit1YLabel.setAlignment(QtCore.Qt.AlignCenter)
@@ -131,7 +131,7 @@ class UserScreenDialog(QtWidgets.QFrame):
             )
             slit1YSPLabel = QtWidgets.QLabel("SetPoint:")
             self.slit1YMotor_ledit = QtWidgets.QLineEdit()
-            self.slit1YMotor_ledit.setText(str(self.parent.slit1YGapSP_pv.get()))
+            self.slit1YMotor_ledit.setText(str(self.parent.slit1_y_gap_setpoint.get()))
             self.slit1YMotor_ledit.returnPressed.connect(self.setSlit1YCB)
             temp_change_label = QtWidgets.QLabel("Cryo Temp:")
             self.temp_change_ledit = QtWidgets.QLineEdit()
@@ -158,7 +158,7 @@ class UserScreenDialog(QtWidgets.QFrame):
         sampleFluxLabelDesc = QtWidgets.QLabel("Sample Flux:")
         sampleFluxLabelDesc.setFixedWidth(80)
         self.sampleFluxLabel = QtWidgets.QLabel()
-        self.sampleFluxLabel.setText("%E" % self.parent.sampleFluxPV.get())
+        self.sampleFluxLabel.setText("%E" % self.parent.sample_flux.get())
         hBoxBeam3.addWidget(sampleFluxLabelDesc)
         hBoxBeam3.addWidget(self.sampleFluxLabel)
 
@@ -273,21 +273,21 @@ class UserScreenDialog(QtWidgets.QFrame):
 
     def stopDetCB(self):
         logger.info("stopping detector")
-        self.parent.stopDet_pv.put(0)
+        self.parent.stop_detector.put(0)
 
     def rebootDetIocCB(self):
         logger.info("rebooting detector IOC")
-        self.parent.rebootDetIOC_pv.put(
+        self.parent.reboot_detector_ioc.put(
             1
         )  # no differences visible, but zebra IOC reboot works, this doesn't!
 
     def resetZebraCB(self):
         logger.info("resetting zebra")
-        self.parent.resetZebra_pv.put(1)
+        self.parent.reset_zebra.put(1)
 
     def rebootZebraIOC_CB(self):
         logger.info("rebooting zebra IOC")
-        self.parent.rebootZebraIOC_pv.put(1)
+        self.parent.reboot_zebra_ioc.put(1)
 
     def SEgovCB(self):
         self.parent.send_to_server("setGovState", ["SE"])

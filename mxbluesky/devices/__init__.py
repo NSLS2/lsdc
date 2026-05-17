@@ -39,6 +39,7 @@ from .detector import Detector
 from .attenuation import Attenuation
 from .optics import Optics
 from .sample_environment import SampleEnvironment
+from .cryostream import CryoStream
 from .click_center import ClickCenter
 from .misc import Misc
 from .ioc_control import IOCControl

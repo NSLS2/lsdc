@@ -25,6 +25,7 @@ Sub-devices
   detector      : Detector
   attenuation   : Attenuation
   optics        : Optics
+  cryostream    : CryoStream
   sample_env    : SampleEnvironment
   click_center  : ClickCenter
   misc          : Misc
@@ -47,6 +48,7 @@ from mxbluesky.devices.cameras          import LowMagCamera, HighMagCamera, TopV
 from mxbluesky.devices.detector         import Detector
 from mxbluesky.devices.attenuation      import Attenuation
 from mxbluesky.devices.optics           import Optics
+from mxbluesky.devices.cryostream       import CryoStream
 from mxbluesky.devices.sample_environment import SampleEnvironment
 from mxbluesky.devices.click_center     import ClickCenter
 from mxbluesky.devices.misc             import Misc
@@ -76,6 +78,7 @@ class BeamlineDevices:
     detector:      Detector
     attenuation:   Attenuation
     optics:        Optics
+    cryostream:    CryoStream
     sample_env:    SampleEnvironment
     click_center:  ClickCenter
     misc:          Misc
@@ -186,6 +189,12 @@ def _build_fmx(obj: BeamlineDevices, name: str, comm_prefix: str) -> None:
         name=f"{name}_optics",
     )
 
+    obj.cryostream = CryoStream(
+        f"{es}{{CS:1}}",
+        atol=0.1,
+        name=f"{name}_cryostream",
+    )
+
     obj.sample_env = SampleEnvironment(
         es,
         name=f"{name}_sample_env",
@@ -225,6 +234,7 @@ def _build_fmx(obj: BeamlineDevices, name: str, comm_prefix: str) -> None:
     obj.diagnostics = Diagnostics(
         "",
         total_current_pv=f"{bi}{{BPM:4}}SumAll:MeanValue_RBV",
+        ring_current_pv="SR:C03-BI{DCCT:1}I:Real-I",
         home_pin_y_pv   =f"{ct}{{SDC:04-Ax:5}}StartHome",
         home_pin_z_pv   =f"{ct}{{SDC:04-Ax:6}}StartHome",
         pi_commands_pv  =f"{ct}{{MC:21}}Asyn.AOUT",
@@ -309,6 +319,12 @@ def _build_amx(obj: BeamlineDevices, name: str, comm_prefix: str) -> None:
         name=f"{name}_optics",
     )
 
+    obj.cryostream = CryoStream(
+        f"{es}{{CS:1}}",
+        atol=0.1,
+        name=f"{name}_cryostream",
+    )
+
     obj.sample_env = SampleEnvironment(
         es,
         name=f"{name}_sample_env",
@@ -348,6 +364,7 @@ def _build_amx(obj: BeamlineDevices, name: str, comm_prefix: str) -> None:
     obj.diagnostics = Diagnostics(
         "",
         total_current_pv=f"{bi}{{BPM:3}}SumAll:MeanValue_RBV",
+        ring_current_pv="SR:C03-BI{DCCT:1}I:Real-I",
         home_pin_y_pv   =f"{ct}{{SDC:04-Ax:5}}StartHome",
         home_pin_z_pv   =f"{ct}{{SDC:04-Ax:6}}StartHome",
         # pi_commands_pv intentionally omitted (AMX has no PIcommands)
