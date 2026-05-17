@@ -8,6 +8,7 @@ import sys
 import time
 from typing import Dict, List, Optional
 from pathlib import Path
+from collections import defaultdict
 
 import numpy as np
 import requests
@@ -163,7 +164,7 @@ class ControlMain(QtWidgets.QMainWindow):
         self.beam_available = self.bl_devices.misc.beam_available
         self.sample_exposed = self.bl_devices.misc.exposing
         self.beam_size_mode = self.bl_devices.comm.size_mode
-        self.energy_readback = self.bl_devices.optics.energy.readback
+        self.energy_readback = self.bl_devices.optics.energy.user_readback
         self.still_mode_status = self.bl_devices.misc.still_mode_status
         self.command_signal = self.bl_devices.comm.command_s
         self.immediate_command_signal = self.bl_devices.comm.immediate_command_s
@@ -179,7 +180,7 @@ class ControlMain(QtWidgets.QMainWindow):
         self.restart_server_signal = self.bl_devices.comm.restart_server_signal
         self.photon_shutter_open = self.bl_devices.misc.photon_shutter_open
         self.photon_shutter_close = self.bl_devices.misc.photon_shutter_close
-        self.fast_shutter_rbv = self.bl_devices.sample_env.fast_shutter.readback
+        self.fast_shutter_rbv = self.bl_devices.sample_env.fast_shutter.user_readback
         self.detector_message = self.bl_devices.detector.status_message
         self.gov_robot_se_reach = self.bl_devices.governor.robot_se_reach
         self.gov_robot_sa_reach = self.bl_devices.governor.robot_sa_reach
