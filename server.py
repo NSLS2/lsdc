@@ -1,5 +1,6 @@
 import logging
 from logging import handlers
+from pathlib import Path
 import signal
 import threading
 import asyncio
@@ -7,8 +8,9 @@ from typing import Any, Callable, Dict
 
 import daq_utils
 from epics import PV
+from threads import run_summary_monitor
 from utils.healthcheck import perform_server_checks
-from daq_utils import setBlConfig
+from daq_utils import getBlConfig, setBlConfig
 from daq_main_common import pybass_init, process_input
 import os
 from queue import Queue
@@ -82,6 +84,7 @@ def run_server(prefix: str) -> None:
     # Start worker threads
     stop_evt = threading.Event()
     threads: Dict[str, threading.Thread] = {}
+    # Start command handling threads
     for name, cfg in workers.items():
         t = threading.Thread(
             target=worker,
@@ -91,6 +94,29 @@ def run_server(prefix: str) -> None:
         )
         t.start()
         threads[name] = t
+
+    # Start summary table threads
+    mx_dir = Path(getBlConfig("visitDirectory"))
+    visit_name = ""
+    for part in mx_dir.parts:
+        if "pass-" in part:
+            visit_name = f"mx{part.split('-')[1]}-1"
+    fast_dp_dir = mx_dir / Path(visit_name) / Path("fast_dp_dir")
+    fast_dp_dir.mkdir(parents=True, exist_ok=True)
+    autoproc_dir = Path(mx_dir) / Path(visit_name) / Path("autoProc_dir")
+    autoproc_dir.mkdir(parents=True, exist_ok=True)
+    for basename, final_dir in {"fast_dp": fast_dp_dir, "autoPROC": autoproc_dir}.items():
+        name = f"summary-monitor-{basename}"
+        t = threading.Thread(
+            target=run_summary_monitor,
+            args=(final_dir, basename),
+            kwargs={"period": 10, "stop_evt": stop_evt},
+            daemon=True,
+            name=name
+        )
+        t.start()
+        threads[name] = t
+
 
     pvs: Dict[str, PV] = {}
     for name, cfg in workers.items():

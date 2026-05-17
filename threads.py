@@ -10,6 +10,7 @@ import raddoseLib
 from pathlib import Path
 import cv2
 import time
+from summarytable.summarytable import DataDirectory, BaseName, FileObserver
 
 logger = logging.getLogger()
 
@@ -169,3 +170,16 @@ class DataFetchRunnable(QRunnable):
         result = self.run_function(*self.args, **self.kwargs)
         # Emit the finished signal with the result.
         self.signal.finished.emit(result)
+
+
+def run_summary_monitor(dir: str, basename:str , period=10, stop_evt=None):
+    bn = BaseName(basename)
+    d = DataDirectory(dir, bn)
+    d.attach(FileObserver(bn))
+
+    while True:
+        if stop_evt and stop_evt.is_set():
+            break
+        d.check_directory()
+        time.sleep(period)
+
