@@ -67,6 +67,11 @@ class UserScreenDialog(QtWidgets.QFrame):
         self.checkQueueCollect()
         self.queueCollectOnCheckBox.stateChanged.connect(self.queueCollectOnCheckCB)
 
+        self.mini_raster_on_checkbox = QCheckBox("Mini Raster")
+        hBoxColParams3.addWidget(self.mini_raster_on_checkbox)
+        self.check_mini_raster()
+        self.mini_raster_on_checkbox.stateChanged.connect(self.mini_raster_on_cb)
+
         hBoxColParams3.addWidget(self.unmountWarmButton)
         hBoxColParams3.addWidget(self.testRobotButton)
         hBoxColParams3.addWidget(self.recoverRobotButton)
@@ -326,3 +331,9 @@ class UserScreenDialog(QtWidgets.QFrame):
             self.queueCollectOnCheckBox.setChecked(True)
         else:
             self.queueCollectOnCheckBox.setChecked(False)
+
+    def mini_raster_on_cb(self, state):
+        daq_utils.setBlConfig("use_mini_raster", (state == QtCore.Qt.Checked))
+
+    def check_mini_raster(self):
+        self.mini_raster_on_checkbox.setChecked(daq_utils.getBlConfig("use_mini_raster"))

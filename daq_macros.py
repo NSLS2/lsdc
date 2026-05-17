@@ -5,7 +5,7 @@ import daq_lib
 import daq_utils
 import db_lib
 from daq_utils import getBlConfig, setBlConfig
-from utils.raster import get_raster_max_col, get_flattened_indices_of_max_col
+from utils.raster import get_raster_max_col, get_flattened_indices_of_max_col, determine_raster_shape
 import det_lib
 import math
 import time
@@ -451,12 +451,27 @@ def autoRasterLoop(currentRequest):
         # Oscillation range is zero which means its a raster screen request
         return 0
 
-      RE(bps.mv(gonio.gx, sample_detection["center_x"], 
-            gonio.py, sample_detection["center_y"],
-            gonio.pz, sample_detection["center_z"]))
+
+      if getBlConfig("use_mini_raster"):
+        width = step_size * 3
+        num_rows = sample_detection["small_box_height"]%step_size
+        if num_rows < MINIMUM_RASTER_SIZE[daq_utils.beamline]:
+          width = step_size * MINIMUM_RASTER_SIZE[daq_utils.beamline]
+        # When collecting a mini ortho raster we want to position
+        # the beam at the center of the ortho raster
+        # In which case y and z will be the same, x will correspond to
+        # the max position
+        RE(bps.mv(gonio.gx, face_on_max_coords[0], 
+              gonio.py, sample_detection["center_y"],
+              gonio.pz, sample_detection["center_z"]))
+      else:
+        width = sample_detection["large_box_width"] 
+        RE(bps.mv(gonio.gx, sample_detection["center_x"], 
+              gonio.py, sample_detection["center_y"],
+              gonio.pz, sample_detection["center_z"]))
       
       runRasterScan(currentRequest, rasterType="Custom", 
-                    width=sample_detection["large_box_width"], 
+                    width=width,
                     height=sample_detection["small_box_height"], 
                     step_size=step_size,
                     omega_rel=90)
@@ -1327,25 +1342,36 @@ def get_score_vals(cellResults, scoreOption):
   return score_vals
 
 def get_score_index(score_vals: "np.ndarray", scoreOption, indices=None):
-  """
-  Returns the maximum or minimum score value in the 1d array of scores and the corresponding index
-  If specific indices are provided the max/min score will be selected from those indices
+    """
+    Returns the max/min score and corresponding index.
+    If indices are provided, restricts to valid ones.
+    """
 
-  """
-  if indices:
-    score_vals = score_vals[indices]
-  if scoreOption == "d_min":
-    # If value is -1 replace with inf so that it is not considered for np.min
-    score_vals = np.where(score_vals == -1, np.inf, score_vals) 
-    scoreVal = np.min(score_vals)
-    max_index = np.argmin(score_vals)
-  else:
-    scoreVal = np.max(score_vals)
-    max_index = np.argmax(score_vals)
-  
-  max_index = max_index if not indices else indices[max_index] 
+    valid_indices = None
 
-  return scoreVal, max_index
+    if indices is not None:
+        indices = np.array(indices)
+        valid_indices = indices[(indices >= 0) & (indices < len(score_vals))]
+
+        # Handle empty case early
+        if valid_indices.size == 0:
+            return None, None
+
+        score_vals = score_vals[valid_indices]
+
+    if scoreOption == "d_min":
+        score_vals = np.where(score_vals == -1, np.inf, score_vals)
+        scoreVal = np.min(score_vals)
+        max_index = np.argmin(score_vals)
+    else:
+        scoreVal = np.max(score_vals)
+        max_index = np.argmax(score_vals)
+
+    # Map back to original indices if needed
+    if valid_indices is not None:
+        max_index = valid_indices[max_index]
+
+    return scoreVal, max_index
 
 def get_gonio_pos_from_raster_result(cell_results, raster_map, index):
   """
@@ -1410,7 +1436,7 @@ def gotoMaxRaster(rasterResult,multiColThreshold=None,**kwargs):
     raise ValueError("No max position found for gonio move")
 
 def run_auto_raster(max_index, score_vals, scoreOption, cellResults, rasterMap, **kwargs):
-  global max_col, face_on_max_coords, ortho_max_coords
+  global max_col, face_on_max_coords, ortho_max_coords 
   hotFile, (x, y, z) = get_gonio_pos_from_raster_result(cellResults, rasterMap, max_index)
   if "rasterRequest" in kwargs and autoRasterFlag:
     # Update the raster request with the location of the max raster image and co-ordinates.
@@ -1431,6 +1457,10 @@ def run_auto_raster(max_index, score_vals, scoreOption, cellResults, rasterMap, 
     else: 
       # max_col should be available for orthogonal rasters
       # Find maximum in col defined in max_col and then reset max_col
+      if getBlConfig("use_mini_raster"):
+        raster_dir, num_rows, num_cols = determine_raster_shape(rasterDef)
+        max_col = num_cols//2
+
       indices = get_flattened_indices_of_max_col(rasterDef, max_col)
       score_val, max_index = get_score_index(score_vals, scoreOption, indices)
       hotFile, (x, y, z) = get_gonio_pos_from_raster_result(cellResults, rasterMap, max_index)
