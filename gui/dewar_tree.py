@@ -596,9 +596,9 @@ class DewarTree(QtWidgets.QTreeView):
             if item.data(33) == "request":
                 reqID = str(item.data(32))
                 if item.checkState() == Qt.Checked:
-                    db_lib.updatePriority(reqID, 5000)
+                    db_lib.queueRequest(reqID)
                 else:
-                    db_lib.updatePriority(reqID, 0)
+                    db_lib.dequeueRequest(reqID)
                 item.setBackground(QtGui.QColor("white"))
                 self.parent.queue_change_signal.put(
                     self.parent.processID
@@ -617,8 +617,7 @@ class DewarTree(QtWidgets.QTreeView):
             itemData = str(item.data(32))
             itemDataType = str(item.data(33))
             if (itemDataType == "request") and item.isCheckable():
-                selectedSampleRequest = db_lib.getRequestByID(itemData)
-                db_lib.updatePriority(itemData, 5000)
+                db_lib.queueRequest(itemData)
         self.parent.queue_change_signal.put(1)
 
     def deQueueAllSelectedCB(self):
@@ -630,8 +629,7 @@ class DewarTree(QtWidgets.QTreeView):
             itemData = str(item.data(32))
             itemDataType = str(item.data(33))
             if (itemDataType == "request") and item.isCheckable():
-                selectedSampleRequest = db_lib.getRequestByID(itemData)
-                db_lib.updatePriority(itemData, 0)
+                db_lib.dequeueRequest(itemData)
         self.parent.queue_change_signal.put(1)
 
     def confirmDelete(self, numReq):

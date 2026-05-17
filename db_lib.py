@@ -756,6 +756,64 @@ def updatePriority(request_id, priority):
     updateRequest(r)
 
 
+def queueRequest(request_id, fallback_priority=5000):
+    """
+    Queue a request without clobbering a previously saved priority.
+
+    If a request was dequeued and has a saved priority in
+    ``priority_before_dequeue``, restore that. Otherwise use
+    ``fallback_priority``.
+    """
+    request = getRequestByID(request_id)
+    if not request:
+        return None
+
+    current_priority = request.get("priority", 0)
+
+    # Preserve existing running/completed sentinel semantics.
+    if current_priority == 99999 or current_priority < 0:
+        return request
+
+    # Already queued; nothing to do.
+    if current_priority > 0:
+        return request
+
+    restore_priority = request.get("priority_before_dequeue")
+    if (
+        restore_priority is not None
+        and restore_priority > 0
+        and restore_priority != 99999
+    ):
+        request["priority"] = restore_priority
+    else:
+        request["priority"] = fallback_priority
+
+    updateRequest(request)
+    return request
+
+
+def dequeueRequest(request_id):
+    """
+    Dequeue a request while preserving its queued priority for later restore.
+    """
+    request = getRequestByID(request_id)
+    if not request:
+        return None
+
+    current_priority = request.get("priority", 0)
+
+    # Preserve existing running/completed sentinel semantics.
+    if current_priority == 99999 or current_priority < 0:
+        return request
+
+    if current_priority > 0:
+        request["priority_before_dequeue"] = current_priority
+
+    request["priority"] = 0
+    updateRequest(request)
+    return request
+
+
 def getPriorityMap(beamlineName):
     """
     returns a dictionary with priorities as keys and lists of requests
@@ -890,4 +948,3 @@ def deleteCompletedRequestsforSample(sid):
     if (requestList[i]["priority"] == -1): #good to clean up completed requests after unmount
       if requestList[i]["protocol"] in (CollectionProtocols.RASTER, CollectionProtocols.VECTOR):
         deleteRequest(requestList[i]['uid'])
-
