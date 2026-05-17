@@ -76,7 +76,7 @@ class SampleXYZ(Device):
 
 if (beamline=="amx"):
     from mxbluesky.devices import (WorkPositions, TwoClickLowMag, LoopDetector, MountPositions, 
-                                   TopAlignerFast, TopAlignerSlow, GoniometerStack, Dewar, RobotArm)
+                                   TopAlignerFast, TopAlignerSlow, GoniometerStack, Dewar, RobotArm, SmartMagnet)
     from mxbluesky.devices.auto_recovery import PYZHomer
     from mxbluesky.devices.cryostream import CryoStream
     from mxbluesky.plans.auto_recovery import home_pins_plan
@@ -119,10 +119,12 @@ if (beamline=="amx"):
     home_pins = home_pins_plan(gov_mon_signal, gonio_mon_signal, pyz_homer, gonio)
     robot_arm = RobotArm("XF:17IDB-ES:AMX", name="robot_arm")
     cs1000 = CryoStream("XF:17IDB-ES:AMX{CS:1}", name="cs1000", atol=0.1)
+    smart_magnet = SmartMagnet("XF:17IDB-ES:AMX", name="smart_magnet")
+    force_torque_sensor = EpicsSignal("XF:17IDB-ES:AMX{FTS:1}Read-Cmd.SCAN")
 
 elif beamline == "fmx":
     from mxbluesky.devices import (WorkPositions, TwoClickLowMag, LoopDetector, MountPositions, 
-                                   TopAlignerFast, TopAlignerSlow, GoniometerStack, Dewar, RobotArm)
+                                   TopAlignerFast, TopAlignerSlow, GoniometerStack, Dewar, RobotArm, SmartMagnet)
     from mxtools.vector_program import VectorProgram
     from mxbluesky.devices.auto_recovery import PYZHomer
     from mxbluesky.devices.cryostream import CryoStream
@@ -166,6 +168,8 @@ elif beamline == "fmx":
     home_pins = home_pins_plan(gov_mon_signal, gonio_mon_signal, pyz_homer, gonio)
     robot_arm = RobotArm("XF:17IDC-ES:FMX", name="robot_arm")
     cs1000 = CryoStream("XF:17IDC-ES:FMX{CS:1}", name="cs1000", atol=0.1)
+    smart_magnet = SmartMagnet("XF:17IDC-ES:FMX", name="smart_magnet")
+    force_torque_sensor = EpicsSignal("XF:17IDC-ES:FMX{FTS:1}Read-Cmd.SCAN")
 else:
     raise Exception(f"Invalid beamline name provided: {beamline}")
 

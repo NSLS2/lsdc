@@ -257,6 +257,8 @@ def run_robot_recovery_procedure():
 
 def recoverCS8():
   logger.info("Starting CS8 recovery")
+  logger.info("Toggling magnet")
+  smart_magnet.toggle()
   logger.info("Recovering robot")
   robot_lib.recoverRobot()
   logger.info("Drying gripper")
