@@ -1,6 +1,7 @@
 import getpass
 import logging
 import os
+import time
 import typing
 
 import requests
@@ -54,7 +55,8 @@ class DewarTree(QtWidgets.QTreeView):
         self._programmatic_status_update = False
         self.threadPool = QtCore.QThreadPool.globalInstance()
         self.refresh_running = False
-        self._pending_refresh = None
+        self._min_refresh_interval_s = 1.0
+        self._last_refresh_started_monotonic = 0.0
         self.expanded.connect(self.on_expanded)
 
     def on_expanded(self, index):
@@ -162,23 +164,20 @@ class DewarTree(QtWidgets.QTreeView):
         self.refreshTreeThreaded()
 
     def refreshTreeThreaded(self, get_latest_pucks=False, hard_refresh=False):
-        refresh_args = {
-            "get_latest_pucks": get_latest_pucks,
-            "hard_refresh": hard_refresh,
-        }
         if self.refresh_running:
-            if self._pending_refresh is None:
-                self._pending_refresh = refresh_args
-            else:
-                self._pending_refresh["get_latest_pucks"] = (
-                    self._pending_refresh["get_latest_pucks"] or get_latest_pucks
-                )
-                self._pending_refresh["hard_refresh"] = (
-                    self._pending_refresh["hard_refresh"] or hard_refresh
-                )
             return
 
-        self.refresh_running = True  # Mark that a refresh is in progress
+        if (
+            time.monotonic() - self._last_refresh_started_monotonic
+            < self._min_refresh_interval_s
+        ):
+            return
+
+        self._start_refresh_now(get_latest_pucks, hard_refresh)
+
+    def _start_refresh_now(self, get_latest_pucks, hard_refresh):
+        self.refresh_running = True
+        self._last_refresh_started_monotonic = time.monotonic()
         self.runnable = DataFetchRunnable(
             self.fetchData,
             get_latest_pucks=get_latest_pucks,
@@ -284,10 +283,14 @@ class DewarTree(QtWidgets.QTreeView):
 
     def _finish_refresh(self):
         self.refresh_running = False
-        if self._pending_refresh is not None:
-            pending_refresh = self._pending_refresh
-            self._pending_refresh = None
-            self.refreshTreeThreaded(**pending_refresh)
+
+    def _index_signature(self, index):
+        if not index or not index.isValid():
+            return (None, None)
+        item = self.model.itemFromIndex(index)
+        if item is None:
+            return (None, None)
+        return (item.data(33), item.data(32))
 
     def update_model(self, data):
         self._programmatic_status_update = True
@@ -442,9 +445,10 @@ class DewarTree(QtWidgets.QTreeView):
             current_index = mountedIndex
 
         if current_index and self.follow_current_request:
-            if current_index != self.currentIndex():
+            if self._index_signature(current_index) != self._index_signature(
+                self.currentIndex()
+            ):
                 self.setCurrentIndex(current_index)
-                self.parent.row_clicked(current_index)
 
     def add_requests_to_sample(self, item, base_requests, nested_requests):
         # Go through the sample requests and add them to the sample
