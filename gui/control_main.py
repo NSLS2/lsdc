@@ -1561,7 +1561,7 @@ class ControlMain(QtWidgets.QMainWindow):
 
     def toggle_special_puck(self, activate_special: bool):
         setBlConfig("special_mount_enabled", activate_special)
-        self.dewarTree.refreshTreeDewarView(hard_refresh=True)
+        self.dewarTree.refreshTreeThreaded(hard_refresh=True)
 
     def updateCam(self, pixmapItem: "QGraphicsPixmapItem", frame):
         with QMutexLocker(self.camera_mutexs[pixmapItem]):
@@ -3050,14 +3050,14 @@ class ControlMain(QtWidgets.QMainWindow):
         # should probably clear textfields here too
         if identifier == "dewarView":
             if self.dewarViewRadio.isChecked():
-                self.dewarTree.refreshTreeDewarView()
+                self.dewarTree.refreshTreeThreaded()
         else:
             if self.priorityViewRadio.isChecked():
                 self.dewarTree.refreshTreePriorityView()
 
     def dewarViewToggleCheckCB(self):
         if self.dewarViewRadio.isChecked():
-            self.dewarTree.refreshTreeDewarView()
+            self.dewarTree.refreshTreeThreaded()
         else:
             self.dewarTree.refreshTreePriorityView()
 

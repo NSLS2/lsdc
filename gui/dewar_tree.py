@@ -54,6 +54,7 @@ class DewarTree(QtWidgets.QTreeView):
         self._programmatic_status_update = False
         self.threadPool = QtCore.QThreadPool.globalInstance()
         self.refresh_running = False
+        self._pending_refresh = None
         self.expanded.connect(self.on_expanded)
 
     def on_expanded(self, index):
@@ -65,7 +66,7 @@ class DewarTree(QtWidgets.QTreeView):
     def toggle_follow_request(self, check_state):
         if check_state == Qt.CheckState.Checked:
             self.follow_current_request = True
-            self.refreshTree()
+            self.refreshTreeThreaded()
         else:
             self.follow_current_request = False
 
@@ -158,35 +159,99 @@ class DewarTree(QtWidgets.QTreeView):
             super(DewarTree, self).keyPressEvent(event)
 
     def refreshTree(self):
-        self._programmatic_status_update = True
-        self.refreshTreeDewarView()
-        self._programmatic_status_update = False
+        self.refreshTreeThreaded()
 
-    def refreshTreeThreaded(self):
+    def refreshTreeThreaded(self, get_latest_pucks=False, hard_refresh=False):
+        refresh_args = {
+            "get_latest_pucks": get_latest_pucks,
+            "hard_refresh": hard_refresh,
+        }
         if self.refresh_running:
-            # A refresh is already running, so ignore the new request.
+            if self._pending_refresh is None:
+                self._pending_refresh = refresh_args
+            else:
+                self._pending_refresh["get_latest_pucks"] = (
+                    self._pending_refresh["get_latest_pucks"] or get_latest_pucks
+                )
+                self._pending_refresh["hard_refresh"] = (
+                    self._pending_refresh["hard_refresh"] or hard_refresh
+                )
             return
 
         self.refresh_running = True  # Mark that a refresh is in progress
-        self.runnable = DataFetchRunnable(self.fetchData)
+        self.runnable = DataFetchRunnable(
+            self.fetchData,
+            get_latest_pucks=get_latest_pucks,
+            hard_refresh=hard_refresh,
+        )
         self.runnable.signal.finished.connect(self.update_model)
         self.threadPool.start(self.runnable)
 
-    def fetchData(self):
+    def _fetch_proposal_membership_updates(self, sample_data):
+        if IS_STAFF:
+            return {}
+
+        missing_proposals = {
+            sample.get("proposalID")
+            for sample in sample_data.values()
+            if sample.get("proposalID") not in (None, "")
+            and sample.get("proposalID") not in self.proposal_membership
+        }
+        if not missing_proposals:
+            return {}
+
+        proposal_api_url = os.environ.get("NSLS2_API_URL")
+        if not proposal_api_url:
+            return {proposal_id: False for proposal_id in missing_proposals}
+
+        username = getpass.getuser()
+        proposal_membership_updates = {}
+        for proposal_id in missing_proposals:
+            try:
+                response = requests.get(
+                    f"{proposal_api_url}/v1/proposal/{proposal_id}", timeout=(2, 5)
+                )
+                response.raise_for_status()
+                proposal = response.json().get("proposal", {})
+                users = proposal.get("users", [])
+                proposal_membership_updates[proposal_id] = username in [
+                    user.get("username") for user in users if "username" in user
+                ]
+            except Exception as e:
+                logger.exception(e)
+                proposal_membership_updates[proposal_id] = False
+
+        return proposal_membership_updates
+
+    def fetchData(self, get_latest_pucks=False, hard_refresh=False):
         """
         This method performs the heavy data retrieval.
         It must not interact with any GUI elements.
         """
-        dewar_data, puck_data, sample_data, request_data = db_lib.get_dewar_tree_data(
-            daq_utils.primaryDewarName, daq_utils.beamline, get_latest_pucks=False
-        )
-        # Return the fetched data in a convenient container.
-        return {
-            "dewar_data": dewar_data,
-            "puck_data": puck_data,
-            "sample_data": sample_data,
-            "request_data": request_data,
-        }
+        try:
+            dewar_data, puck_data, sample_data, request_data = db_lib.get_dewar_tree_data(
+                daq_utils.primaryDewarName,
+                daq_utils.beamline,
+                get_latest_pucks=get_latest_pucks,
+            )
+            proposal_membership_updates = self._fetch_proposal_membership_updates(
+                sample_data
+            )
+            return {
+                "dewar_data": dewar_data,
+                "puck_data": puck_data,
+                "sample_data": sample_data,
+                "request_data": request_data,
+                "proposal_membership_updates": proposal_membership_updates,
+                "hard_refresh": hard_refresh,
+            }
+        except Exception as e:
+            logger.exception(e)
+            return {
+                "refresh_error": str(e),
+                "hard_refresh": hard_refresh,
+                "proposal_membership_updates": {},
+            }
 
     def set_unmounted_sample(self, item):
         item.setForeground(QtGui.QColor("black"))
@@ -212,66 +277,75 @@ class DewarTree(QtWidgets.QTreeView):
             item.setText(sample_name + MountState.get_text(mount_state))
 
     def refreshTreeDewarView(self, get_latest_pucks=False, hard_refresh=False):
-        puck = ""
-        # self.model.clear()
-        # We only want to show 1 puck when special mount is enabled
-        if daq_utils.getBlConfig("special_mount_enabled"):
-            self.pucksPerDewarSector = 1
-            self.dewarSectors = 1
-        else:
-            self.pucksPerDewarSector = PUCKS_PER_DEWAR_SECTOR[daq_utils.beamline]
-            self.dewarSectors = DEWAR_SECTORS[daq_utils.beamline]
-        dewar_data, puck_data, sample_data, request_data = db_lib.get_dewar_tree_data(
-            daq_utils.primaryDewarName, daq_utils.beamline, get_latest_pucks
+        self.refreshTreeThreaded(
+            get_latest_pucks=get_latest_pucks,
+            hard_refresh=hard_refresh,
         )
-        data = {
-            "dewar_data": dewar_data,
-            "puck_data": puck_data,
-            "sample_data": sample_data,
-            "request_data": request_data,
-        }
-        if hard_refresh:
-            self.model.clear()
-        self.update_model(data)
+
+    def _finish_refresh(self):
+        self.refresh_running = False
+        if self._pending_refresh is not None:
+            pending_refresh = self._pending_refresh
+            self._pending_refresh = None
+            self.refreshTreeThreaded(**pending_refresh)
 
     def update_model(self, data):
         self._programmatic_status_update = True
-        dewar_data = data["dewar_data"]
-        puck_data = data["puck_data"]
-        sample_data = data["sample_data"]
-        request_data = data["request_data"]
-        parentItem = self.model.invisibleRootItem()
-        for i, puck_id in enumerate(
-            dewar_data["content"]
-        ):  # dewar contents is the list of puck IDs
-            puck = ""
-            puckName = ""
-            if puck_id:
-                puck = puck_data[puck_id]
-                puckName = puck["name"]
-            sector, puck_pos = divmod(i, self.pucksPerDewarSector)
-            index_s = f"{sector+1}{chr(puck_pos + ord('A'))}"
-            item = QtGui.QStandardItem(QtGui.QIcon(ICON), f"{index_s} {puckName}")
-            item.setData(puckName, 32)
-            item.setData("container", 33)
-            if parentItem.rowCount() == i:
-                parentItem.appendRow(item)
-            elif item.data(32) != parentItem.child(i).data(32):
-                # parentItem.takeChild(i,0)
-                parentItem.setChild(i, 0, item)
-            
-            updated_item = parentItem.child(i)
-            if puck != "" and puckName != "private":
-                puckContents = puck.get("content", [])
-                self.add_samples_to_puck_tree(
-                    puckContents, updated_item, index_s, sample_data, request_data
-                )
-        #self.setModel(self.model)
-        if not self.initialized:
-            self.expandAll()
-            self.initialized = True
-        self._programmatic_status_update = False
-        self.refresh_running = False
+        try:
+            proposal_membership_updates = data.get("proposal_membership_updates", {})
+            if proposal_membership_updates:
+                self.proposal_membership.update(proposal_membership_updates)
+
+            if data.get("refresh_error"):
+                return
+
+            if daq_utils.getBlConfig("special_mount_enabled"):
+                self.pucksPerDewarSector = 1
+                self.dewarSectors = 1
+            else:
+                self.pucksPerDewarSector = PUCKS_PER_DEWAR_SECTOR[daq_utils.beamline]
+                self.dewarSectors = DEWAR_SECTORS[daq_utils.beamline]
+
+            if data.get("hard_refresh"):
+                self.model.clear()
+
+            dewar_data = data["dewar_data"]
+            puck_data = data["puck_data"]
+            sample_data = data["sample_data"]
+            request_data = data["request_data"]
+            parentItem = self.model.invisibleRootItem()
+            for i, puck_id in enumerate(
+                dewar_data["content"]
+            ):  # dewar contents is the list of puck IDs
+                puck = ""
+                puckName = ""
+                if puck_id:
+                    puck = puck_data[puck_id]
+                    puckName = puck["name"]
+                sector, puck_pos = divmod(i, self.pucksPerDewarSector)
+                index_s = f"{sector+1}{chr(puck_pos + ord('A'))}"
+                item = QtGui.QStandardItem(QtGui.QIcon(ICON), f"{index_s} {puckName}")
+                item.setData(puckName, 32)
+                item.setData("container", 33)
+                if parentItem.rowCount() == i:
+                    parentItem.appendRow(item)
+                elif item.data(32) != parentItem.child(i).data(32):
+                    # parentItem.takeChild(i,0)
+                    parentItem.setChild(i, 0, item)
+
+                updated_item = parentItem.child(i)
+                if puck != "" and puckName != "private":
+                    puckContents = puck.get("content", [])
+                    self.add_samples_to_puck_tree(
+                        puckContents, updated_item, index_s, sample_data, request_data
+                    )
+            #self.setModel(self.model)
+            if not self.initialized:
+                self.expandAll()
+                self.initialized = True
+        finally:
+            self._programmatic_status_update = False
+            self._finish_refresh()
 
     def add_samples_to_puck_tree(
         self,
@@ -368,8 +442,9 @@ class DewarTree(QtWidgets.QTreeView):
             current_index = mountedIndex
 
         if current_index and self.follow_current_request:
-            self.setCurrentIndex(current_index)
-            self.parent.row_clicked(current_index)
+            if current_index != self.currentIndex():
+                self.setCurrentIndex(current_index)
+                self.parent.row_clicked(current_index)
 
     def add_requests_to_sample(self, item, base_requests, nested_requests):
         # Go through the sample requests and add them to the sample
@@ -437,22 +512,7 @@ class DewarTree(QtWidgets.QTreeView):
                     self.expand(match_index)
             
     def is_proposal_member(self, proposal_id) -> bool:
-        # Check if the user running LSDC is part of the sample's proposal
-        try:
-            if proposal_id not in self.proposal_membership:
-                r = requests.get(f"{os.environ['NSLS2_API_URL']}/v1/proposal/{proposal_id}")
-                r.raise_for_status()
-                response = r.json()['proposal']
-                if "users" in response and getpass.getuser() in [
-                    user["username"] for user in response["users"] if "username" in user
-                ]:
-                    self.proposal_membership[proposal_id] = True
-                else:
-                    self.proposal_membership[proposal_id] = False
-        except Exception as e:
-            logger.exception(e)
-            return False
-        return self.proposal_membership[proposal_id]
+        return self.proposal_membership.get(proposal_id, False)
 
     def create_request_item(self, request) -> QtGui.QStandardItem:
         col_item = QtGui.QStandardItem(

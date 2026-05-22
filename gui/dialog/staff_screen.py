@@ -201,7 +201,7 @@ class StaffScreenDialog(QtWidgets.QFrame):
 
 
     def refresh_dewar_tree(self):
-        self.parent.dewarTree.refreshTreeDewarView(get_latest_pucks=True)
+        self.parent.dewarTree.refreshTreeThreaded(get_latest_pucks=True)
 
     def show(self):
         self.checkQueueCollect()
