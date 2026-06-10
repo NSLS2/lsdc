@@ -62,10 +62,29 @@ from gui.widgets.log_widget import get_summary_widget, LogViewerWidget
 from gui.raster import RasterCell, RasterGroup
 from gui.vector import VectorMarker, VectorWidget
 from QPeriodicTable import QPeriodicTable
-from threads import RaddoseThread, ServerCheckThread, VideoThread
+from threads import DataFetchRunnable, RaddoseThread, ServerCheckThread, VideoThread
 from utils import validation, custom_pv
 
 logger = logging.getLogger()
+
+
+def _fetch_raster_data(xrecRasterFlag, raster_eval_option):
+    """Background-thread worker: DB I/O only, no Qt access."""
+    try:
+        rasterReq = db_lib.getRequestByID(xrecRasterFlag)
+        status = rasterReq["request_obj"]["rasterDef"]["status"]
+        rasterResults = None
+        if status in (RasterStatus.READY_FOR_FILL.value,
+                      RasterStatus.READY_FOR_REPROCESS.value):
+            rasterResults = db_lib.getResultsforRequest(rasterReq["uid"])
+        return {
+            "rasterReq": rasterReq,
+            "rasterResults": rasterResults,
+            "raster_eval_option": raster_eval_option,
+        }
+    except Exception as e:
+        logger.error("Error fetching raster data for flag %s: %s" % (xrecRasterFlag, e))
+        return e
 
 
 def get_request_object_escan(
@@ -1558,6 +1577,7 @@ class ControlMain(QtWidgets.QMainWindow):
         self.serverCheckThread = ServerCheckThread(parent=self, delay=SERVER_CHECK_DELAY)
         self.serverCheckThread.visit_dir_changed.connect(QApplication.instance().quit)
         self.serverCheckThread.start()
+        self.threadPool = QtCore.QThreadPool.globalInstance()
 
     def toggle_special_puck(self, activate_special: bool):
         setBlConfig("special_mount_enabled", activate_special)
@@ -2392,39 +2412,49 @@ class ControlMain(QtWidgets.QMainWindow):
         self.xrec_raster_flag.put("0")
         if xrecRasterFlag == "100":
             for i in range(len(self.rasterList)):
-                if self.rasterList[i] != None:
+                if self.rasterList[i] is not None:
                     self.scene.removeItem(self.rasterList[i]["graphicsItem"])
-        else:
-            logger.info("xrecrasterflag = %s" % xrecRasterFlag)
-            try:
-                rasterReq = db_lib.getRequestByID(xrecRasterFlag)
-            except IndexError:
-                logger.error("bad xrecRasterFlag: %s" % xrecRasterFlag)
-                return
-            rasterDef = rasterReq["request_obj"]["rasterDef"]
-            if rasterDef["status"] == RasterStatus.DRAWN.value:
-                self.drawPolyRaster(rasterReq)
-            elif rasterDef["status"] == RasterStatus.READY_FOR_FILL.value:
-                self.fillPolyRaster(rasterReq)
-                logger.info("polyraster filled by displayXrecRaster")
-            elif rasterDef["status"] == RasterStatus.READY_FOR_SNAPSHOT.value:
-                if self.controlEnabled():
-                    self.takeRasterSnapshot(rasterReq)
-                    logger.info("raster snapshot taken")
-                self.vidActionRasterExploreRadio.setChecked(True)
-                self.selectedSampleID = rasterReq["sample"]
-                self.queue_change_signal.put(1)  # not sure about this
-            elif rasterDef["status"] == RasterStatus.READY_FOR_REPROCESS.value:
-                self.fillPolyRaster(rasterReq)
-                logger.info("reprocessed polyraster filled by displayXrecraster")
-                if self.controlEnabled():
-                    self.takeRasterSnapshot(rasterReq)
-                    logger.info("reprocessed raster snapshot taken")
-                self.vidActionRasterExploreRadio.setChecked(True)
-                self.selectedSampleID = rasterReq["sample"]
-                self.queue_change_signal.put(1)  # not sure about this
-            else:
-                pass
+            return
+
+        # Capture GUI state on the main thread before dispatching to background
+        raster_eval_option = str(self.rasterEvalComboBox.currentText())
+        logger.info("xrecrasterflag = %s" % xrecRasterFlag)
+
+        runnable = DataFetchRunnable(_fetch_raster_data, xrecRasterFlag, raster_eval_option)
+        runnable.signal.finished.connect(self._on_raster_data_fetched)
+        self.threadPool.start(runnable)
+
+    def _on_raster_data_fetched(self, result):
+        """Main-thread slot: receives pre-fetched data, drives all Qt updates."""
+        if isinstance(result, Exception):
+            logger.error("Failed to fetch raster data: %s" % result)
+            return
+
+        rasterReq = result["rasterReq"]
+        rasterResults = result["rasterResults"]
+        rasterDef = rasterReq["request_obj"]["rasterDef"]
+
+        if rasterDef["status"] == RasterStatus.DRAWN.value:
+            self.drawPolyRaster(rasterReq)
+        elif rasterDef["status"] == RasterStatus.READY_FOR_FILL.value:
+            self.fillPolyRaster(rasterReq, rasterResults=rasterResults)
+            logger.info("polyraster filled by displayXrecRaster")
+        elif rasterDef["status"] == RasterStatus.READY_FOR_SNAPSHOT.value:
+            if self.controlEnabled():
+                self.takeRasterSnapshot(rasterReq)
+                logger.info("raster snapshot taken")
+            self.vidActionRasterExploreRadio.setChecked(True)
+            self.selectedSampleID = rasterReq["sample"]
+            self.queue_change_signal.put(1)  # not sure about this
+        elif rasterDef["status"] == RasterStatus.READY_FOR_REPROCESS.value:
+            self.fillPolyRaster(rasterReq, rasterResults=rasterResults)
+            logger.info("reprocessed polyraster filled by displayXrecraster")
+            if self.controlEnabled():
+                self.takeRasterSnapshot(rasterReq)
+                logger.info("reprocessed raster snapshot taken")
+            self.vidActionRasterExploreRadio.setChecked(True)
+            self.selectedSampleID = rasterReq["sample"]
+            self.queue_change_signal.put(1)  # not sure about this
 
     def processMountedPin(self, mountedPinPos):
         self.eraseCB()
@@ -3344,10 +3374,11 @@ class ControlMain(QtWidgets.QMainWindow):
         self.send_to_server("mvaDescriptor", ["omega", 0])
 
     def fillPolyRaster(
-        self, rasterReq
+        self, rasterReq, rasterResults=None
     ):  # at this point I should have a drawn polyRaster
         logger.info("filling poly for " + str(rasterReq["uid"]))
-        rasterResults = db_lib.getResultsforRequest(rasterReq["uid"])
+        if rasterResults is None:
+            rasterResults = db_lib.getResultsforRequest(rasterReq["uid"])
         
         if not rasterResults:
             return
