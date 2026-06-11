@@ -293,8 +293,13 @@ class DewarTree(QtWidgets.QTreeView):
         return (item.data(33), item.data(32))
 
     def update_model(self, data):
+        update_start = time.monotonic()
         self._programmatic_status_update = True
         try:
+            if isinstance(data, Exception):
+                logger.error("Dewar tree fetch failed: %s", data)
+                return
+
             proposal_membership_updates = data.get("proposal_membership_updates", {})
             if proposal_membership_updates:
                 self.proposal_membership.update(proposal_membership_updates)
@@ -346,6 +351,12 @@ class DewarTree(QtWidgets.QTreeView):
             if not self.initialized:
                 self.expandAll()
                 self.initialized = True
+
+            update_duration = time.monotonic() - update_start
+            if update_duration > 1.0:
+                logger.warning("DEWAR_TREE_UPDATE_SLOW duration_s=%.3f", update_duration)
+            else:
+                logger.info("DEWAR_TREE_UPDATE_DONE duration_s=%.3f", update_duration)
         finally:
             self._programmatic_status_update = False
             self._finish_refresh()

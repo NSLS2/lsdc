@@ -2133,6 +2133,12 @@ class ControlMain(QtWidgets.QMainWindow):
     def saveVidSnapshotCB(
         self, comment="", useOlog=False, reqID=None, rasterHeatJpeg=None
     ):
+        snapshot_start = time.monotonic()
+        logger.info(
+            "SNAPSHOT_START req_id=%s raster_heatmap=%s",
+            reqID,
+            rasterHeatJpeg is not None,
+        )
         if not os.path.exists("snapshots"):
             os.system("mkdir snapshots")
         width = 640
@@ -2143,6 +2149,7 @@ class ControlMain(QtWidgets.QMainWindow):
         painter = QtGui.QPainter(pix)
         self.scene.render(painter, targetrect, sourcerect)
         painter.end()
+        render_done = time.monotonic()
         now = time.time()
         if rasterHeatJpeg == None:
             if reqID != None:
@@ -2157,6 +2164,7 @@ class ControlMain(QtWidgets.QMainWindow):
             imagePath = rasterHeatJpeg
         logger.info("saving " + imagePath)
         pix.save(imagePath, "JPG")
+        save_done = time.monotonic()
         if useOlog:
             lsdcOlog.toOlogPicture(imagePath, str(comment))
         resultObj = {}
@@ -2193,6 +2201,16 @@ class ControlMain(QtWidgets.QMainWindow):
                     result_obj=resultObj,
                     proposalID=daq_utils.getProposalID(),
                 )
+
+        end_time = time.monotonic()
+        logger.info(
+            "SNAPSHOT_DONE req_id=%s render_s=%.3f save_s=%.3f post_save_s=%.3f total_s=%.3f",
+            reqID,
+            render_done - snapshot_start,
+            save_done - render_done,
+            end_time - save_done,
+            end_time - snapshot_start,
+        )
 
     def changeControlMasterCB(
         self, state, processID=os.getpid()
@@ -2409,11 +2427,13 @@ class ControlMain(QtWidgets.QMainWindow):
         self.choochGraph.removeCurves()
 
     def displayXrecRaster(self, xrecRasterFlag):
+        callback_start = time.monotonic()
         self.xrec_raster_flag.put("0")
         if xrecRasterFlag == "100":
             for i in range(len(self.rasterList)):
                 if self.rasterList[i] is not None:
                     self.scene.removeItem(self.rasterList[i]["graphicsItem"])
+            logger.info("XREC_RASTER_CLEAR duration_s=%.3f", time.monotonic() - callback_start)
             return
 
         # Capture GUI state on the main thread before dispatching to background
@@ -2423,9 +2443,15 @@ class ControlMain(QtWidgets.QMainWindow):
         runnable = DataFetchRunnable(_fetch_raster_data, xrecRasterFlag, raster_eval_option)
         runnable.signal.finished.connect(self._on_raster_data_fetched)
         self.threadPool.start(runnable)
+        logger.info(
+            "XREC_RASTER_DISPATCHED flag=%s duration_s=%.3f",
+            xrecRasterFlag,
+            time.monotonic() - callback_start,
+        )
 
     def _on_raster_data_fetched(self, result):
         """Main-thread slot: receives pre-fetched data, drives all Qt updates."""
+        handler_start = time.monotonic()
         if isinstance(result, Exception):
             logger.error("Failed to fetch raster data: %s" % result)
             return
@@ -2455,6 +2481,22 @@ class ControlMain(QtWidgets.QMainWindow):
             self.vidActionRasterExploreRadio.setChecked(True)
             self.selectedSampleID = rasterReq["sample"]
             self.queue_change_signal.put(1)  # not sure about this
+
+        handler_duration = time.monotonic() - handler_start
+        if handler_duration > 1.0:
+            logger.warning(
+                "XREC_RASTER_HANDLER_SLOW status=%s uid=%s duration_s=%.3f",
+                rasterDef.get("status"),
+                rasterReq.get("uid"),
+                handler_duration,
+            )
+        else:
+            logger.info(
+                "XREC_RASTER_HANDLER_DONE status=%s uid=%s duration_s=%.3f",
+                rasterDef.get("status"),
+                rasterReq.get("uid"),
+                handler_duration,
+            )
 
     def processMountedPin(self, mountedPinPos):
         self.eraseCB()
@@ -3505,6 +3547,7 @@ class ControlMain(QtWidgets.QMainWindow):
                 cellCounter += 1
 
     def takeRasterSnapshot(self, rasterReq):
+        start_time = time.monotonic()
         request_obj = rasterReq["request_obj"]
         directory = request_obj["directory"]
         filePrefix = request_obj["file_prefix"]
@@ -3533,6 +3576,11 @@ class ControlMain(QtWidgets.QMainWindow):
             useOlog=False,
             reqID=rasterReq["uid"],
             rasterHeatJpeg=jpegImageFilename,
+        )
+        logger.info(
+            "RASTER_SNAPSHOT_DONE req_id=%s duration_s=%.3f",
+            rasterReq.get("uid"),
+            time.monotonic() - start_time,
         )
 
     def reFillPolyRaster(self):
