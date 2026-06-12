@@ -4,6 +4,9 @@ from epics import PV
 from qtpy import QtCore
 
 
+_NOTHING = object()
+
+
 class SignalQtBridge(QtCore.QObject):
     """
     Bridges an EPICS PV or ophyd Signal callback to a Qt slot.
@@ -83,6 +86,7 @@ class SignalQtBridge(QtCore.QObject):
         transform: Optional[Callable] = None,
         predicate: Optional[Callable] = None,
         custom_pv_class: Optional[Type[PV]] = None,
+        coalesce_interval_ms: int = 200,
         **callback_kwargs,
     ):
         super().__init__()
@@ -123,6 +127,12 @@ class SignalQtBridge(QtCore.QObject):
                 "signal_or_name must be EPICS PV name, EPICS PV object, or ophyd Signal-like object"
             )
 
+        self._pending_value: Any = _NOTHING
+        self._coalesce_timer = QtCore.QTimer(self)
+        self._coalesce_timer.setInterval(coalesce_interval_ms)
+        self._coalesce_timer.timeout.connect(self._flush_coalesced)
+        self._coalesce_timer.start()
+
     # ------------------------------------------------------------------
     # EPICS callback (runs in a CA background thread)
     # ------------------------------------------------------------------
@@ -138,9 +148,16 @@ class SignalQtBridge(QtCore.QObject):
         else:
             result = value
 
-        # Signal.emit() is thread-safe in Qt; this queued cross-thread call
-        # delivers the value to the slot on the main GUI thread.
-        self.signal.emit(result)
+        self._pending_value = result
+
+    def _flush_coalesced(self):
+        """Main-thread QTimer slot. Emits latest pending value if one exists."""
+        if self._pending_value is not _NOTHING:
+            val = self._pending_value
+            self._pending_value = _NOTHING
+            # Signal.emit() is thread-safe in Qt; this queued cross-thread call
+            # delivers the value to the slot on the main GUI thread.
+            self.signal.emit(val)
 
     def _on_epics_changed(self, value=None, char_value=None, **kw):
         self._emit_if_allowed(value=value, char_value=char_value, **kw)
@@ -160,6 +177,8 @@ class SignalQtBridge(QtCore.QObject):
         self.source.put(*args, **kwargs)
 
     def close(self):
+        if self._coalesce_timer.isActive():
+            self._coalesce_timer.stop()
         if self._subscription_token is not None and hasattr(self.source, "unsubscribe"):
             self.source.unsubscribe(self._subscription_token)
             self._subscription_token = None
