@@ -5392,6 +5392,7 @@ class ControlMain(QtWidgets.QMainWindow):
             self.gon.omega.readback,
             lambda t: self.processSampMove(*t),
             transform=lambda v, cv, **kw: (int(v), "omega"),
+            label="gon.omega",
         )
 
         _bridge(self.fast_shutter_rbv, self.processFastShutter, transform=lambda v, cv, **kw: float(v))

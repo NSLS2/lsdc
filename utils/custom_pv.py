@@ -1,3 +1,6 @@
+import logging
+import time
+from threading import Lock
 from typing import Any, Callable, Optional, Type
 
 from epics import PV
@@ -5,6 +8,7 @@ from qtpy import QtCore
 
 
 _NOTHING = object()
+logger = logging.getLogger()
 
 
 class SignalQtBridge(QtCore.QObject):
@@ -39,6 +43,15 @@ class SignalQtBridge(QtCore.QObject):
         emitting.  The signal is suppressed when this returns ``False``.
     custom_pv_class : type[PV], optional
         PV subclass to instantiate when *signal_or_name* is a string.
+    label : str, default ""
+        Optional label used in periodic rate logs. When empty, no per-bridge
+        rate logging is performed.
+    rate_log_interval_s : float, default 5.0
+        Logging interval for incoming/outgoing callback rates when *label* is
+        provided.
+    coalesce_interval_ms : int, default 200
+        Callback coalescing period in milliseconds. At each period the latest
+        value (if any) is emitted to the slot.
     **callback_kwargs
         Extra keyword arguments forwarded verbatim to ``pv.add_callback()``.
         They are accessible inside *transform* / *predicate* via ``**kw``.
@@ -86,6 +99,8 @@ class SignalQtBridge(QtCore.QObject):
         transform: Optional[Callable] = None,
         predicate: Optional[Callable] = None,
         custom_pv_class: Optional[Type[PV]] = None,
+        label: str = "",
+        rate_log_interval_s: float = 5.0,
         coalesce_interval_ms: int = 200,
         **callback_kwargs,
     ):
@@ -95,6 +110,13 @@ class SignalQtBridge(QtCore.QObject):
         self.predicate = predicate
         self._subscription_token: Any = None
         self._epics_callback_index: Any = None
+        self._rate_label = label
+        self._rate_logging_enabled = bool(label)
+        self._rate_log_interval_s = rate_log_interval_s
+        self._rate_window_start = time.monotonic()
+        self._incoming_count = 0
+        self._outgoing_count = 0
+        self._rate_lock = Lock()
 
         self.signal.connect(slot)
 
@@ -148,6 +170,10 @@ class SignalQtBridge(QtCore.QObject):
         else:
             result = value
 
+        if self._rate_logging_enabled:
+            with self._rate_lock:
+                self._incoming_count += 1
+
         self._pending_value = result
 
     def _flush_coalesced(self):
@@ -155,9 +181,41 @@ class SignalQtBridge(QtCore.QObject):
         if self._pending_value is not _NOTHING:
             val = self._pending_value
             self._pending_value = _NOTHING
+            if self._rate_logging_enabled:
+                with self._rate_lock:
+                    self._outgoing_count += 1
             # Signal.emit() is thread-safe in Qt; this queued cross-thread call
             # delivers the value to the slot on the main GUI thread.
             self.signal.emit(val)
+
+        if self._rate_logging_enabled:
+            now = time.monotonic()
+            elapsed = now - self._rate_window_start
+            if elapsed >= self._rate_log_interval_s:
+                with self._rate_lock:
+                    incoming_count = self._incoming_count
+                    outgoing_count = self._outgoing_count
+                    self._incoming_count = 0
+                    self._outgoing_count = 0
+                self._rate_window_start = now
+
+                incoming_hz = incoming_count / elapsed if elapsed > 0 else 0.0
+                outgoing_hz = outgoing_count / elapsed if elapsed > 0 else 0.0
+                reduction_pct = 0.0
+                if incoming_count > 0:
+                    reduction_pct = 100.0 * (1.0 - (outgoing_count / incoming_count))
+
+                logger.info(
+                    "BRIDGE_RATE label=%s incoming_hz=%.2f outgoing_hz=%.2f "
+                    "reduction_pct=%.1f incoming_count=%d outgoing_count=%d window_s=%.2f",
+                    self._rate_label,
+                    incoming_hz,
+                    outgoing_hz,
+                    reduction_pct,
+                    incoming_count,
+                    outgoing_count,
+                    elapsed,
+                )
 
     def _on_epics_changed(self, value=None, char_value=None, **kw):
         self._emit_if_allowed(value=value, char_value=char_value, **kw)
