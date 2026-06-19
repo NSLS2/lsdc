@@ -68,6 +68,21 @@ from utils import validation, custom_pv
 logger = logging.getLogger()
 
 
+def safe_get(signal, default=None, timeout: float = 1.0):
+    """Return signal.get(timeout=timeout) or default on any failure. Logs WARNING."""
+    try:
+        return signal.get(timeout=timeout)
+    except Exception as exc:
+        logger.warning(
+            "PV read failed for %s (%s: %s) — using default %r",
+            getattr(signal, "pvname", repr(signal)),
+            type(exc).__name__,
+            exc,
+            default,
+        )
+        return default
+
+
 def _fetch_raster_data(xrecRasterFlag, raster_eval_option):
     """Background-thread worker: DB I/O only, no Qt access."""
     try:
@@ -1484,8 +1499,8 @@ class ControlMain(QtWidgets.QMainWindow):
             highlight_on_change=False,
         )
         ringCurrentMessageLabel = QtWidgets.QLabel("Ring (mA):")
-        self.ringCurrentMessage = QtWidgets.QLabel(str(self.ring_current.get()))
-        beamAvailable = self.beam_available.get()
+        self.ringCurrentMessage = QtWidgets.QLabel(str(safe_get(self.ring_current, default=0)))
+        beamAvailable = safe_get(self.beam_available, default=False)
 
         '''
         changing beam available label
@@ -1501,7 +1516,7 @@ class ControlMain(QtWidgets.QMainWindow):
         else:
             self.beamAvailLabel = QtWidgets.QLabel("No Beam")
             self.beamAvailLabel.setStyleSheet("background-color: red;")
-        sampleExposed = self.sample_exposed.get()
+        sampleExposed = safe_get(self.sample_exposed, default=False)
         if sampleExposed:
             self.sampleExposedLabel = QtWidgets.QLabel("Sample Exposed")
             self.sampleExposedLabel.setStyleSheet("background-color: red;")
@@ -1509,11 +1524,11 @@ class ControlMain(QtWidgets.QMainWindow):
             self.sampleExposedLabel = QtWidgets.QLabel("Sample Not Exposed")
             self.sampleExposedLabel.setStyleSheet("background-color: #99FF66;")
         gripperLabel = QtWidgets.QLabel("Gripper Temp (K):")
-        self.gripperTempLabel = QtWidgets.QLabel("%.1f" % self.gripper_temp.get())
+        self.gripperTempLabel = QtWidgets.QLabel("%.1f" % safe_get(self.gripper_temp, default=0.0))
         cryostreamLabel = QtWidgets.QLabel("Cryostream Temp (K):")
         if getBlConfig(CRYOSTREAM_ONLINE):
             self.cryostreamTempLabel = QtWidgets.QLabel(
-                str(self.cryostream_temp.get())
+                str(safe_get(self.cryostream_temp, default=0.0))
             )
         else:
             self.cryostreamTempLabel = QtWidgets.QLabel("N/A")
@@ -5241,7 +5256,7 @@ class ControlMain(QtWidgets.QMainWindow):
         self.statusBar().setStyleSheet("QStatusBar { font-size: 14pt; }")
         queue_collect_status = "ON" if getBlConfig("queueCollect") else "OFF"
         self.queue_collect_status_widget = QtWidgets.QLabel(f"Queue Collect: {queue_collect_status}")
-        self.dewar_plate_position_status_widget = QtWidgets.QLabel(f"Plate Position: {int(self.dewar_plate_pos.get())}")
+        self.dewar_plate_position_status_widget = QtWidgets.QLabel(f"Plate Position: {int(safe_get(self.dewar_plate_pos, default=0))}")
         sep = QtWidgets.QFrame()
         sep.setFrameShape(QtWidgets.QFrame.VLine)
         sep.setFrameShadow(QtWidgets.QFrame.Sunken)
