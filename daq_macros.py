@@ -454,7 +454,7 @@ def autoRasterLoop(currentRequest):
 
       if getBlConfig("use_mini_raster"):
         width = step_size * 3
-        num_rows = sample_detection["small_box_height"]%step_size
+        num_rows = sample_detection["small_box_height"]//step_size
         if num_rows < MINIMUM_RASTER_SIZE[daq_utils.beamline]:
           width = step_size * MINIMUM_RASTER_SIZE[daq_utils.beamline]
         # When collecting a mini ortho raster we want to position
@@ -996,6 +996,7 @@ def params_from_raster_req_id(rasterReqID):
     rowCount = len(rasterDef["rowDefs"])
 
     totalImages = 0
+    numsteps = 0  # init before loop; stays 0 if rowDefs is empty
     for i in range(len(rasterDef["rowDefs"])):  # TODO assume rectangular for current hardware?
         numsteps = int(rasterDef["rowDefs"][i]["numsteps"])
         totalImages = totalImages+numsteps
@@ -1629,8 +1630,8 @@ def defineRectRaster(currentRequest,raster_w_s,raster_h_s,stepsizeMicrons_s,xoff
   beamWidth = stepsize
   beamHeight = stepsize
   rasterDef = {"beamWidth":beamWidth,"beamHeight":beamHeight,"status":RasterStatus.NEW.value,"x":beamline_lib.motorPosFromDescriptor("sampleX")+xoff,"y":beamline_lib.motorPosFromDescriptor("sampleY")+yoff,"z":beamline_lib.motorPosFromDescriptor("sampleZ")+zoff,"omega":beamline_lib.motorPosFromDescriptor("omega"),"stepsize":stepsize,"rowDefs":[]} 
-  numsteps_h = int(raster_w/stepsize)
-  numsteps_v = int(raster_h/stepsize) #the numsteps is decided in code, so is already odd
+  numsteps_h = max(1, int(raster_w/stepsize))
+  numsteps_v = max(1, int(raster_h/stepsize)) #the numsteps is decided in code, so is already odd
   rasterDef["numCells"] = numsteps_h * numsteps_v
   point_offset_x = -(numsteps_h*stepsize)/2.0
   point_offset_y = -(numsteps_v*stepsize)/2.0
