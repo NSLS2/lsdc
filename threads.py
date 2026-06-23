@@ -88,8 +88,29 @@ class VideoThread(QThread):
         self.next_emit = time.monotonic() * 1000
         QThread.__init__(self, *args, **kwargs)
     
-    def updateCam(self, url):
-        self.new_mjpg_url = url
+    def updateSnapshotUrl(self, url, delay=None):
+        if delay is not None:
+            self.delay = delay
+        if self.video_capture is not None:
+            try:
+                self.video_capture.release()
+            except Exception:
+                pass
+            self.video_capture = None
+        self.new_mjpg_url = None
+        self.old_mjpg_url = None
+        self.url = url
+
+    def updateCam(self, url, delay=None):
+        if delay is not None:
+            self.delay = delay
+        self.url = ''
+        if self.video_capture is None:
+            self.video_capture = cv2.VideoCapture(url)
+            self.old_mjpg_url = url
+            self.new_mjpg_url = url
+        else:
+            self.new_mjpg_url = url
         
     def run(self):
         while self.is_running:
