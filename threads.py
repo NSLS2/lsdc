@@ -1,10 +1,8 @@
-from qtpy.QtCore import QThread, Signal, QPoint, Qt, QObject, QRunnable
+from qtpy.QtCore import QThread, Signal, QObject, QRunnable
 from qtpy import QtGui
-from PIL import Image, ImageQt
 import os
-import urllib
-from io import BytesIO
 import logging
+import requests
 from config_params import SERVER_CHECK_DELAY
 import raddoseLib
 from pathlib import Path
@@ -18,23 +16,25 @@ logger = logging.getLogger()
 class VideoThread(QThread):
     frame_ready = Signal(object)
     def camera_refresh(self):
-        pixmap_orig = QtGui.QPixmap(320, 180)
         if self.url:
+            t0 = time.monotonic()
             try:
-                file = BytesIO(urllib.request.urlopen(self.url, timeout=self.delay/1000).read())
-                img = Image.open(file)
-                qimage = ImageQt.ImageQt(img)
-                pixmap_orig = QtGui.QPixmap.fromImage(qimage)
+                resp = self._http_session.get(self.url, timeout=2.0)
+                resp.raise_for_status()
+                qimage = QtGui.QImage()
+                qimage.loadFromData(resp.content)
+                if self.width and self.height:
+                    qimage = qimage.scaled(self.width, self.height)
                 self.showing_error = False
+                self.frame_ready.emit(qimage)
             except Exception as e:
                 if not self.showing_error:
-                    painter = QtGui.QPainter(pixmap_orig)
-                    painter.setPen(QtGui.QPen(Qt.white))
-                    painter.drawText( QPoint(10, 10), "No image obtained from: " )
-                    painter.drawText( QPoint(10, 30), f"{self.url}")
-                    painter.end()
-                    self.frame_ready.emit(pixmap_orig)
+                    logger.warning("HUTCH_CAM_FETCH_FAILED url=%s err=%s", self.url, e)
+                    self.frame_ready.emit(None)
                     self.showing_error = True
+            elapsed_ms = (time.monotonic() - t0) * 1000
+            self.msleep(int(max(0, self.delay - elapsed_ms)))
+            return
 
         if self.video_capture:
             if self.new_mjpg_url != self.old_mjpg_url and self.new_mjpg_url is not None:
@@ -83,6 +83,7 @@ class VideoThread(QThread):
             self.new_mjpg_url = self.mjpg_url
             self.mjpg_url = None
         self.showing_error = False
+        self._http_session = requests.Session()
         self.is_running = True
         self.next_emit = time.monotonic() * 1000
         QThread.__init__(self, *args, **kwargs)
@@ -98,6 +99,7 @@ class VideoThread(QThread):
     def stop(self):
         self.is_running = False
         self.wait()
+        self._http_session.close()
 
 
 class RaddoseThread(QThread):
