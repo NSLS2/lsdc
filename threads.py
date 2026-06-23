@@ -15,6 +15,14 @@ logger = logging.getLogger()
 
 class VideoThread(QThread):
     frame_ready = Signal(object)
+
+    def _make_capture(self, url):
+        cap = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
+        cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 2000)
+        cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 2000)
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        return cap
+
     def camera_refresh(self):
         if self.url:
             t0 = time.monotonic()
@@ -42,13 +50,12 @@ class VideoThread(QThread):
                     self.video_capture.release()
                 finally:
                     self.video_capture = None
-                self.video_capture = cv2.VideoCapture(self.new_mjpg_url)
-                self.video_capture.open(self.new_mjpg_url)
+                self.video_capture = self._make_capture(self.new_mjpg_url)
                 self.old_mjpg_url = self.new_mjpg_url 
             retval,self.currentFrame = self.video_capture.read()
 
             if self.currentFrame is None:
-                #logger.debug('no frame read from stream URL - ensure the URL does not end with newline and that the filename is correct')
+                self.msleep(100)
                 return
 
             now = time.monotonic() * 1000
@@ -78,7 +85,7 @@ class VideoThread(QThread):
         self.new_mjpg_url = None
         self.video_capture = None
         if self.mjpg_url:
-            self.video_capture = cv2.VideoCapture(self.mjpg_url)
+            self.video_capture = self._make_capture(self.mjpg_url)
             self.old_mjpg_url = self.mjpg_url
             self.new_mjpg_url = self.mjpg_url
             self.mjpg_url = None
@@ -91,12 +98,6 @@ class VideoThread(QThread):
     def updateSnapshotUrl(self, url, delay=None):
         if delay is not None:
             self.delay = delay
-        if self.video_capture is not None:
-            try:
-                self.video_capture.release()
-            except Exception:
-                pass
-            self.video_capture = None
         self.new_mjpg_url = None
         self.old_mjpg_url = None
         self.url = url
@@ -106,7 +107,7 @@ class VideoThread(QThread):
             self.delay = delay
         self.url = ''
         if self.video_capture is None:
-            self.video_capture = cv2.VideoCapture(url)
+            self.video_capture = self._make_capture(url)
             self.old_mjpg_url = url
             self.new_mjpg_url = url
         else:
