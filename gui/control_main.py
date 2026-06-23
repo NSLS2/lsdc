@@ -1881,16 +1881,22 @@ class ControlMain(QtWidgets.QMainWindow):
         # Currently changes what camera angle is shown in the center
         if state in ("state SE", "transition SA to SE"):
             logger.info("Govstate: %s", state)
-            self.sampleCameraThread.updateCam("http://xf17id1b-webcam1.nsls2.bnl.local/axis-cgi/mjpg/video.cgi?resolution=640x360")
+            self.sampleCameraThread.updateSnapshotUrl(
+                "http://xf17id1b-webcam1.nsls2.bnl.local/axis-cgi/jpg/image.cgi?resolution=640x360",
+                delay=HUTCH_TIMER_DELAY,
+            )
         elif state in ("transition SE to TA"):
             logger.info("Govstate: %s", state)
-            self.sampleCameraThread.updateCam("http://xf17id1b-webcam4.nsls2.bnl.local/axis-cgi/mjpg/video.cgi?resolution=640x360")
+            self.sampleCameraThread.updateSnapshotUrl(
+                "http://xf17id1b-webcam4.nsls2.bnl.local/axis-cgi/jpg/image.cgi?resolution=640x360",
+                delay=HUTCH_TIMER_DELAY,
+            )
         elif state in ("state TA"):
             logger.info("Govstate: %s", state)
-            self.sampleCameraThread.updateCam(self.capture)
+            self.sampleCameraThread.updateCam(self.capture, delay=SAMPLE_TIMER_DELAY)
         elif state in ("state SA"):
             logger.info("Govstate: %s", state)
-            self.sampleCameraThread.updateCam(self.capture)
+            self.sampleCameraThread.updateCam(self.capture, delay=SAMPLE_TIMER_DELAY)
             
 
     def update_dewar_plate_position(self, state: int):
