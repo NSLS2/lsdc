@@ -66,6 +66,7 @@ class OnMountAvailOptions(Enum):
 
 HUTCH_TIMER_DELAY = 500
 SAMPLE_TIMER_DELAY = 40
+SAMPLE_CAM_SNAPSHOT_DELAY = 100  # 10 fps for single-image snapshot polling
 SERVER_CHECK_DELAY = 2000
 
 FAST_DP_MIN_NODES = 4

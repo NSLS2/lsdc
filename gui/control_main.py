@@ -31,6 +31,7 @@ from config_params import (
     CURRENT_CYCLE,
     HUTCH_TIMER_DELAY,
     MINIMUM_RASTER_SIZE,
+    SAMPLE_CAM_SNAPSHOT_DELAY,
     SAMPLE_TIMER_DELAY,
     SERVER_CHECK_DELAY,
     SET_ENERGY_CHECK,
@@ -147,6 +148,13 @@ def get_request_object_escan(
     reqObj["steps"] = int(steps)
     reqObj["stepsize"] = float(stepsize)
     return reqObj
+
+
+def _mjpg_to_jpg(url: str) -> str:
+    """Convert IOC MJPG stream URL to single-image JPEG endpoint."""
+    if url.endswith('.mjpg'):
+        return url[:-5] + '.jpg'
+    return url
 
 
 class ControlMain(QtWidgets.QMainWindow):
@@ -1563,9 +1571,13 @@ class ControlMain(QtWidgets.QMainWindow):
         self.capture = self.captureLowMag
         
         self.sampleCameraThread = VideoThread(
-            parent=self, delay=SAMPLE_TIMER_DELAY, mjpg_url=self.capture
+            parent=self, delay=SAMPLE_CAM_SNAPSHOT_DELAY, url=_mjpg_to_jpg(self.capture)
         )
-        self.sampleZoomChangeSignal.connect(self.sampleCameraThread.updateCam)
+        self.sampleZoomChangeSignal.connect(
+            lambda url: self.sampleCameraThread.updateSnapshotUrl(
+                _mjpg_to_jpg(url), delay=SAMPLE_CAM_SNAPSHOT_DELAY
+            )
+        )
             
         self.sampleCameraThread.frame_ready.connect(
             lambda frame: self.updateCam(self.pixmap_item, frame)
@@ -1893,10 +1905,14 @@ class ControlMain(QtWidgets.QMainWindow):
             )
         elif state in ("state TA"):
             logger.info("Govstate: %s", state)
-            self.sampleCameraThread.updateCam(self.capture, delay=SAMPLE_TIMER_DELAY)
+            self.sampleCameraThread.updateSnapshotUrl(
+                _mjpg_to_jpg(self.capture), delay=SAMPLE_CAM_SNAPSHOT_DELAY
+            )
         elif state in ("state SA"):
             logger.info("Govstate: %s", state)
-            self.sampleCameraThread.updateCam(self.capture, delay=SAMPLE_TIMER_DELAY)
+            self.sampleCameraThread.updateSnapshotUrl(
+                _mjpg_to_jpg(self.capture), delay=SAMPLE_CAM_SNAPSHOT_DELAY
+            )
             
 
     def update_dewar_plate_position(self, state: int):
