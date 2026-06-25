@@ -24,6 +24,8 @@ from utils import validation
 import requests
 import threading
 import json
+
+from utils.bluesky import get_bluesky_metadata
 logger = logging.getLogger(__name__)
 
 if daq_utils.beamline in ["amx", "fmx"]:
@@ -801,9 +803,9 @@ def collect_detector_seq_hw(sweep_start,range_degrees,image_width,exposure_perio
   
     vector_params = daq_macros.gatherStandardVectorParams()
     logger.debug(f"vector_params: {vector_params}") 
-    RE(daq_macros.standard_zebra_plan(flyer,angleStart,number_of_images,range_degrees,image_width,exposure_period,file_prefix_minus_directory,data_directory_name,file_number, vector_params, file_prefix_minus_directory))
+    RE(daq_macros.standard_zebra_plan(flyer,angleStart,number_of_images,range_degrees,image_width,exposure_period,file_prefix_minus_directory,data_directory_name,file_number, vector_params, file_prefix_minus_directory), **get_bluesky_metadata(request_dict=currentRequest))
   elif (protocol == CollectionProtocols.VECTOR):
-    RE(daq_macros.vectorZebraScan(currentRequest))
+    RE(daq_macros.vectorZebraScan(currentRequest), **get_bluesky_metadata(request_dict=currentRequest))
   elif (protocol == CollectionProtocols.STEP_VECTOR):
     daq_macros.vectorZebraStepScan(currentRequest)
   return 

@@ -5,6 +5,7 @@ import daq_lib
 import daq_utils
 import db_lib
 from daq_utils import getBlConfig, setBlConfig
+from utils.bluesky import get_bluesky_metadata
 from utils.raster import get_raster_max_col, get_flattened_indices_of_max_col, determine_raster_shape
 import det_lib
 import math
@@ -546,7 +547,7 @@ def rasterScreen(currentRequest):
     rasterH = 510
   rasterReqID = defineRectRaster(currentRequest,rasterW,rasterH,gridStep)     
   db_lib.updatePriority(rasterReqID, -1)
-  RE(snakeRaster(rasterReqID))
+  RE(snakeRaster(rasterReqID), **get_bluesky_metadata(request_id=rasterReqID))
   
 
 def generateGridMap(rasterRequest,rasterEncoderMap=None): #12/19 - there's some dials vs dozor stuff in here
@@ -1328,7 +1329,7 @@ def runRasterScan(currentRequest,rasterType="", width=0, height=0, step_size=10,
                                  selected_params["width"], 
                                  selected_params["height"], 
                                  selected_params["step_size"])
-  RE(snakeRaster(rasterReqID))
+  RE(snakeRaster(rasterReqID), **get_bluesky_metadata(request_id=rasterReqID))
 
 def get_score_vals(cellResults, scoreOption):
   """
