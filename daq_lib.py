@@ -646,7 +646,8 @@ def collectData(currentRequest):
   db_lib.updateRequest(currentRequest)
   if prot == CollectionProtocols.RASTER:
     logger.info('entering raster')
-    RE(daq_macros.snakeRaster(currentRequest["uid"]))
+    request_id = currentRequest["uid"]
+    RE(daq_macros.snakeRaster(request_id), **get_bluesky_metadata(request_id=request_id))
     status = 0
     logger.info('exiting raster')
   elif prot == CollectionProtocols.STEP_RASTER:
@@ -654,7 +655,8 @@ def collectData(currentRequest):
   elif prot in (CollectionProtocols.VECTOR, CollectionProtocols.STEP_VECTOR):
     imagesAttempted = collect_detector_seq_hw(sweep_start,range_degrees,img_width,exposure_period,file_prefix,data_directory_name,file_number_start,currentRequest)
   elif prot == CollectionProtocols.MULTI_COL:
-    RE(daq_macros.snakeRaster(currentRequest["uid"]))
+    request_id = currentRequest["uid"]
+    RE(daq_macros.snakeRaster(request_id), **get_bluesky_metadata(request_id=request_id))
   elif prot == CollectionProtocols.RASTER_SCREEN:
     daq_macros.rasterScreen(currentRequest)    
   elif prot == CollectionProtocols.MULTI_COL_Q:

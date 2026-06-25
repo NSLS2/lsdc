@@ -27,7 +27,8 @@ def get_bluesky_metadata(request_dict: "dict|None" = None, request_id: "str|None
         proposal_id = request_dict.get("proposal_id")
         bs_md["collection_metadata"] = request_dict.get("request_obj")
 
-    bs_md["data_session"] = f'pass-{proposal_id}'
+    beamline = os.environ["BEAMLINE_ID"]
+    bs_md["data_session"] = f'pass-{proposal_id}' if proposal_id is not None else f"{beamline}_beamline"
     bs_md["tiled_access_tags"] = [bs_md["data_session"]]
     bs_md["cycle"] = CURRENT_CYCLE
         
