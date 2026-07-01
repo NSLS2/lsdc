@@ -4,9 +4,13 @@ import requests
 import logging
 from db_lib import getRequestByID, getSampleByID
 from config_params import CURRENT_CYCLE
-from utils.models import Request
+from utils.models import Request, Sample
 
 logger = logging.getLogger(__name__)
+
+def get_sample_metadata(sample_id):
+    sample_md = Sample.model_validate(getSampleByID(sample_id))
+    return sample_md.model_dump(mode="json")
 
 def get_bluesky_metadata(request_dict: "dict|None" = None, request_id: "str|None" = None) -> "dict[str, str]":
     if request_id and not request_dict:
@@ -32,8 +36,7 @@ def get_bluesky_metadata(request_dict: "dict|None" = None, request_id: "str|None
     try:
         sample_id = bs_md["collection_metadata"].get("sample")
         if sample_id:
-            sample_md = getSampleByID(sample_id)
-            bs_md["sample_metadata"] = sample_md
+            bs_md["sample_metadata"] = get_sample_metadata(sample_id)
     except Exception as e:
         logger.warning("Error getting sample info from API: %s", "Not populating sample info", exc_info=True)
     

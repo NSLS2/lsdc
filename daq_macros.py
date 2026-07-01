@@ -5,7 +5,7 @@ import daq_lib
 import daq_utils
 import db_lib
 from daq_utils import getBlConfig, setBlConfig
-from utils.bluesky import get_bluesky_metadata
+from utils.bluesky import get_bluesky_metadata, get_sample_metadata
 from utils.raster import get_raster_max_col, get_flattened_indices_of_max_col, determine_raster_shape
 import det_lib
 import math
@@ -362,8 +362,8 @@ def run_recovery_procedure(stop=True):
   finally:
     daq_lib.set_field("program_state","Program Ready")
 
-def run_top_view_optimized():
-    RE(topview_optimized())
+def run_top_view_optimized(sample_id):
+    RE(topview_optimized(), sample_metadata=get_sample_metadata(sample_id))
 
 def run_on_mount_option(sample_id):
     option = OnMountAvailOptions(daq_utils.getBlConfig(ON_MOUNT_OPTION))
@@ -376,7 +376,7 @@ def run_on_mount_option(sample_id):
     if (option == OnMountAvailOptions.CENTER_SAMPLE 
         or option == OnMountAvailOptions.AUTO_RASTER):
       # Center using ML model
-      run_loop_center_plan()
+      run_loop_center_plan(sample_id)
     
     if option == OnMountAvailOptions.AUTO_RASTER:
       # Set up a fake standard collection for autoRasterLoop
@@ -391,7 +391,7 @@ def run_on_mount_option(sample_id):
                 }
       autoRasterLoop(request)
 
-def run_loop_center_plan():
+def run_loop_center_plan(sample_id):
     if daq_utils.beamline == "fmx":
       # Run xrec for FMX, they don't have a top cam
       retries = 3
@@ -401,7 +401,8 @@ def run_loop_center_plan():
           retries -= 1
         else:
           retries = 0
-    RE(loop_center_plan())
+    sample_metadata = get_sample_metadata(sample_id)
+    RE(loop_center_plan(), sample_metadata=sample_metadata)
 
 def loop_center_plan():
     global sample_detection
