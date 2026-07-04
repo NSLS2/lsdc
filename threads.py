@@ -12,9 +12,52 @@ from summarytable.summarytable import DataDirectory, BaseName, FileObserver
 
 logger = logging.getLogger()
 
+# Sample-cam single-image (requests) fetch tuning.
+CAM_CONNECT_TIMEOUT = 1.0    # seconds: TCP connect timeout
+CAM_READ_TIMEOUT = 2.0       # seconds: between-bytes read-inactivity timeout
+CAM_TOTAL_DEADLINE = 2.0     # seconds: hard wall-clock cap on the whole fetch
+CAM_SLOW_WARN_MS = 1000.0    # ms: log a SLOW anomaly above this
+CAM_ANOMALY_LOG_MIN_INTERVAL = 1.0  # seconds: rate-limit repeated anomaly logs
+
 
 class VideoThread(QThread):
     frame_ready = Signal(object)
+
+    def _log_anomaly(self, kind, url, elapsed_ms, err=None):
+        # Rate-limited so a sustained stall does not flood the log, but each
+        # anomaly window is still self-marked in the log for post-hoc grep.
+        now = time.monotonic()
+        if now - self._last_anomaly_log < CAM_ANOMALY_LOG_MIN_INTERVAL:
+            return
+        self._last_anomaly_log = now
+        if err is None:
+            logger.warning("%s url=%s elapsed_ms=%.0f", kind, url, elapsed_ms)
+        else:
+            logger.warning(
+                "%s url=%s elapsed_ms=%.0f err=%s", kind, url, elapsed_ms, err
+            )
+
+    def _fetch_snapshot(self, url, t0):
+        # Stream the body and enforce a hard wall-clock deadline so the worker
+        # loop can never block indefinitely on a trickling / stalled IOC.
+        resp = self._http_session.get(
+            url,
+            timeout=(CAM_CONNECT_TIMEOUT, CAM_READ_TIMEOUT),
+            stream=True,
+        )
+        try:
+            resp.raise_for_status()
+            chunks = []
+            for chunk in resp.iter_content(chunk_size=8192):
+                if chunk:
+                    chunks.append(chunk)
+                if time.monotonic() - t0 > CAM_TOTAL_DEADLINE:
+                    raise TimeoutError(
+                        f"total deadline {CAM_TOTAL_DEADLINE:.1f}s exceeded"
+                    )
+            return b"".join(chunks)
+        finally:
+            resp.close()
 
     def _make_capture(self, url):
         cap = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
@@ -25,22 +68,27 @@ class VideoThread(QThread):
 
     def camera_refresh(self):
         if self.url:
+            url = self.url
             t0 = time.monotonic()
             try:
-                resp = self._http_session.get(self.url, timeout=2.0)
-                resp.raise_for_status()
+                content = self._fetch_snapshot(url, t0)
+                elapsed_ms = (time.monotonic() - t0) * 1000
                 qimage = QtGui.QImage()
-                qimage.loadFromData(resp.content)
+                qimage.loadFromData(content)
                 if self.width and self.height:
                     qimage = qimage.scaled(self.width, self.height)
                 self.showing_error = False
                 self.frame_ready.emit(qimage)
+                if elapsed_ms > CAM_SLOW_WARN_MS:
+                    self._log_anomaly("SAMPLE_CAM_SLOW", url, elapsed_ms)
             except Exception as e:
+                elapsed_ms = (time.monotonic() - t0) * 1000
+                # Always log anomalies (rate-limited) and keep emitting so the
+                # feed recovers on its own once the IOC/stream resumes.
+                self._log_anomaly("SAMPLE_CAM_TIMEOUT", url, elapsed_ms, err=e)
                 if not self.showing_error:
-                    logger.warning("HUTCH_CAM_FETCH_FAILED url=%s err=%s", self.url, e)
                     self.frame_ready.emit(None)
                     self.showing_error = True
-            elapsed_ms = (time.monotonic() - t0) * 1000
             self.msleep(int(max(0, self.delay - elapsed_ms)))
             return
 
@@ -91,6 +139,7 @@ class VideoThread(QThread):
             self.mjpg_url = None
         self.showing_error = False
         self._http_session = requests.Session()
+        self._last_anomaly_log = 0.0
         self.is_running = True
         self.next_emit = time.monotonic() * 1000
         QThread.__init__(self, *args, **kwargs)
