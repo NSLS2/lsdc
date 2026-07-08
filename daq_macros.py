@@ -1055,6 +1055,18 @@ def snakeRasterBluesky(rasterReqID, grain=""):
     raster_flyer.detector.stage()
     procFlag = int(getBlConfig("rasterProcessFlag"))
     spotFindThreadList = []
+
+    run_md = {
+        "plan_name": "snakeRaster",
+        "protocol": str(CollectionProtocols.RASTER),
+        "raster_req_id": rasterReqID,
+        "sample_id": rasterRequest["sample"],
+        "num_rows": rowCount,
+        "num_steps_per_row": numsteps,
+    }
+    raster_flyer._num_images = numsteps
+    yield from bps.open_run(md=run_md)
+    yield from bps.declare_stream(raster_flyer, name="primary", collect=True)
     for row_index, row in enumerate(rows):  # since we have vectors in rastering, don't move between each row
         xMotAbsoluteMove, xEnd, yMotAbsoluteMove, yEnd, zMotAbsoluteMove, zEnd = raster_positions(row, stepsize, omegaRad, rasterStartX, rasterStartY, rasterStartZ, row_index)
         vector = {'x': (xMotAbsoluteMove, xEnd), 'y': (yMotAbsoluteMove, yEnd), 'z': (zMotAbsoluteMove, zEnd)}
@@ -1080,6 +1092,8 @@ def snakeRasterBluesky(rasterReqID, grain=""):
           spotFindThread.start()
           spotFindThreadList.append(spotFindThread)
         logger.info('row complete')
+    yield from bps.close_run()
+    
     """governor transitions:
     initiate transitions here allows for GUI sample/heat map image to update
     after moving to known position"""
@@ -2459,7 +2473,11 @@ def zebraDaqRasterBluesky(flyer, angle_start, num_images, scanWidth, imgWidth, e
                    file_prefix=filePrefix, data_directory_name=data_directory_name,\
                    detector_dead_time=detectorDeadTime, scan_encoder=scanEncoder, change_state=changeState,\
                    row_index=row_index, transmission=1, protocol=CollectionProtocols.RASTER)
-    yield from bp.fly([raster_flyer])
+    # yield from bp.fly([raster_flyer])
+    yield from bps.kickoff(raster_flyer, wait=True)
+    yield from bps.complete(raster_flyer, wait=True)
+    yield from bps.collect(raster_flyer, name="primary")
+
 
     logger.info("vector Done")
     logger.info("zebraDaqRasterBluesky Done")
