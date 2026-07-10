@@ -1673,6 +1673,7 @@ def defineRectRaster(currentRequest,raster_w_s,raster_h_s,stepsizeMicrons_s,xoff
   reqObj["xbeam"] = currentRequest['request_obj']["xbeam"]
   reqObj["ybeam"] = currentRequest['request_obj']["ybeam"]
   reqObj["wavelength"] = currentRequest['request_obj']["wavelength"]
+  reqObj["detDist"] = currentRequest["request_obj"]["detDist"]
   # request params to save the file and location of max_raster cell
   # This data is saved as part of the raster request and not result is because analysisstore does not allow updating
   reqObj["max_raster"] = {
