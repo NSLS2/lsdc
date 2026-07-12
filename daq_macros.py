@@ -386,6 +386,7 @@ def run_on_mount_option(sample_id):
                     "xbeam": getPvDesc('beamCenterX'),
                     "ybeam": getPvDesc('beamCenterY'),
                     "wavelength": daq_utils.energy2wave(beamline_lib.motorPosFromDescriptor("energy"), digits=6),
+                    "detDist": beamline_devices.detector.dist.user_readback.get(),
                     "basePath": getBlConfig("visitDirectory")
                   }
                 }
@@ -1690,6 +1691,8 @@ def defineRectRaster(currentRequest,raster_w_s,raster_h_s,stepsizeMicrons_s,xoff
   reqObj["ybeam"] = currentRequest['request_obj']["ybeam"]
   reqObj["wavelength"] = currentRequest['request_obj']["wavelength"]
   reqObj["detDist"] = currentRequest["request_obj"]["detDist"]
+  reqObj["energy"] = beamline_devices.optics.energy.user_readback.get()
+  reqObj["resolution"] = daq_utils.calc_reso(daq_utils.det_radius, reqObj["detDist"], reqObj["wavelength"], 0)
   # request params to save the file and location of max_raster cell
   # This data is saved as part of the raster request and not result is because analysisstore does not allow updating
   reqObj["max_raster"] = {

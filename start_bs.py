@@ -11,6 +11,7 @@ from ophyd.signal import EpicsSignalBase
 EpicsSignalBase.set_defaults(timeout=10, connection_timeout=10)  # new style
 import redis
 from redis_json_dict import RedisJSONDict
+from mxbluesky import BeamlineDevices
 
 # setup RedisJsonDict
 uri = f"info.{os.environ['BEAMLINE_ID']}.nsls2.bnl.gov"
@@ -85,6 +86,8 @@ if (beamline=="amx"):
     from mxtools.raster_flyer import MXRasterFlyer
     from embl_robot import EMBLRobot
 
+    beamline_devices = BeamlineDevices.from_beamline("amx")
+
     mercury = ABBIXMercury('XF:17IDB-ES:AMX{Det:Mer}', name='mercury')
     mercury.read_attrs = ['mca.spectrum', 'mca.preset_live_time', 'mca.rois.roi0.count',
                                             'mca.rois.roi1.count', 'mca.rois.roi2.count', 'mca.rois.roi3.count']
@@ -134,6 +137,8 @@ elif beamline == "fmx":
     from mxtools.raster_flyer import MXRasterFlyer
     from embl_robot import EMBLRobot
     import setenergy_lsdc
+
+    beamline_devices = BeamlineDevices.from_beamline("fmx")
 
     mercury = ABBIXMercury('XF:17IDC-ES:FMX{Det:Mer}', name='mercury')
     mercury.read_attrs = ['mca.spectrum', 'mca.preset_live_time', 'mca.rois.roi0.count',
