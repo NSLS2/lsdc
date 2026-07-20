@@ -1,11 +1,13 @@
 import logging
 from logging import handlers
+import json
 from pathlib import Path
 import signal
 import threading
 import asyncio
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, Optional
 
+import daq_lib
 import daq_utils
 from epics import PV
 from threads import run_summary_monitor
@@ -20,6 +22,7 @@ logger = logging.getLogger()
 logging.getLogger().setLevel(logging.INFO)
 logging.getLogger("ophyd").setLevel(logging.WARN)
 logging.getLogger("caproto").setLevel(logging.WARN)
+logging.getLogger("httpx").setLevel(logging.WARN)
 handler1 = handlers.RotatingFileHandler(
     "lsdcServerLog.txt", maxBytes=5000000, backupCount=100
 )
@@ -41,6 +44,25 @@ workers: Dict[str, Dict[str, Any]] = {
     },
 }
 
+RUN_QUEUE_COMMAND = "runDCQueue"
+QUEUE_CONTROL_COMMAND = "stopDCQueue"
+run_dc_queue_active = threading.Event()
+
+
+def get_command_name(cmd: str) -> Optional[str]:
+    try:
+        command = json.loads(cmd)
+    except Exception:
+        return None
+    return command.get("function")
+
+
+def should_ignore_normal_command(command_name: Optional[str]) -> bool:
+    if command_name == QUEUE_CONTROL_COMMAND:
+        return False
+    return run_dc_queue_active.is_set() and daq_lib.unpause_evt.is_set()
+
+
 def worker(queue: Queue, worker_name: str = "worker") -> None:
     """
     This worker thread waits for a command to be added to the queue,
@@ -57,7 +79,18 @@ def worker(queue: Queue, worker_name: str = "worker") -> None:
         try:
             if cmd == "__STOP__":
                 break
-            process_input(cmd)
+            command_name = get_command_name(cmd)
+            if worker_name == "normal worker" and should_ignore_normal_command(command_name):
+                logger.info("Ignoring normal command while runDCQueue is active: %s", cmd)
+                continue
+
+            if command_name == RUN_QUEUE_COMMAND:
+                run_dc_queue_active.set()
+            try:
+                process_input(cmd)
+            finally:
+                if command_name == RUN_QUEUE_COMMAND:
+                    run_dc_queue_active.clear()
         except Exception:
             logger.exception("Error executing %r", cmd)
         finally:
