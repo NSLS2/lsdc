@@ -21,6 +21,7 @@ from bluesky.preprocessors import finalize_wrapper
 import bluesky.plan_stubs as bps
 import logging
 from utils import validation
+from utils.command_execution import safe_to_run_in_parallel
 import requests
 import threading
 import json
@@ -557,6 +558,7 @@ def runDCQueue(): #maybe don't run rasters from here???
 
     
 
+@safe_to_run_in_parallel
 def stopDCQueue(flag, action=None):
   logger.info("stopping queue in daq server " + str(flag))
   abort_data_collection(int(flag), action=action)

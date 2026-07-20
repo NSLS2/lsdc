@@ -13,7 +13,8 @@ from epics import PV
 from threads import run_summary_monitor
 from utils.healthcheck import perform_server_checks
 from daq_utils import getBlConfig, setBlConfig
-from daq_main_common import pybass_init, process_input
+from daq_main_common import pybass_init, process_input, whitelisted_functions
+from utils.command_execution import is_safe_to_run_in_parallel
 import os
 from queue import Queue
 
@@ -45,7 +46,6 @@ workers: Dict[str, Dict[str, Any]] = {
 }
 
 RUN_QUEUE_COMMAND = "runDCQueue"
-QUEUE_CONTROL_COMMAND = "stopDCQueue"
 run_dc_queue_active = threading.Event()
 
 
@@ -58,9 +58,11 @@ def get_command_name(cmd: str) -> Optional[str]:
 
 
 def should_ignore_normal_command(command_name: Optional[str]) -> bool:
-    if command_name == QUEUE_CONTROL_COMMAND:
-        return False
-    return run_dc_queue_active.is_set() and daq_lib.unpause_evt.is_set()
+    return (
+        run_dc_queue_active.is_set()
+        and daq_lib.unpause_evt.is_set()
+        and not is_safe_to_run_in_parallel(command_name, whitelisted_functions)
+    )
 
 
 def worker(queue: Queue, worker_name: str = "worker") -> None:
@@ -104,7 +106,7 @@ def make_pv_callback(queue_label: str, queue: Queue) -> Callable[..., None]:
         if not s:
             return
         logger.info("PV %s -> %s", queue_label, s)
-        queue.put(s)  # just enqueue; worker will pick it up
+        queue.put(s)
 
     return _cb
 
