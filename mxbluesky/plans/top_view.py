@@ -12,7 +12,7 @@ import gov_lib
 from mxbluesky.devices.top_align import GovernorError, CamMode
 from mxbluesky.plans.utils import mv_with_retry, mvr_with_retry
 from start_bs import (
-    db,
+    tiled_client,
     gonio,
     gov_robot,
     mount_pos,
@@ -36,9 +36,10 @@ def cleanup_topcam():
 
 def inner_pseudo_fly_scan(*args, **kwargs):
     scan_uid = yield from bp.count(*args, **kwargs)
-    omegas = db[scan_uid].table()[
-        top_aligner_fast.zebra.pos_capt.data.enc4.name
-    ][1]
+    data = tiled_client[scan_uid]["primary"]["data"]
+    omegas = data[
+         top_aligner_fast.zebra.pos_capt.data.enc4.name
+             ].read()[0]
 
     d = np.pi / 180
 
@@ -47,8 +48,8 @@ def inner_pseudo_fly_scan(*args, **kwargs):
     omegas_rad = np.array(omegas) * d
     X = np.vstack([np.cos(omegas_rad), np.sin(omegas_rad)]).T
 
-    y = np.array(db[scan_uid].table()[top_aligner_fast.topcam.out9_buffer.name][
-        1
+    y = np.array(data[top_aligner_fast.topcam.out9_buffer.name].read()[
+        0
     ]).reshape(-1,1)
     try:
         ransac_kwargs = {
@@ -70,7 +71,7 @@ def inner_pseudo_fly_scan(*args, **kwargs):
     )
     
     # face on calculation
-    b = db[scan_uid].table()[top_aligner_fast.topcam.out10_buffer.name][1]
+    b = data[top_aligner_fast.topcam.out10_buffer.name].read()[0]
 
     sample = 300
     f_splines = interp1d(omegas, b)
@@ -120,7 +121,7 @@ def topview_optimized():
         scan_uid = yield from bp.count([top_aligner_slow], 1)
 
     logger.info(f"Finished top aligner slow scan {scan_uid}")
-    x = db[scan_uid].table()[top_aligner_slow.cv1.outputs.output8.name][1]
+    x = tiled_client[scan_uid]["primary"]["data"][top_aligner_slow.cv1.outputs.output8.name].read()[0]
     delta_x = ((top_aligner_slow.roi2.size.x.get() / 2) -
                x) / top_aligner_slow.pix_per_um.get()
     logger.info(f"Horizontal bump calc finished: {delta_x}")

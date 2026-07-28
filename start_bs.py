@@ -12,30 +12,66 @@ EpicsSignalBase.set_defaults(timeout=10, connection_timeout=10)  # new style
 import redis
 from redis_json_dict import RedisJSONDict
 from mxbluesky import BeamlineDevices
+from tiled.client import from_uri
+from bluesky_tiled_plugins import TiledWriter
+from bluesky_tiled_plugins.writing.tiled_writer import RunNormalizer
+from bluesky_tiled_plugins.writing.consolidators import CONSOLIDATOR_REGISTRY, HDF5Consolidator
+import matplotlib.pyplot as plt
+from bluesky.run_engine import RunEngine
+from bluesky.log import config_bluesky_logging
+from bluesky.callbacks import *
+from mxbluesky.devices import BeamlineDevices
 
 # setup RedisJsonDict
 uri = f"info.{os.environ['BEAMLINE_ID']}.nsls2.bnl.gov"
 # Provide an endstation prefix, if needed, with a trailing "-"
-new_md = RedisJSONDict(redis.Redis(uri),prefix="lsdc-")
+new_md = RedisJSONDict(redis.Redis(uri, protocol=2),prefix="lsdc-")
 
-import matplotlib.pyplot as plt
 plt.ion()
 
-import bluesky.plans as bp
+class EigerMXConsolidator(HDF5Consolidator):
 
-from bluesky.run_engine import RunEngine
+    supported_mimetypes = {"application/x-hdf5;type=eiger"}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.assets[0].parameter = "master"
+
+    def validate(self, fix_errors=False) -> list[str]:
+        raise NotImplementedError("Validation of Eiger MX resources should be handled in the adapter, not the consolidator.")
+
+
+CONSOLIDATOR_REGISTRY.update(
+    {
+         "application/x-hdf5;type=eiger": EigerMXConsolidator,
+    },
+)
+
 RE = RunEngine(context_managers=[])
 beamline = os.environ["BEAMLINE_ID"]
-from databroker import Broker
-db = Broker.named(beamline)
+tiled_client = from_profile(beamline)[f"/{beamline}/migration"]
+tiled_key = os.environ[f"TILED_BLUESKY_WRITING_API_KEY_{beamline.upper()}"]
+tiled_client = from_uri("https://tiled.nsls2.bnl.gov", api_key=tiled_key)[f"{beamline}/migration"]
+
+tw = TiledWriter(
+    tiled_client,
+    normalizer=RunNormalizer,
+    spec_to_mimetype={
+        "AD_EIGER_MX":        "application/x-hdf5;type=eiger",
+        "AD_EIGER_MX_OMEGA":  "application/x-hdf5",
+        "AD_EIGER_MX_RASTER": "application/x-hdf5;type=eiger",
+    }
+)
+
+# from databroker import Broker
+# db = Broker.named(beamline)
 RE.md = new_md
 
-RE.subscribe(db.insert)
+# RE.subscribe(db.insert)
+RE.subscribe(tw)
 
-from bluesky.log import config_bluesky_logging
 config_bluesky_logging()
 
-from bluesky.callbacks import *
 abort = RE.abort
 resume = RE.resume
 stop = RE.stop

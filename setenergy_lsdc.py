@@ -336,7 +336,14 @@ def find_peak(det, mot, start, stop, steps):
 
     sp = '_gap_user_setpoint' if mot is ivu_gap else '_user_setpoint'
     output = '_sum_all' if det is bpm1 else ''
-    data = np.array(db[uid].table()[[det.name+output, mot.name+sp]])[1:]
+    # data = np.array(db[uid].table()[[det.name+output, mot.name+sp]])[1:]
+    d = start_bs.tiled_client[uid]["primary"]["data"]
+    col_det = det.name + output
+    col_mot = mot.name + sp
+    # np.array(table()[[det, mot]]) preserves column order [det, mot];
+    # [1:] drops the first (settling) scan point, matching databroker.
+    data = np.stack([d[col_det].read(), d[col_mot].read()], axis=1)[1:]
+
 
     peak_idx = np.argmax(data[:, 0])
     peak_x = data[peak_idx, 1]
