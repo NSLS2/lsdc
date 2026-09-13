@@ -6,6 +6,7 @@ import daq_utils
 import db_lib
 from daq_utils import getBlConfig, setBlConfig
 from utils.bluesky import get_bluesky_metadata, get_sample_metadata
+from utils.command_execution import safe_to_run_in_parallel
 from utils.raster import get_raster_max_col, get_flattened_indices_of_max_col, determine_raster_shape
 import det_lib
 import math
@@ -2969,10 +2970,12 @@ def lockGUI():
   """lockGUI() : lock lsdcGui"""
   
   daq_lib.lockGUI()
-  
+
+@safe_to_run_in_parallel
 def beamCheckOn():
   setBlConfig(BEAM_CHECK,1)
 
+@safe_to_run_in_parallel
 def beamCheckOff():
   setBlConfig(BEAM_CHECK,0)
 
