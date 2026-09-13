@@ -259,10 +259,10 @@ class StaffScreenDialog(QtWidgets.QFrame):
         self.parent.send_to_server("clearMountedSample")
 
     def recoverRobotCB(self):
-        self.parent.aux_send_to_server("recoverRobot")
+        self.parent.send_to_server("recoverRobot")
 
     def rebootEMBL_CB(self):
-        self.parent.aux_send_to_server("rebootEMBL")
+        self.parent.send_to_server("rebootEMBL")
 
     def restartEMBL_CB(self):
         self.parent.send_to_server("restartEMBL")
@@ -304,25 +304,25 @@ class StaffScreenDialog(QtWidgets.QFrame):
         self.checkbox_toggle_cb(state, "unmountColdOn", "unmountColdOff")
 
     def topViewOnCheckCB(self, state):
-        if state == QtCore.Qt.Checked:
+        if state:
             setBlConfig(TOP_VIEW_CHECK, 1)
         else:
             setBlConfig(TOP_VIEW_CHECK, 0)
 
     def vertRasterOnCheckCB(self, state):
-        if state == QtCore.Qt.Checked:
+        if state:
             setBlConfig("vertRasterOn", 1)
         else:
             setBlConfig("vertRasterOn", 0)
 
     def procRasterOnCheckCB(self, state):
-        if state == QtCore.Qt.Checked:
+        if state:
             setBlConfig("rasterProcessFlag", 1)
         else:
             setBlConfig("rasterProcessFlag", 0)
 
     def guiRemoteOnCheckCB(self, state):
-        if state == QtCore.Qt.Checked:
+        if state:
             setBlConfig("omegaMonitorPV", "VAL")
         else:
             setBlConfig("omegaMonitorPV", "RBV")
