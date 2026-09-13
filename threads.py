@@ -181,7 +181,10 @@ class RaddoseThread(QThread):
                 energy = 12.66,
                 flux = -1.0,
                 wedge = 180.0,
-                verbose = False, **kwargs):
+                verbose = False,
+                dm_user = 1.0,
+                beamsize_type = "S",
+                **kwargs):
         self.avg_dwd = avg_dwd
         self.beamsizeV = beamsizeV
         self.beamsizeH = beamsizeH
@@ -190,10 +193,16 @@ class RaddoseThread(QThread):
         self.flux = flux
         self.wedge = wedge
         self.verbose = verbose
+        self.dm_user = dm_user
+        self.beamsize_type = beamsize_type
         QThread.__init__(self, *args, **kwargs)
 
     def run(self):
-        lifetime_value = raddoseLib.fmx_expTime(self.avg_dwd, self.beamsizeV, self.beamsizeH, self.vectorL, self.energy, self.flux, self.wedge, self.verbose)
+        lifetime_value = raddoseLib.fmx_expTime(
+            self.avg_dwd, self.beamsizeV, self.beamsizeH, 
+            self.vectorL, self.energy, self.flux, self.wedge, 
+            self.verbose, dm_user=self.dm_user, beamsize_type=self.beamsize_type
+        )
         self.lifetime.emit(lifetime_value)
 
 
