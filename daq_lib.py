@@ -172,24 +172,19 @@ def abort_data_collection(flag, action=None):
       if unpause_evt.is_set():
         unpause_evt.clear()
       set_field("pause_button_state", "Continue")
-    elif action in ("resume", "continue", "unpause"):
-      if not unpause_evt.is_set():
-        unpause_evt.set()
-      set_field("pause_button_state", "Pause")
     else:
-      if unpause_evt.is_set():
-        unpause_evt.clear()
-        set_field("pause_button_state", "Continue")
-      else:
-        unpause_evt.set()
-        set_field("pause_button_state", "Pause")
+      unpause_evt.set()
+      from epics import PV
+      set_field("pause_button_state", "Pause")
+      comm_pv = PV(daq_utils.beamlineComm + "immediate_command_s")
+      message = json.dumps({"function": "runDCQueue", "args": [2], "kwargs": {}})
+      comm_pv.put(message)
     return
   gui_message("Aborting. This may take a minute or more.")  
   while not (getPvDesc("VectorActive")): #only stop if actually collecting
     time.sleep(0.1)
   destroy_gui_message()    
   abort_flag = 1
-  unpause_evt.clear()
   time.sleep(1.0)
   gon_stop() #this calls osc abort
   setPvDesc("zebraDisarm",1)
@@ -463,33 +458,12 @@ def runDCQueue(): #maybe don't run rasters from here???
   autoMounted = 0 #this means the mount was performed from a runQueue, as opposed to a manual mount button push
   logger.info("running queue in daq server")
   while (1):
-    currentRequest = db_lib.popNextRequest(daq_utils.beamline)
-    if (currentRequest == {}):
-      break
-    elif currentRequest is None:
-      gui_message("Queue contains collection requests from different proposals" 
-                  "and not using commissioning directory."
-                  "Please remove invalid requests or switch to" 
-                  "commissioning directory to continue")
-      break
-    if (getBlConfig("queueCollect") == 1): 
-      if (getBlConfig(BEAM_CHECK) == 1):
-        waitBeam()
-      if not robot_arm.is_full_speed():
-        waitRobotArm()
-      sampleID = currentRequest["sample"]
-      puckPos,pinPos,puckID = db_lib.getCoordsfromSampleID(daq_utils.beamline, sampleID)
-      if puck_lifted(puckPos):
-        # If the puck is lifted set the collection as complete and move on
-        db_lib.updatePriority(currentRequest["uid"],-1)
-        refreshGuiTree()
-        continue
-    # if (abort_flag):
-    #   abort_flag =  0 #careful about when to reset this
-    #   return
     logger.info(f"Unpause event is_set: {unpause_evt.is_set()}")
-    unpause_evt.wait()
-      
+    # unpause_evt.wait()
+    if not unpause_evt.is_set():
+      return
+    currentRequest = db_lib.popNextRequest(daq_utils.beamline)
+    logger.info(f"Next request in queue: {currentRequest}")
     if (currentRequest == {}):
       break
     elif currentRequest is None:
