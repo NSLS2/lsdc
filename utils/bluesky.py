@@ -28,8 +28,6 @@ def get_bluesky_metadata(request_dict: "dict|None" = None, request_id: "str|None
         bs_md["collection_metadata"] = request_dict.get("request_obj")
 
     beamline = os.environ["BEAMLINE_ID"]
-    bs_md["data_session"] = f'pass-{proposal_id}' if proposal_id is not None else f"{beamline}_beamline"
-    bs_md["tiled_access_tags"] = [bs_md["data_session"]]
     bs_md["cycle"] = CURRENT_CYCLE
         
 
@@ -51,14 +49,18 @@ def get_bluesky_metadata(request_dict: "dict|None" = None, request_id: "str|None
             if user.get("is_pi"):
                 pi_name = (
                     f"{user.get('first_name', '')} {user.get('last_name', '')}".strip())
+        proposal_id = proposal_data.get("proposal_id")
         bs_md["proposal"] = {
-            "proposal_id": proposal_data.get("proposal_id"),
+            "proposal_id": proposal_id,
             "title": proposal_data.get("title"),
             "type": proposal_data.get("type"),
             "pi_name": pi_name,
         }
+        bs_md["data_session"] = f'pass-{proposal_id}' if proposal_id is not None else f"{beamline}_beamline"
     except Exception as e:
+        bs_md["data_session"] = f"{beamline}_beamline"
         logger.warning("Error getting proposal info from API: %s", "Not populating proposal info", exc_info=True)
 
+    bs_md["tiled_access_tags"] = [bs_md["data_session"]]
     return bs_md
 
