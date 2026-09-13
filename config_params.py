@@ -97,15 +97,15 @@ cryostreamTempPV = {"amx": "XF:17IDB-ES:AMX{CS:1}SAMPLE_TEMP_RBV", "fmx": "XF:17
 
 VALID_EXP_TIMES = {
     "amx": {"min": 0.005, "max": 1, "digits": 3},
-    "fmx": {"min": 0.01, "max": 10, "digits": 3},
+    "fmx": {"min": 0.002, "max": 10, "digits": 3},
 }
 VALID_DET_DIST = {
     "amx": {"min": 100, "max": 500, "digits": 3},
-    "fmx": {"min": 137, "max": 2000, "digits": 2},
+    "fmx": {"min": 100, "max": 2000, "digits": 2},
 }
 VALID_TOTAL_EXP_TIMES = {
     "amx": {"min": 0.005, "max": 300, "digits": 3},
-    "fmx": {"min": 0.01, "max": 300, "digits": 3},
+    "fmx": {"min": 0.002, "max": 300, "digits": 3},
 }
 VALID_PREFIX_LENGTH = 25  # TODO centralize with spreadsheet validation?
 VALID_PREFIX_NAME = "[0-9a-zA-Z-_]{0,%s}" % VALID_PREFIX_LENGTH
@@ -131,6 +131,8 @@ def get_current_cycle():
         cycle_r.raise_for_status()
         cycle = cycle_r.json().get("cycle")
     except requests.exceptions.HTTPError:
+        return None
+    except KeyError:
         return None
     if cycle is None:
         return None
