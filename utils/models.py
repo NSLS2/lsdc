@@ -252,6 +252,12 @@ class Request(BaseModel):
 
     model_config = {"frozen": False}
 
+    @field_validator("proposal_id", mode="before")
+    def proposal_id_to_str(cls, v):
+        if isinstance(v, (str, int)):
+            return str(v)
+        raise TypeError("proposal_id must be a string or integer")
+
     @model_validator(mode="before")
     def convert_epoch_to_datetime(cls, values: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(values, dict):
