@@ -4188,7 +4188,7 @@ class ControlMain(QtWidgets.QMainWindow):
                 ],
             )
         if not self.vidActionRasterExploreRadio.isChecked():
-            self.aux_send_to_server(*comm_s)
+            self.send_to_server(*comm_s)
         if self.threeClickCount == 4:
             self.threeClickCount = 0
             self.processThreeClickCentering('0')
@@ -4319,6 +4319,8 @@ class ControlMain(QtWidgets.QMainWindow):
                     selectedSampleRequest = db_lib.getRequestByID(item.data(32))
                     self.selectedSampleID = selectedSampleRequest["sample"]
 
+                else: # If its not a request or sample, move on
+                    continue
                 # If a request is already added to the sample, move on
                 if self.selectedSampleID in samplesConsidered:
                     continue
@@ -4803,7 +4805,7 @@ class ControlMain(QtWidgets.QMainWindow):
         if currentRequest == {}:
             self.addRequestsToAllSelectedCB()
         logger.info("running queue")
-        self.send_to_server("runDCQueue")
+        self.aux_send_to_server("runDCQueue")
         
 
     def warmupGripperCB(self):
@@ -4933,12 +4935,12 @@ class ControlMain(QtWidgets.QMainWindow):
 
     def stopRunCB(self):
         logger.info("stopping collection")
-        self.aux_send_to_server("stopDCQueue", [1])
+        self.send_to_server("stopDCQueue", [1])
 
     def stopQueueCB(self):
         action = "pause" if self.pauseQueueButton.text().find("Pause") != -1 else "resume"
         logger.info(f"queue control requested: {action}")
-        self.aux_send_to_server("stopDCQueue", [2], {"action": action})
+        self.send_to_server("stopDCQueue", [2], {"action": action})
 
     def mountSampleCB(self):
         if getBlConfig("mountEnabled") == 0:
