@@ -548,7 +548,7 @@ def rasterScreen(currentRequest):
   else:
     rasterW = 630
     rasterH = 510
-  rasterReqID = defineRectRaster(currentRequest,rasterW,rasterH,gridStep)     
+  rasterReqID, collection_metadata = defineRectRaster(currentRequest,rasterW,rasterH,gridStep)     
   db_lib.updatePriority(rasterReqID, -1)
   RE(snakeRaster(rasterReqID), **get_bluesky_metadata(request_id=rasterReqID))
   
@@ -1342,7 +1342,7 @@ def runRasterScan(currentRequest,rasterType="", width=0, height=0, step_size=10,
 
   daq_lib.set_field("xrecRasterFlag", "100")
   beamline_lib.mvrDescriptor("omega",omega_rel)
-  rasterReqID = defineRectRaster(currentRequest, 
+  rasterReqID, collection_metadata = defineRectRaster(currentRequest, 
                                  selected_params["width"], 
                                  selected_params["height"], 
                                  selected_params["step_size"])
@@ -1705,7 +1705,7 @@ def defineRectRaster(currentRequest,raster_w_s,raster_h_s,stepsizeMicrons_s,xoff
   newRasterRequestUID = db_lib.addRequesttoSample(sampleID,reqObj["protocol"],daq_utils.owner,reqObj,priority=5000,proposalID=propNum)
   daq_lib.set_field("xrecRasterFlag",newRasterRequestUID)
   time.sleep(1)
-  return newRasterRequestUID
+  return newRasterRequestUID, reqObj
 
    
 def eScan(energyScanRequest):
