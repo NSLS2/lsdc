@@ -1,6 +1,17 @@
 #!/opt/conda_envs/lsdc-server-2023-2-latest/bin/python
 import os
 import sys
+
+
+os.environ.setdefault(
+    "SSL_CERT_FILE",
+    "/etc/pki/tls/certs/ca-bundle.crt",
+)
+os.environ.setdefault(
+    "REQUESTS_CA_BUNDLE",
+    "/etc/pki/tls/certs/ca-bundle.crt",
+)
+
 import db_lib
 from daq_utils import getBlConfig, setBlConfig
 import xmltodict
@@ -35,7 +46,6 @@ runDimple = int(sys.argv[6])
 dimpleNode = sys.argv[7]
 ispybDCID = 1 #int(sys.argv[8])
 runAutoProc = int(sys.argv[9])
-# runAutoProc = 0
 
 try:
   comm_s = f"ssh -q {node} \"{os.environ['MXPROCESSINGSCRIPTSDIR']}fast_dp.sh {request_id} {numstart}\""

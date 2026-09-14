@@ -1,7 +1,7 @@
 import logging
 import typing
 
-from qtpy import QtWidgets
+from qtpy import QtWidgets, QtCore
 from qtpy.QtWidgets import QGroupBox
 
 import daq_utils
@@ -23,6 +23,9 @@ class DataLocInfo(QGroupBox):  # type: ignore[misc]
         self.basePathLabel = QtWidgets.QLabel("Base Path:")
         self.base_path_ledit = QtWidgets.QLabel()
         self.base_path_ledit.setText(daq_utils.getBlConfig("visitDirectory"))
+        self.base_path_ledit.setTextInteractionFlags(
+                QtCore.Qt.TextSelectableByMouse | QtCore.Qt.TextSelectableByKeyboard
+            )
         # self.base_path_ledit.textChanged[str].connect(self.basePathTextChanged)
         self.browseBasePathButton = QtWidgets.QPushButton("Browse...")
         self.browseBasePathButton.setEnabled(False)

@@ -10,15 +10,19 @@ import daq_utils
 from utils.healthcheck import perform_checks
 import logging
 import platform
+import traceback
+import getpass
 from logging import handlers
 from gui.control_main import ControlMain
 
 
 class HostnameFilter(logging.Filter):
     hostname = platform.node().split(".")[0]
+    username = getpass.getuser()
 
     def filter(self, record):
         record.hostname = HostnameFilter.hostname
+        record.username = HostnameFilter.username
         return True
 
 
@@ -29,7 +33,7 @@ logging.getLogger("requests.packages.urllib3.connectionpool").setLevel(logging.W
 handler1 = handlers.RotatingFileHandler(logging_file, maxBytes=5000000, backupCount=100)
 handler1.addFilter(HostnameFilter())
 myformat = logging.Formatter(
-    "%(asctime)s %(hostname)s: %(name)-8s %(levelname)-8s %(message)s"
+    "%(asctime)s %(hostname)s %(username)s: %(name)-8s %(levelname)-8s %(message)s"
 )
 handler1.setFormatter(myformat)
 logger.addHandler(handler1)

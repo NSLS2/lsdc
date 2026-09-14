@@ -652,7 +652,7 @@ def collectData(currentRequest):
       # Store original user-requested start angle before auto-centering
       original_sweep_start = reqObj["sweep_start"]
       
-      daq_macros.run_loop_center_plan()
+      daq_macros.run_loop_center_plan(str(reqObj["sample"]))
       if not (daq_macros.autoRasterLoop(currentRequest)):
         logger.info("could not center sample")
         db_lib.updatePriority(currentRequest["uid"],-1)

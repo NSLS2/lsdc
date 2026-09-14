@@ -7,9 +7,25 @@ import daq_utils
 from daq_utils import getBlConfig
 import logging
 logger = logging.getLogger(__name__)
+import time
+
+def set_with_retry(sig, value, *, timeout=None, retries=20, delay=0.5):
+    for attempt in range(retries):
+        try:
+            st = sig.set(value, timeout=timeout)
+            # optional: wait here if you want to block until done
+            # st.wait(timeout=timeout)
+            return st
+        except RuntimeError as exc:
+            msg = "Another set() call is still in progress"
+            if msg not in str(exc):
+                raise
+            time.sleep(delay)
+
+    raise TimeoutError(f"{sig.name}: still busy after {retries} retries")
 
 def set_detz_in(gov_robot, distance):
-    gov_robot.dev.dz.target_In.set(distance)
+    set_with_retry(gov_robot.dev.dz.target_In, distance)
 
 def set_detz_out(gov_robot, distance):
     gov_robot.dev.dz.target_Out.set(distance)

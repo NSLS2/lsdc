@@ -405,7 +405,7 @@ class EMBLRobot:
             logger.info("Cannot align pin - Mount next sample.")
         if daq_utils.beamline == "amx":
           try:
-            daq_macros.run_top_view_optimized()
+            daq_macros.run_top_view_optimized(sampID)
           except:
             logger.exception("Error running top_view_optimized")
         if gov_robot.state.get() != "SA":
