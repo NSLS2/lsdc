@@ -102,6 +102,37 @@ def _fetch_raster_data(xrecRasterFlag, raster_eval_option):
         logger.error("Error fetching raster data for flag %s: %s" % (xrecRasterFlag, e))
         return e
 
+def _save_snapshot_result(reqID, resultObj):
+    if (
+        reqID != None
+    ):  # assuming raster here, but will probably need to check the type
+        db_lib.addResultforRequest(
+            "rasterJpeg",
+            reqID,
+            owner=daq_utils.owner,
+            result_obj=resultObj,
+            proposalID=daq_utils.getProposalID(),
+            beamline=daq_utils.beamline,
+        )
+    else:  # the user pushed the snapshot button on the gui
+        mountedSampleID = self.get_mounted_sample_id()
+        if mountedSampleID != "":
+            db_lib.addResulttoSample(
+                "snapshotResult",
+                mountedSampleID,
+                owner=daq_utils.owner,
+                result_obj=resultObj,
+                proposalID=daq_utils.getProposalID(),
+                beamline=daq_utils.beamline,
+            )
+        else:  # beamline result, no sample mounted
+            db_lib.addResulttoBL(
+                "snapshotResult",
+                daq_utils.beamline,
+                owner=daq_utils.owner,
+                result_obj=resultObj,
+                proposalID=daq_utils.getProposalID(),
+            )
 
 def get_request_object_escan(
     reqObj,
@@ -163,6 +194,7 @@ class ControlMain(QtWidgets.QMainWindow):
 
     def __init__(self):
         super(ControlMain, self).__init__()
+        self._raster_fill_in_progress = False
         self.proposal_directories = {}
         self.SelectedItemData = ""  # attempt to know what row is selected
         self.popUpMessageInit = 1  # I hate these next two, but I don't want to catch old messages. Fix later, maybe.
@@ -2208,36 +2240,9 @@ class ControlMain(QtWidgets.QMainWindow):
         imgRef = imagePath  # for now, just the path, might want to use filestore later, if they really do facilitate moving files
         resultObj["data"] = imgRef
         resultObj["comment"] = str(comment)
-        if (
-            reqID != None
-        ):  # assuming raster here, but will probably need to check the type
-            db_lib.addResultforRequest(
-                "rasterJpeg",
-                reqID,
-                owner=daq_utils.owner,
-                result_obj=resultObj,
-                proposalID=daq_utils.getProposalID(),
-                beamline=daq_utils.beamline,
-            )
-        else:  # the user pushed the snapshot button on the gui
-            mountedSampleID = self.get_mounted_sample_id()
-            if mountedSampleID != "":
-                db_lib.addResulttoSample(
-                    "snapshotResult",
-                    mountedSampleID,
-                    owner=daq_utils.owner,
-                    result_obj=resultObj,
-                    proposalID=daq_utils.getProposalID(),
-                    beamline=daq_utils.beamline,
-                )
-            else:  # beamline result, no sample mounted
-                db_lib.addResulttoBL(
-                    "snapshotResult",
-                    daq_utils.beamline,
-                    owner=daq_utils.owner,
-                    result_obj=resultObj,
-                    proposalID=daq_utils.getProposalID(),
-                )
+        snapshot_save_runnable = DataFetchRunnable(_save_snapshot_result, reqID, resultObj)
+        self.threadPool.start(snapshot_save_runnable)
+
 
         end_time = time.monotonic()
         logger.info(
@@ -3607,17 +3612,6 @@ class ControlMain(QtWidgets.QMainWindow):
             useOlog=False,
             reqID=rasterReq["uid"],
             rasterHeatJpeg=jpegImageFilename,
-        )
-        self.saveVidSnapshotCB(
-            "Raster Result from sample " + str(rasterReq["request_obj"]["file_prefix"]),
-            useOlog=False,
-            reqID=rasterReq["uid"],
-            rasterHeatJpeg=jpegImageFilename,
-        )
-        logger.info(
-            "RASTER_SNAPSHOT_DONE req_id=%s duration_s=%.3f",
-            rasterReq.get("uid"),
-            time.monotonic() - start_time,
         )
 
     def reFillPolyRaster(self):
