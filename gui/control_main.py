@@ -92,7 +92,7 @@ def _fetch_raster_data(xrecRasterFlag, raster_eval_option):
         rasterResults = None
         if status in (RasterStatus.READY_FOR_FILL.value,
                       RasterStatus.READY_FOR_REPROCESS.value):
-            rasterResults = db_lib.getResultsforRequest(rasterReq["uid"])
+            rasterResults = db_lib.getResultsforRequest(rasterReq["uid"], result_type="rasterResult")
         return {
             "rasterReq": rasterReq,
             "rasterResults": rasterResults,
@@ -3197,7 +3197,7 @@ class ControlMain(QtWidgets.QMainWindow):
 
     def add_multicol(self):
         if self.selectedSampleRequest and self.selectedSampleRequest.get("request_type") == "raster":
-            raster_results = db_lib.getResultsforRequest(self.selectedSampleRequest["uid"])
+            raster_results = db_lib.getResultsforRequest(self.selectedSampleRequest["uid"], result_type="rasterResult")
             
             for result in raster_results:
                 if result["result_type"] == 'rasterResult':
@@ -3462,7 +3462,7 @@ class ControlMain(QtWidgets.QMainWindow):
     ):  # at this point I should have a drawn polyRaster
         logger.info("filling poly for " + str(rasterReq["uid"]))
         if rasterResults is None:
-            rasterResults = db_lib.getResultsforRequest(rasterReq["uid"])
+            rasterResults = db_lib.getResultsforRequest(rasterReq["uid"], result_type="rasterResult")
         
         if not rasterResults:
             return
@@ -5200,7 +5200,7 @@ class ControlMain(QtWidgets.QMainWindow):
             if reqObj["protocol"] == CollectionProtocols.E_SCAN:
                 try:
                     if reqObj["runChooch"]:
-                        resultList = db_lib.getResultsforRequest(reqID)
+                        resultList = db_lib.getResultsforRequest(reqID, result_type="choochResult")
                         if len(resultList) > 0:
                             lastResult = resultList[-1]
                             if (

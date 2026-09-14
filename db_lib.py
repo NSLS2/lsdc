@@ -238,11 +238,14 @@ def getResult(result_id):
     return header[0]
 
 
-def getResultsforRequest(request_id):
+def getResultsforRequest(request_id, result_type=None):
     """
     Takes an integer request_id  and returns a list of matching results or [].
     """
-    resultGen = analysis_ref.find_analysis_header(request=request_id)
+    params = {"request": request_id}
+    if result_type is not None:
+        params["result_type"] = result_type
+    resultGen = analysis_ref.find_analysis_header(**params)
     if (resultGen != None):
       headers = list(resultGen)
       return headers
