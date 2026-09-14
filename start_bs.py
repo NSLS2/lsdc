@@ -11,7 +11,6 @@ from ophyd.signal import EpicsSignalBase
 EpicsSignalBase.set_defaults(timeout=10, connection_timeout=10)  # new style
 import redis
 from redis_json_dict import RedisJSONDict
-from mxbluesky import BeamlineDevices
 from tiled.client import from_uri
 from bluesky_tiled_plugins import TiledWriter
 from bluesky_tiled_plugins.writing.tiled_writer import RunNormalizer
@@ -49,7 +48,6 @@ CONSOLIDATOR_REGISTRY.update(
 
 RE = RunEngine(context_managers=[])
 beamline = os.environ["BEAMLINE_ID"]
-tiled_client = from_profile(beamline)[f"/{beamline}/migration"]
 tiled_key = os.environ[f"TILED_BLUESKY_WRITING_API_KEY_{beamline.upper()}"]
 tiled_client = from_uri("https://tiled.nsls2.bnl.gov", api_key=tiled_key)[f"{beamline}/migration"]
 
@@ -63,11 +61,11 @@ tw = TiledWriter(
     }
 )
 
-# from databroker import Broker
-# db = Broker.named(beamline)
+from databroker import Broker
+db = Broker.named(beamline)
 RE.md = new_md
 
-# RE.subscribe(db.insert)
+RE.subscribe(db.insert)
 RE.subscribe(tw)
 
 config_bluesky_logging()
@@ -121,8 +119,8 @@ if (beamline=="amx"):
     from mxtools.flyer import MXFlyer
     from mxtools.raster_flyer import MXRasterFlyer
     from embl_robot import EMBLRobot
-
-    beamline_devices = BeamlineDevices.from_beamline("amx")
+    
+    beamline_devices = BeamlineDevices.from_beamline("amx", comm_prefix="XF:17IDB-ES:AMX{Comm}")
 
     mercury = ABBIXMercury('XF:17IDB-ES:AMX{Det:Mer}', name='mercury')
     mercury.read_attrs = ['mca.spectrum', 'mca.preset_live_time', 'mca.rois.roi0.count',
@@ -153,13 +151,14 @@ if (beamline=="amx"):
     top_aligner_slow = TopAlignerSlow(name="top_aligner_slow")
     gov_mon_signal = EpicsSignal("XF:17ID:AMX{Karen}govmon", name="govmon")
     gonio_mon_signal = EpicsSignal("XF:17ID:AMX{Karen}goniomon", name="goniomon")
-    pyz_homer = PYZHomer("", name="pyz_homer")
+    pyz_homer = PYZHomer.from_beamline("amx", name="pyz_homer")
     dewar = Dewar("XF:17IDB-ES:AMX", name="dewar")
     home_pins = home_pins_plan(gov_mon_signal, gonio_mon_signal, pyz_homer, gonio)
     robot_arm = RobotArm("XF:17IDB-ES:AMX", name="robot_arm")
     cs1000 = CryoStream("XF:17IDB-ES:AMX{CS:1}", name="cs1000", atol=0.1)
     smart_magnet = SmartMagnet("XF:17IDB-ES:AMX", name="smart_magnet")
     force_torque_sensor = EpicsSignal("XF:17IDB-ES:AMX{FTS:1}Read-Cmd.SCAN")
+    loop_detector_pv = EpicsSignal("XF:17IDB-ES:AMX{ML:LoopDet}Pred:TXT")
 
 elif beamline == "fmx":
     from mxbluesky.devices import (WorkPositions, TwoClickLowMag, LoopDetector, MountPositions, 
@@ -174,7 +173,7 @@ elif beamline == "fmx":
     from embl_robot import EMBLRobot
     import setenergy_lsdc
 
-    beamline_devices = BeamlineDevices.from_beamline("fmx")
+    beamline_devices = BeamlineDevices.from_beamline("fmx", comm_prefix="XF:17IDC-ES:FMX{Comm}")
 
     mercury = ABBIXMercury('XF:17IDC-ES:FMX{Det:Mer}', name='mercury')
     mercury.read_attrs = ['mca.spectrum', 'mca.preset_live_time', 'mca.rois.roi0.count',
@@ -204,7 +203,7 @@ elif beamline == "fmx":
     top_aligner_slow = TopAlignerSlow(name="top_aligner_slow")
     gov_mon_signal = EpicsSignal("XF:17ID:FMX{Karen}govmon", name="govmon")
     gonio_mon_signal = EpicsSignal("XF:17ID:FMX{Karen}goniomon", name="goniomon")
-    pyz_homer = PYZHomer("", name="pyz_homer")
+    pyz_homer = PYZHomer.from_beamline("fmx", name="pyz_homer")
     dewar = Dewar("XF:17IDC-ES:FMX", name="dewar")
     home_pins = home_pins_plan(gov_mon_signal, gonio_mon_signal, pyz_homer, gonio)
     robot_arm = RobotArm("XF:17IDC-ES:FMX", name="robot_arm")
