@@ -3,6 +3,7 @@ import os
 import time
 import uuid
 from collections import defaultdict
+import requests.exceptions
 
 import amostra.client.commands as acc
 from config_params import CollectionProtocols
@@ -12,6 +13,26 @@ import six
 from analysisstore.client.commands import AnalysisClient
 from pathlib import Path
 logger = logging.getLogger(__name__)
+
+
+class RetryProxy:
+    """Wraps a DB client object; retries any method call infinitely on ConnectionError."""
+    def __init__(self, obj):
+        object.__setattr__(self, '_obj', obj)
+
+    def __getattr__(self, name):
+        attr = getattr(object.__getattribute__(self, '_obj'), name)
+        if callable(attr):
+            def wrapper(*args, **kwargs):
+                while True:
+                    try:
+                        return attr(*args, **kwargs)
+                    except requests.exceptions.ConnectionError as e:
+                        logger.warning(f"Connection error calling {name}, retrying in 2s: {e}")
+                        time.sleep(2)
+            return wrapper
+        return attr
+
 
 #12/19 - Skinner inherited this from Hugo, who inherited it from Matt. Arman wrote the underlying DB and left BNL in 2018. 
 
@@ -41,12 +62,12 @@ def db_connect(params=services_config):
     """
     recommended idiom:
     """
-    sample_ref = acc.SampleReference(**params['amostra'])
-    container_ref = acc.ContainerReference(**params['amostra'])
-    request_ref = acc.RequestReference(**params['amostra'])
+    sample_ref = RetryProxy(acc.SampleReference(**params['amostra']))
+    container_ref = RetryProxy(acc.ContainerReference(**params['amostra']))
+    request_ref = RetryProxy(acc.RequestReference(**params['amostra']))
 
-    configuration_ref = ccc.ConfigurationReference(**services_config['conftrak'])
-    analysis_ref = AnalysisClient(services_config['analysisstore'])
+    configuration_ref = RetryProxy(ccc.ConfigurationReference(**services_config['conftrak']))
+    analysis_ref = RetryProxy(AnalysisClient(services_config['analysisstore']))
     logger.info(analysis_ref)
 
 # should be in config :(
