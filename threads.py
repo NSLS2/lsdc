@@ -87,7 +87,8 @@ class VideoThread(QThread):
                 # feed recovers on its own once the IOC/stream resumes.
                 self._log_anomaly("SAMPLE_CAM_TIMEOUT", url, elapsed_ms, err=e)
                 if not self.showing_error:
-                    self.frame_ready.emit(None)
+                    logger.warning("CAM_FETCH_FAILED url=%s err=%s", self.url, e)
+                    # self.frame_ready.emit(None)
                     self.showing_error = True
             self.msleep(int(max(0, self.delay - elapsed_ms)))
             return
@@ -102,9 +103,15 @@ class VideoThread(QThread):
                 self.old_mjpg_url = self.new_mjpg_url 
             retval,self.currentFrame = self.video_capture.read()
 
-            if self.currentFrame is None:
+            if self.currentFrame is None or not retval:
+                if not self.showing_error:
+                    logger.info("CAM_READ_FAILED url=%s retval=%s",
+                                   self.new_mjpg_url, retval)
+                    self.showing_error = True
                 self.msleep(100)
                 return
+            # on a successful read, reset the flag:
+            self.showing_error = False
 
             now = time.monotonic() * 1000
             if  now <= self.next_emit:
@@ -124,6 +131,7 @@ class VideoThread(QThread):
             
         
     def __init__(self, *args, delay=1000, url='', mjpg_url=None, width=None, height=None,**kwargs):
+        self._retry_after = 0.0
         self.delay = delay
         self.width = width
         self.height = height

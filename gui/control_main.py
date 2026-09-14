@@ -1616,19 +1616,26 @@ class ControlMain(QtWidgets.QMainWindow):
         )
         self.sampleCameraThread.start()
         
-        
+        self.hutch_corner_cam_url = getBlConfig("hutchCornerCamURL")
 
         self.hutchCornerCamThread = VideoThread(
-            parent=self, delay=HUTCH_TIMER_DELAY, mjpg_url=getBlConfig("hutchCornerCamURL")+"?resolution=320x180"
+            parent=self, delay=HUTCH_TIMER_DELAY, url=self.hutch_corner_cam_url + "/jpg/image.jpg", width=320, height=180
         )
+        # self.hutchCornerCamThread = VideoThread(
+        #     parent=self, delay=HUTCH_TIMER_DELAY, mjpg_url=self.hutch_corner_cam_url + "/axis-cgi/mjpg/video.cgi?resolution=320x180"
+        # )
         self.hutchCornerCamThread.frame_ready.connect(
             lambda frame: self.updateCam(self.pixmap_item_HutchCorner, frame)
         )
         self.hutchCornerCamThread.start()
 
+        self.hutch_top_cam_url = getBlConfig("hutchTopCamURL")
         self.hutchTopCamThread = VideoThread(
-            parent=self, delay=HUTCH_TIMER_DELAY, mjpg_url=getBlConfig("hutchTopCamURL")+"?resolution=320x180"
+            parent=self, delay=HUTCH_TIMER_DELAY, url=self.hutch_top_cam_url + "/jpg/image.jpg", width=320, height=180
         )
+        # self.hutchTopCamThread = VideoThread(
+        #     parent=self, delay=HUTCH_TIMER_DELAY, mjpg_url=self.hutch_top_cam_url + "/axis-cgi/mjpg/video.cgi?resolution=320x180"
+        # )
         self.hutchTopCamThread.frame_ready.connect(
             lambda frame: self.updateCam(self.pixmap_item_HutchTop, frame)
         )
@@ -1643,6 +1650,8 @@ class ControlMain(QtWidgets.QMainWindow):
         self.dewarTree.refreshTreeThreaded(hard_refresh=True)
 
     def updateCam(self, pixmapItem: "QGraphicsPixmapItem", frame):
+        if frame is None:
+            return
         with QMutexLocker(self.camera_mutexs[pixmapItem]):
             pixmap = QtGui.QPixmap.fromImage(frame)
             pixmapItem.setPixmap(pixmap)
@@ -1926,13 +1935,13 @@ class ControlMain(QtWidgets.QMainWindow):
         if state in ("state SE", "transition SA to SE"):
             logger.info("Govstate: %s", state)
             self.sampleCameraThread.updateSnapshotUrl(
-                "http://xf17id1b-webcam1.nsls2.bnl.local/axis-cgi/jpg/image.cgi?resolution=640x360",
+                self.hutch_corner_cam_url + "/axis-cgi/jpg/image.cgi?resolution=640x360",
                 delay=HUTCH_TIMER_DELAY,
             )
         elif state in ("transition SE to TA"):
             logger.info("Govstate: %s", state)
             self.sampleCameraThread.updateSnapshotUrl(
-                "http://xf17id1b-webcam4.nsls2.bnl.local/axis-cgi/jpg/image.cgi?resolution=640x360",
+                self.hutch_top_cam_url + "/axis-cgi/jpg/image.cgi?resolution=640x360",
                 delay=HUTCH_TIMER_DELAY,
             )
         elif state in ("state TA"):
@@ -3564,10 +3573,14 @@ class ControlMain(QtWidgets.QMainWindow):
             numsteps = rasterDef["rowDefs"][i]["numsteps"]
             rowStartIndex = cellCounter
             for j in range(numsteps):
+                if index % 50 == 0:
+                    QApplication.processEvents()
                 if i % 2 == 0:  # this is trying to figure out row direction
                     index = cellCounter
                 else:
                     index = rowStartIndex + ((numsteps - 1) - j)
+                if index >= len(self.currentRasterCellList):
+                    continue
                 if color_id is None:
                     #param = my_array[cellCounter]
                     if rasterEvalOption == "Resolution":
@@ -4312,7 +4325,6 @@ class ControlMain(QtWidgets.QMainWindow):
                 elif itemDataType == "request":
                     selectedSampleRequest = db_lib.getRequestByID(item.data(32))
                     self.selectedSampleID = selectedSampleRequest["sample"]
-
                 else: # If its not a request or sample, move on
                     continue
                 # If a request is already added to the sample, move on
@@ -4883,6 +4895,7 @@ class ControlMain(QtWidgets.QMainWindow):
                 center=(center_x, center_y),
                 length=int(self.vector_length_ledit.text())
             )
+            self.protoVectorRadio.setChecked(True)
         else:
             self.vector_widget.set_vector_point(
                 point_name=pointName,
@@ -5425,7 +5438,7 @@ class ControlMain(QtWidgets.QMainWindow):
             self.gon.omega.readback,
             lambda t: self.processSampMove(*t),
             transform=lambda v, cv, **kw: (int(v), "omega"),
-            label="gon.omega",
+            # label="gon.omega",
         )
 
         _bridge(self.fast_shutter_rbv, self.processFastShutter, transform=lambda v, cv, **kw: float(v))
