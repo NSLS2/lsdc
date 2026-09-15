@@ -5,6 +5,9 @@ import requests
 
 # BlConfig parameter variable names
 
+# Eiger detectors
+EIGER_DETECTORS = ["EIGER2-9M-XE", "EIGER-16"]
+
 # rastering parameters
 RASTER_TUNE_LOW_RES = "rasterTuneLowRes"
 RASTER_TUNE_HIGH_RES = "rasterTuneHighRes"

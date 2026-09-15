@@ -44,7 +44,7 @@ from bluesky.preprocessors import finalize_wrapper
 from bluesky.log import config_bluesky_logging
 config_bluesky_logging(level='INFO')
 from fmx_annealer import govStatusGet, govStateSet, fmxAnnealer, amxAnnealer # for using annealer specific to FMX and AMX
-from config_params import ON_MOUNT_OPTION, OnMountAvailOptions, BEAMSIZE_OPTIONS
+from config_params import ON_MOUNT_OPTION, OnMountAvailOptions, BEAMSIZE_OPTIONS, EIGER_DETECTORS
 from mxbluesky.plans.loop_detection import detect_loop 
 import json
 
@@ -1077,7 +1077,7 @@ def snakeRasterBluesky(rasterReqID, grain=""):
         time.sleep(0.2)  # necessary for reliable row processing - see comment in commit 6793f4
         # processing
         if (procFlag):    
-          if (daq_utils.detector_id == "EIGER-16"):
+          if (daq_utils.detector_id in EIGER_DETECTORS):
             seqNum = int(raster_flyer.detector.file.sequence_id.get())
           else:
             seqNum = -1
@@ -1943,10 +1943,8 @@ def dna_execute_collection3(dna_startIgnore,dna_range,dna_number_of_images,dna_e
     det_radius = 105.0
   elif (daq_utils.detector_id == "PILATUS-6"):
     det_radius = 212.0
-  elif daq_utils.detector_id == "EIGER-16" and daq_utils.beamline in ("amx", "nyx"):
+  elif daq_utils.detector_id in EIGER_DETECTORS:
     det_radius = 233.1  # Eiger2-9M
-  elif daq_utils.detector_id == "EIGER-16":  # FMX
-    det_radius = 311.1  # Eiger2-16M
   else: #default Pilatus
     det_radius = 212.0
   theta_radians = 0.0

@@ -1,5 +1,5 @@
 import os
-from config_params import BEAM_CHECK, UNMOUNT_COLD_CHECK
+from config_params import BEAM_CHECK, EIGER_DETECTORS, UNMOUNT_COLD_CHECK
 from math import *
 import math
 import requests
@@ -242,7 +242,7 @@ def take_crystal_picture(filename=None,czoom=0,reqID=None,omega=-999):
 
 
 def create_filename(prefix,number):
-  if (detector_id == "EIGER-16"):  
+  if (detector_id in EIGER_DETECTORS):  
    tmp_filename = findOneH5Master(prefix)
   else:
     tmp_filename = "%s_%05d.cbf" % (prefix,int(number))

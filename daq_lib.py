@@ -713,7 +713,7 @@ def collectData(currentRequest):
         fastDPNodeCounter+=1
         node = getBlConfig(nodeName)      
         dimpleNode = getBlConfig("dimpleNode")      
-        if (daq_utils.detector_id == "EIGER-16"):
+        if (daq_utils.detector_id in EIGER_DETECTORS):
           with open(f"{os.environ['CONFIGDIR']}/autoproc_blacklist.json") as autoproc_blacklist_file:
             autoproc_proposal_data = json.load(autoproc_blacklist_file)
           run_autoproc = 0
@@ -761,7 +761,7 @@ def collect_detector_seq_hw(sweep_start,range_degrees,image_width,exposure_perio
   else:
     number_of_images = round(range_degrees/image_width)
   range_seconds = number_of_images*exposure_period
-  if (daq_utils.detector_id == "EIGER-16"):  
+  if (daq_utils.detector_id in EIGER_DETECTORS):  
     exposure_time = exposure_period - .00001
   else:
     exposure_time = exposure_period - .0024  
