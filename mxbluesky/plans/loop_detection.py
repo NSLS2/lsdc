@@ -52,7 +52,6 @@ def detect_loop(sample_detection: "Dict[str, float|int]"):
     loop_detector.filename.set(two_click_low.jpeg.full_file_name.get())
     
     scan_uid = yield from bp.count([loop_detector], 1)
-    #box_coords_face: "list[int]" = db[scan_uid].table()['loop_detector_box'][1]
     box_coords_face: "list[int]" = loop_detector.box.get()
     logger.info("Got loop predictions")
     if len(box_coords_face) != 4:
@@ -91,10 +90,6 @@ def detect_loop(sample_detection: "Dict[str, float|int]"):
     yield from bps.mv(gonio.o, sample_detection["face_on_omega"]+90)
     yield from trigger_two_click()
 
-    try:
-        yield from bp.count([two_click_low], 1)
-    except FailedStatus:
-        yield from bp.count([two_click_low], 1)
     
     loop_detector.get_threshold.set(True)
     loop_detector.x_start.set(int(box_coords_face[0]-mean_x))
@@ -102,8 +97,8 @@ def detect_loop(sample_detection: "Dict[str, float|int]"):
     loop_detector.filename.set(two_click_low.jpeg.full_file_name.get())
     
     scan_uid = yield from bp.count([loop_detector], 1)
-    box_coords_ortho = db[scan_uid].table()['loop_detector_box'][1]
-    box_coords_ortho_threshold = db[scan_uid].table()['loop_detector_thresholded_box'][1]
+    box_coords_ortho = loop_detector.box.get()
+    box_coords_ortho_threshold = loop_detector.thresholded_box.get() 
     mean_y_threshold = (box_coords_ortho_threshold[1] + box_coords_ortho_threshold[3]) / 2
     small_box_height_threshold = (box_coords_ortho_threshold[3] - box_coords_ortho_threshold[1]) * 2 * two_click_low.pix_per_um.get()
 

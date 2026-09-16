@@ -4,6 +4,8 @@ import time
 from string import *
 from beamline_support import *
 import logging
+
+from config_params import EIGER_DETECTORS
 logger = logging.getLogger(__name__)
 
 global det_pv_list
@@ -91,7 +93,7 @@ def det_channels_init():
         set_det_pv('det_trigger_mode',0)        #internal for devel
         det_set_autoinc_filenum(1) 
         det_set_file_template("cbf")
-      elif (det_id == "EIGER-16"):
+      elif (det_id in EIGER_DETECTORS):
         pass #leave alone for now
       else:
         set_det_pv('det_trigger_mode',1)        
@@ -132,7 +134,7 @@ def det_setheader(phist,phiinc,dist,wave,theta,exptime,xbeam,ybeam,rot_ax,omega,
 def det_set_fileprefix(prefix):
   if (det_id=="PILATUS-6"):
     set_det_pv("data_filename_val",prefix)
-  elif (det_id=="EIGER-16"):
+  elif (det_id in EIGER_DETECTORS):
     set_det_pv("data_filename_val",prefix+"_$id")    
 
 def det_set_filepath(filepath):

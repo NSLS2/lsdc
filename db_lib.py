@@ -3,6 +3,7 @@ import os
 import time
 import uuid
 from collections import defaultdict
+import requests.exceptions
 
 import amostra.client.commands as acc
 from config_params import CollectionProtocols
@@ -12,6 +13,26 @@ import six
 from analysisstore.client.commands import AnalysisClient
 from pathlib import Path
 logger = logging.getLogger(__name__)
+
+
+class RetryProxy:
+    """Wraps a DB client object; retries any method call infinitely on ConnectionError."""
+    def __init__(self, obj):
+        object.__setattr__(self, '_obj', obj)
+
+    def __getattr__(self, name):
+        attr = getattr(object.__getattribute__(self, '_obj'), name)
+        if callable(attr):
+            def wrapper(*args, **kwargs):
+                while True:
+                    try:
+                        return attr(*args, **kwargs)
+                    except requests.exceptions.ConnectionError as e:
+                        logger.warning(f"Connection error calling {name}, retrying in 2s: {e}")
+                        time.sleep(2)
+            return wrapper
+        return attr
+
 
 #12/19 - Skinner inherited this from Hugo, who inherited it from Matt. Arman wrote the underlying DB and left BNL in 2018. 
 
@@ -41,12 +62,12 @@ def db_connect(params=services_config):
     """
     recommended idiom:
     """
-    sample_ref = acc.SampleReference(**params['amostra'])
-    container_ref = acc.ContainerReference(**params['amostra'])
-    request_ref = acc.RequestReference(**params['amostra'])
+    sample_ref = RetryProxy(acc.SampleReference(**params['amostra']))
+    container_ref = RetryProxy(acc.ContainerReference(**params['amostra']))
+    request_ref = RetryProxy(acc.RequestReference(**params['amostra']))
 
-    configuration_ref = ccc.ConfigurationReference(**services_config['conftrak'])
-    analysis_ref = AnalysisClient(services_config['analysisstore'])
+    configuration_ref = RetryProxy(ccc.ConfigurationReference(**services_config['conftrak']))
+    analysis_ref = RetryProxy(AnalysisClient(services_config['analysisstore']))
     logger.info(analysis_ref)
 
 # should be in config :(
@@ -238,11 +259,14 @@ def getResult(result_id):
     return header[0]
 
 
-def getResultsforRequest(request_id):
+def getResultsforRequest(request_id, result_type=None):
     """
     Takes an integer request_id  and returns a list of matching results or [].
     """
-    resultGen = analysis_ref.find_analysis_header(request=request_id)
+    params = {"request": request_id}
+    if result_type is not None:
+        params["result_type"] = result_type
+    resultGen = analysis_ref.find_analysis_header(**params)
     if (resultGen != None):
       headers = list(resultGen)
       return headers
@@ -756,6 +780,64 @@ def updatePriority(request_id, priority):
     updateRequest(r)
 
 
+def queueRequest(request_id, fallback_priority=5000):
+    """
+    Queue a request without clobbering a previously saved priority.
+
+    If a request was dequeued and has a saved priority in
+    ``priority_before_dequeue``, restore that. Otherwise use
+    ``fallback_priority``.
+    """
+    request = getRequestByID(request_id)
+    if not request:
+        return None
+
+    current_priority = request.get("priority", 0)
+
+    # Preserve existing running/completed sentinel semantics.
+    if current_priority == 99999 or current_priority < 0:
+        return request
+
+    # Already queued; nothing to do.
+    if current_priority > 0:
+        return request
+
+    restore_priority = request.get("priority_before_dequeue")
+    if (
+        restore_priority is not None
+        and restore_priority > 0
+        and restore_priority != 99999
+    ):
+        request["priority"] = restore_priority
+    else:
+        request["priority"] = fallback_priority
+
+    updateRequest(request)
+    return request
+
+
+def dequeueRequest(request_id):
+    """
+    Dequeue a request while preserving its queued priority for later restore.
+    """
+    request = getRequestByID(request_id)
+    if not request:
+        return None
+
+    current_priority = request.get("priority", 0)
+
+    # Preserve existing running/completed sentinel semantics.
+    if current_priority == 99999 or current_priority < 0:
+        return request
+
+    if current_priority > 0:
+        request["priority_before_dequeue"] = current_priority
+
+    request["priority"] = 0
+    updateRequest(request)
+    return request
+
+
 def getPriorityMap(beamlineName):
     """
     returns a dictionary with priorities as keys and lists of requests
@@ -890,4 +972,3 @@ def deleteCompletedRequestsforSample(sid):
     if (requestList[i]["priority"] == -1): #good to clean up completed requests after unmount
       if requestList[i]["protocol"] in (CollectionProtocols.RASTER, CollectionProtocols.VECTOR):
         deleteRequest(requestList[i]['uid'])
-

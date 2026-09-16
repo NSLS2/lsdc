@@ -84,3 +84,5 @@ target/
 *#*
 *py.*
 runEdna_old_21Jan2020.py
+
+.pixi/

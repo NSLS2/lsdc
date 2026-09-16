@@ -37,7 +37,7 @@ class RasterGroup(QtWidgets.QGraphicsItemGroup):
                 if self.parent.rasterList[i]["graphicsItem"].isSelected():
                     logger.info("found selected raster")
                     self.parent.SelectedItemData = self.parent.rasterList[i]["uid"]
-                    self.parent.treeChanged_pv.put(1)
+                    self.parent.queue_change_signal.put(1)
         if self.parent.vidActionRasterExploreRadio.isChecked():
             for cell in self.childItems():
                 if cell.contains(e.pos()):

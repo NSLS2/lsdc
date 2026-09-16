@@ -9,6 +9,6 @@ export matlab_distrib=${PROJDIR}/software/c3d/matlab_distrib
 export LD_LIBRARY_PATH=$matlab_distrib/bin/glnx86:$matlab_distrib/toolbox
 export PINALIGNDIR=${PROJDIR}pinAlign/pin_align-master/
 export MXPROCESSINGSCRIPTSDIR=${PROJDIR}lsdc-processing/
-# below not idea as environment name also needed by daq_main2
-conda activate lsdc-server-2023-2-latest
-$LSDCHOME/lsdcServer
+export REQUESTS_CA_BUNDLE=/etc/pki/tls/certs/ca-bundle.crt
+export SSL_CERT_FILE=/etc/pki/tls/certs/ca-bundle.crt
+pixi run --manifest-path $LSDCHOME/pixi.toml fmx-server

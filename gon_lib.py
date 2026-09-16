@@ -4,16 +4,8 @@ import beamline_support
 from beamline_support import getPvValFromDescriptor as getPvDesc, setPvValFromDescriptor as setPvDesc
 import logging
 import daq_utils
-if daq_utils.beamline == 'nyx':
-  from start_bs import back_light, back_light_range, md2
 logger = logging.getLogger(__name__)
 BACK_LIGHT_STEP = 0.05 # percent of intensity range
-
-def omegaMoveAbs(angle):
-  md2.omega.set(angle)
-
-def omegaMoveRel(angle):
-  md2.omega.set(md2.omega.get() + angle)
 
 def backlightBrighter():
   intensity = back_light.get()

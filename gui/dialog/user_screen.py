@@ -2,7 +2,7 @@ import logging
 import typing
 
 from qt_epics.QtEpicsPVLabel import QtEpicsPVLabel
-from qtpy import QtCore, QtWidgets
+from qtpy import QtCore, QtWidgets, QtGui
 from qtpy.QtWidgets import QCheckBox
 from config_params import ON_MOUNT_OPTION
 import daq_utils
@@ -39,7 +39,7 @@ class UserScreenDialog(QtWidgets.QFrame):
         hBoxColParams1.addWidget(self.BLbutton)
         govLabel2 = QtWidgets.QLabel("Current Governor State:")
         self.governorMessage = QtEpicsPVLabel(
-            daq_utils.pvLookupDict["governorMessage"],
+            self.parent.bl_devices.governor.message.pvname,
             self,
             140,
             highlight_on_change=False,
@@ -66,6 +66,11 @@ class UserScreenDialog(QtWidgets.QFrame):
         hBoxColParams3.addWidget(self.queueCollectOnCheckBox)
         self.checkQueueCollect()
         self.queueCollectOnCheckBox.stateChanged.connect(self.queueCollectOnCheckCB)
+
+        self.mini_raster_on_checkbox = QCheckBox("Mini Raster")
+        hBoxColParams3.addWidget(self.mini_raster_on_checkbox)
+        self.check_mini_raster()
+        self.mini_raster_on_checkbox.stateChanged.connect(self.mini_raster_on_cb)
 
         hBoxColParams3.addWidget(self.unmountWarmButton)
         hBoxColParams3.addWidget(self.testRobotButton)
@@ -121,7 +126,7 @@ class UserScreenDialog(QtWidgets.QFrame):
             slit1XSPLabel = QtWidgets.QLabel("SetPoint:")
             self.slit1XMotor_ledit = QtWidgets.QLineEdit()
             self.slit1XMotor_ledit.returnPressed.connect(self.setSlit1XCB)
-            self.slit1XMotor_ledit.setText(str(self.parent.slit1XGapSP_pv.get()))
+            self.slit1XMotor_ledit.setText(str(self.parent.slit1_x_gap_setpoint.get()))
 
             slit1YLabel = QtWidgets.QLabel("Slit 1 Y Gap:")
             slit1YLabel.setAlignment(QtCore.Qt.AlignCenter)
@@ -131,13 +136,34 @@ class UserScreenDialog(QtWidgets.QFrame):
             )
             slit1YSPLabel = QtWidgets.QLabel("SetPoint:")
             self.slit1YMotor_ledit = QtWidgets.QLineEdit()
-            self.slit1YMotor_ledit.setText(str(self.parent.slit1YGapSP_pv.get()))
+            self.slit1YMotor_ledit.setText(str(self.parent.slit1_y_gap_setpoint.get()))
             self.slit1YMotor_ledit.returnPressed.connect(self.setSlit1YCB)
+            temp_change_label = QtWidgets.QLabel("Cryo Temp:")
+            self.temp_change_ledit = QtWidgets.QLineEdit()
+            self.temp_change_ledit.returnPressed.connect(self.setTemp)
+            self.temp_change_button = QtWidgets.QPushButton("Set Temp")
+            self.temp_change_button.clicked.connect(self.setTemp)
+
+            temp_ramp_label = QtWidgets.QLabel("Cryo Ramp Rate:")
+            self.temp_ramp_ledit = QtWidgets.QLineEdit()
+            self.temp_ramp_ledit.returnPressed.connect(self.setRamp)
+            self.temp_ramp_button = QtWidgets.QPushButton("Set Ramp Rate")
+            self.temp_ramp_button.clicked.connect(self.setRamp)
+
+            if daq_utils.beamline == "fmx":
+                # Dose Factor controls
+                self.doseMultiplierLabel = QtWidgets.QLabel("Dose Factor: ")
+                # self.doseMultiplierLabel.setStyleSheet("color: #228B22;")
+                self.doseMultiplier_ledit = QtWidgets.QLineEdit("1.0")
+                self.doseMultiplier_ledit.setValidator(QtGui.QDoubleValidator(0.001, 100.0, 3))
+                self.doseMultiplier_ledit.setMaxLength(6)
+                self.doseMultiplier_ledit.setMaximumWidth(50)  # Keep dose factor input compact
+                self.doseMultiplier_ledit.textChanged.connect(self.parent.calcLifetimeCB)
 
         sampleFluxLabelDesc = QtWidgets.QLabel("Sample Flux:")
         sampleFluxLabelDesc.setFixedWidth(80)
         self.sampleFluxLabel = QtWidgets.QLabel()
-        self.sampleFluxLabel.setText("%E" % self.parent.sampleFluxPV.get())
+        self.sampleFluxLabel.setText("%E" % self.parent.sample_flux.get())
         hBoxBeam3.addWidget(sampleFluxLabelDesc)
         hBoxBeam3.addWidget(self.sampleFluxLabel)
 
@@ -152,8 +178,22 @@ class UserScreenDialog(QtWidgets.QFrame):
             hBoxBeam2.addWidget(self.slit1YRBVLabel.getEntry())
             hBoxBeam2.addWidget(slit1YSPLabel)
             hBoxBeam2.addWidget(self.slit1YMotor_ledit)
+            hBoxTemp = QtWidgets.QHBoxLayout()
+            hBoxTemp.addWidget(temp_change_label)
+            hBoxTemp.addWidget(self.temp_change_ledit)
+            hBoxTemp.addWidget(self.temp_change_button)
+            hBoxRamp = QtWidgets.QHBoxLayout()
+            hBoxRamp.addWidget(temp_ramp_label)
+            hBoxRamp.addWidget(self.temp_ramp_ledit)
+            hBoxRamp.addWidget(self.temp_ramp_button)
+            hBoxDoseFactor = QtWidgets.QHBoxLayout()
+            hBoxDoseFactor.addWidget(self.doseMultiplierLabel)
+            hBoxDoseFactor.addWidget(self.doseMultiplier_ledit)
             vBoxBeam.addLayout(hBoxBeam1)
             vBoxBeam.addLayout(hBoxBeam2)
+            vBoxBeam.addLayout(hBoxTemp)
+            vBoxBeam.addLayout(hBoxRamp)
+            vBoxBeam.addLayout(hBoxDoseFactor)
         vBoxBeam.addLayout(hBoxBeam3)
         beamGB.setLayout(vBoxBeam)
 
@@ -193,17 +233,6 @@ class UserScreenDialog(QtWidgets.QFrame):
         )
         self.buttons.buttons()[0].clicked.connect(self.userScreenOKCB)
 
-        if daq_utils.beamline == "nyx":
-            self.openShutterButton.setDisabled(True)
-            self.unmountWarmButton.setDisabled(True)
-            self.testRobotButton.setDisabled(True)
-            self.recoverRobotButton.setDisabled(True)
-            self.dryGripperButton.setDisabled(True)
-            self.resetZebraButton.setDisabled(True)
-            self.rebootZebraButton.setDisabled(True)
-            self.stopDetButton.setDisabled(True)
-            self.rebootDetIocButton.setDisabled(True)
-
         vBoxColParams1.addLayout(hBoxColParams1)
         vBoxColParams1.addLayout(hBoxColParams2)
         vBoxColParams1.addLayout(hBoxColParams25)
@@ -229,6 +258,12 @@ class UserScreenDialog(QtWidgets.QFrame):
     def setSlit1YCB(self):
         self.parent.send_to_server("setSlit1Y", [self.slit1YMotor_ledit.text()])
 
+    def setTemp(self):
+        self.parent.send_to_server("set_cryostream_temp", [self.temp_change_ledit.text()])
+
+    def setRamp(self):
+        self.parent.send_to_server("set_cryostream_ramp_rate", [self.temp_ramp_ledit.text()])
+
     def unmountWarmCB(self):
         self.parent.send_to_server("unmountSample")
 
@@ -243,21 +278,21 @@ class UserScreenDialog(QtWidgets.QFrame):
 
     def stopDetCB(self):
         logger.info("stopping detector")
-        self.parent.stopDet_pv.put(0)
+        self.parent.stop_detector.put(0)
 
     def rebootDetIocCB(self):
         logger.info("rebooting detector IOC")
-        self.parent.rebootDetIOC_pv.put(
+        self.parent.reboot_detector_ioc.put(
             1
         )  # no differences visible, but zebra IOC reboot works, this doesn't!
 
     def resetZebraCB(self):
         logger.info("resetting zebra")
-        self.parent.resetZebra_pv.put(1)
+        self.parent.reset_zebra.put(1)
 
     def rebootZebraIOC_CB(self):
         logger.info("rebooting zebra IOC")
-        self.parent.rebootZebraIOC_pv.put(1)
+        self.parent.reboot_zebra_ioc.put(1)
 
     def SEgovCB(self):
         self.parent.send_to_server("setGovState", ["SE"])
@@ -296,3 +331,9 @@ class UserScreenDialog(QtWidgets.QFrame):
             self.queueCollectOnCheckBox.setChecked(True)
         else:
             self.queueCollectOnCheckBox.setChecked(False)
+
+    def mini_raster_on_cb(self, state):
+        daq_utils.setBlConfig("use_mini_raster", (state == QtCore.Qt.Checked))
+
+    def check_mini_raster(self):
+        self.mini_raster_on_checkbox.setChecked(daq_utils.getBlConfig("use_mini_raster"))

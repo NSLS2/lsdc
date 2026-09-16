@@ -1,4 +1,4 @@
-#!/opt/conda_envs/lsdc-server-2023-2-latest/bin/ipython -i
+##!/opt/conda_envs/lsdc-server-2023-2-latest/bin/ipython -i
 """
 The main server for the LSDC system
 """

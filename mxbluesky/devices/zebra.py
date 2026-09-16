@@ -517,6 +517,10 @@ class ZebraBase(Device):
     download_status = Cpt(EpicsSignalRO, 'ARRAY_ACQ')
     reset = Cpt(EpicsSignal, 'SYS_RESET.PROC')
 
+    # AND1 input status signals (zebraSentTriggerStatus / zebraTriggerReturnStatus)
+    sent_trigger_status   = Cpt(EpicsSignalRO, 'AND1_INP1:STA')
+    trigger_return_status = Cpt(EpicsSignalRO, 'AND1_INP2:STA')
+
     addresses = ZebraAddresses
 
     def __init__(self, prefix, *, configuration_attrs=None, read_attrs=None,

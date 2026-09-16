@@ -1,4 +1,4 @@
-#!/opt/conda_envs/lsdc-server-2023-2-latest/bin/ipython -i
+#### !/opt/conda_envs/lsdc-server-2023-2-latest/bin/ipython -i
 """
 The server run when lsdcRemote is used
 """
@@ -32,6 +32,12 @@ handler1.setFormatter(myformat)
 handler2.setFormatter(myformat)
 logger.addHandler(handler1)
 logger.addHandler(handler2)
+
+# Add stream handlers to output in the terminal
+console_handler = logging.StreamHandler()  # or just StreamHandler()
+console_handler.setFormatter(myformat)
+
+logger.addHandler(console_handler)
 
 sitefilename = ""
 global command_list,immediate_command_list,z

@@ -1,16 +1,11 @@
 import os
-from config_params import BEAM_CHECK, UNMOUNT_COLD_CHECK
+from config_params import BEAM_CHECK, EIGER_DETECTORS, UNMOUNT_COLD_CHECK
 from math import *
 import math
 import requests
 import getpass
 import logging
 logger = logging.getLogger(__name__)
-
-try:
-  import ispybLib
-except Exception as e:
-  logger.error("daq_utils: ISPYB import error, %s" %e)
 
 import db_lib
 from config_params import CollectionProtocols
@@ -31,7 +26,6 @@ soft_motor_list = []
 global screenYCenterPixelsLowMagOffset
 screenYCenterPixelsLowMagOffset = 58
 # Constants for use with C2C
-global CAMERA_ANGLE_BEAM,CAMERA_ANGLE_ABOVE, CAMERA_ANGLE_BELOW
 CAMERA_ANGLE_BEAM = 0 # viewing angle is in line with beam, upstream from the sample, facing downstream, top toward ceiling
 CAMERA_ANGLE_ABOVE = 1 # viewing angle is directly above sample facing downward, top of view is downstream
 CAMERA_ANGLE_BELOW = 2 # viewing angle is directly below sample facing upward, top of view is downstream
@@ -43,8 +37,6 @@ mag4ViewAngle = CAMERA_ANGLE_BEAM
 
 EV_ANGSTROM_CONSTANT = 12398.42  # https://www.kmlabs.com/en/wavelength-to-photon-energy-calculator
 
-EV_ANGSTROM_CONSTANT = 12398.42  # https://www.kmlabs.com/en/wavelength-to-photon-energy-calculator
-
 def getBlConfig(param, beamline=beamline):
         return db_lib.getBeamlineConfigParam(beamline, param)
 
@@ -52,7 +44,7 @@ def setBlConfig(param, value, beamline=beamline):
         db_lib.setBeamlineConfigParam(beamline, param, value)
 
 def init_environment():
-  global beamline,detector_id,mono_mot_code,has_beamline,has_xtalview,xtal_url,xtal_url_small,unitScaling,sampleCameraCount,xtalview_user,xtalview_pass,det_type,has_dna,beamstop_x_pvname,beamstop_y_pvname,camera_offset,det_radius,lowMagFOVx,lowMagFOVy,highMagFOVx,highMagFOVy,lowMagPixX,lowMagPixY,highMagPixX,highMagPixY,screenPixX,screenPixY,screenPixCenterX,screenPixCenterY,screenProtocol,screenPhist,screenPhiend,screenWidth,screenDist,screenExptime,screenWave,screenReso,gonioPvPrefix,searchParams,screenEnergy,detectorOffline,imgsrv_host,imgsrv_port,beamlineComm,primaryDewarName,lowMagCamURL,highMagZoomCamURL,lowMagZoomCamURL,highMagCamURL,owner,dewarPlateMap,mag1ViewAngle,mag2ViewAngle,mag3ViewAngle,mag4ViewAngle,exporter_enabled
+  global beamline,detector_id,mono_mot_code,has_beamline,has_xtalview,xtal_url,xtal_url_small,unitScaling,sampleCameraCount,xtalview_user,xtalview_pass,det_type,beamstop_x_pvname,beamstop_y_pvname,camera_offset,det_radius,lowMagFOVx,lowMagFOVy,highMagFOVx,highMagFOVy,lowMagPixX,lowMagPixY,highMagPixX,highMagPixY,screenPixX,screenPixY,screenPixCenterX,screenPixCenterY,screenProtocol,screenPhist,screenPhiend,screenWidth,screenDist,screenExptime,screenWave,screenReso,gonioPvPrefix,searchParams,screenEnergy,detectorOffline,imgsrv_host,imgsrv_port,beamlineComm,primaryDewarName,lowMagCamURL,highMagZoomCamURL,lowMagZoomCamURL,highMagCamURL,owner,dewarPlateMap,mag1ViewAngle,mag2ViewAngle,mag3ViewAngle,mag4ViewAngle
 
   owner = getpass.getuser()
   primaryDewarName = getBlConfig("primaryDewarName")
@@ -72,42 +64,9 @@ def init_environment():
   highMagPixY = float(getBlConfig("highMagPixY"))
   screenPixX = float(getBlConfig("screenPixX"))
   screenPixY = float(getBlConfig("screenPixY"))
-  if beamline == 'nyx':
-    exporter_enabled = bool(getBlConfig("exporterEnabled"))
-  else:
-    exporter_enabled = False
 
-  try: 
-    unitScaling = float(getBlConfig("unitScaling"))
-    sampleCameraCount = float(getBlConfig("sampleCameraCount"))
-  except KeyError as e:
-    unitScaling = 1
-    sampleCameraCount = 4
-    logging.info(f"Missing unitScaling or sampleCameraCount configs, switching to default values: unitScaling: {unitScaling}, sampleCameraCount: {sampleCameraCount}")
-
-  try:
-    mag1ViewAngle = int(getBlConfig("mag1ViewAngle"))
-  except KeyError as e:
-    mag1ViewAngle = CAMERA_ANGLE_BEAM
-    logging.info(f"Missing or invalid mag1ViewAngle config, using default value {mag1ViewAngle}")
-
-  try:
-    mag2ViewAngle = int(getBlConfig("mag2ViewAngle"))
-  except KeyError as e:
-    mag2ViewAngle = CAMERA_ANGLE_BEAM
-    logging.info(f"Missing or invalid mag2ViewAngle config, using default value {mag2ViewAngle}")
-  
-  try:
-    mag3ViewAngle = int(getBlConfig("mag3ViewAngle"))
-  except KeyError as e:
-    mag3ViewAngle = CAMERA_ANGLE_BEAM
-    logging.info(f"Missing or invalid mag3ViewAngle config, using default value {mag3ViewAngle}")
-
-  try:
-    mag4ViewAngle = int(getBlConfig("mag4ViewAngle"))
-  except KeyError as e:
-    mag4ViewAngle = CAMERA_ANGLE_BEAM
-    logging.info(f"Missing or invalid mag4ViewAngle config, using default value {mag4ViewAngle}")
+  unitScaling = 1
+  sampleCameraCount = 4
 
   beamlineComm = getBlConfig("beamlineComm")
   screenPixCenterX = screenPixX/2.0
@@ -283,7 +242,7 @@ def take_crystal_picture(filename=None,czoom=0,reqID=None,omega=-999):
 
 
 def create_filename(prefix,number):
-  if (detector_id == "EIGER-16"):  
+  if (detector_id in EIGER_DETECTORS):  
    tmp_filename = findOneH5Master(prefix)
   else:
     tmp_filename = "%s_%05d.cbf" % (prefix,int(number))

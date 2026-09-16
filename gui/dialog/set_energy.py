@@ -106,7 +106,7 @@ class SetEnergyDialog(QtWidgets.QDialog):
         return msg_box
 
     def set_full_alignment_energy(self):
-        if self._parent.mountedPin_pv.get():
+        if self._parent.get_mounted_sample_id():
             # If sample is mounted, ask user to unmount cold
             response = self.unmount_cold_dialog().exec_()
 

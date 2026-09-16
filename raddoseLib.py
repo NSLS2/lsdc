@@ -166,7 +166,7 @@ def rd3d_calc(
     logger.info("\n=== rd3d_calc summary ===")
     # append_fields has issues with 1d arrays, use reshape() and [] to make len() work on size 1 array:
     # https://stackoverflow.com/questions/53137822/adding-a-field-to-a-structured-numpy-array-4
-    rd3d_out = rd3d_out.reshape(1)
+    rd3d_out = rd3d_out.reshape(1)[0]
     logger.info("Diffraction weighted dose = " + "%.3f" % rd3d_out["DWD"] + " MGy")
     logger.info("Max dose = " + "%.3f" % rd3d_out["Max_Dose"] + " MGy")
     if rd3d_out["DWD"]:
@@ -175,7 +175,7 @@ def rd3d_calc(
         )  # Time to Garman limit based on diffraction weighted dose
     else:
         t2gl = 0
-    rd3d_out = rfn.append_fields(rd3d_out, "t2gl", [t2gl], usemask=False)
+    rd3d_out = rfn.append_fields(rd3d_out, "t2gl", [t2gl], usemask=False)[0]
     logger.info("Time to Garman limit = " + "%.3f" % rd3d_out["t2gl"] + " s")
 
     return rd3d_out
@@ -213,6 +213,8 @@ def fmx_expTime(
     flux=-1,
     wedge=180,
     verbose=False,
+    dm_user=1.0,  # User dose multiplier
+    beamsize_type="S",  # "S" or "L" for beam size multiplier
 ):
     """
     RD3D output = AWD [MGy]
@@ -343,4 +345,15 @@ def fmx_expTime(
         f"Experiment time to reach an average diffraction weighted dose of {avg_dwd} MGy = {expTimeMGy} s"
     )
 
-    return expTimeMGy
+    # Apply dose multipliers
+    # Calculate beam size multiplier (invisible to user)
+    dm_beam = 1.0 if beamsize_type == "S" else 8.0
+    
+    # Apply combined dose multiplier
+    dm_total = dm_user * dm_beam
+    expTimeMGy_adjusted = expTimeMGy * dm_total
+    
+    logger.info(f"Applied dose multipliers: DM_user={dm_user}, DM_beam={dm_beam}, DM_total={dm_total}")
+    logger.info(f"Adjusted experiment time = {expTimeMGy_adjusted} s")
+
+    return expTimeMGy_adjusted

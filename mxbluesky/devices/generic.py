@@ -97,3 +97,16 @@ class RobotArm(Device):
             return False
         return True
 
+class SmartMagnet(Device):
+    magnet = Cpt(EpicsSignal, "{Wago:1}MagnetOn-Sel")
+    boost = Cpt(EpicsSignal, "{Wago:1}Boost-Sel")
+
+    def toggle(self):
+        # If current state is 1 then set it to 0
+        magnet_next_state = 0 if self.magnet.get() else 1
+        self.magnet.set(magnet_next_state).wait()
+        self.magnet.set(0).wait()
+
+        boost_next_state = 0 if self.boost.get() else 1
+        self.boost.set(boost_next_state).wait()
+        self.boost.set(0).wait()

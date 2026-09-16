@@ -155,8 +155,6 @@ class VectorWidget(QtWidgets.QWidget):
 
             vec_diff = vec_end - vec_start
             trans_total = np.linalg.norm(vec_diff)
-            if daq_utils.beamline == "nyx":
-                trans_total *= 1000
 
         return x_vec, y_vec, z_vec, trans_total
 
@@ -305,7 +303,7 @@ class VectorWidget(QtWidgets.QWidget):
         # First convert the distance moved by the point from pixels to microns
         micron_x = self.main_window.screenXPixels2microns(point.pos().x())
         micron_y = self.main_window.screenYPixels2microns(point.pos().y())
-        omega = self.main_window.omegaRBV_pv.get()
+        omega = self.main_window.gon.omega.readback.get()
 
         # Then translate the delta from microns in the lab co-ordinate system to gonio
         (
@@ -317,9 +315,9 @@ class VectorWidget(QtWidgets.QWidget):
 
         # Then add the delta to the current gonio co-ordinates
         gonio_coords = {
-            "x": self.main_window.sampx_pv.get() + gonio_offset_x,
-            "y": self.main_window.sampy_pv.get() + gonio_offset_y,
-            "z": self.main_window.sampz_pv.get() + gonio_offset_z,
+            "x": self.main_window.gon.x.readback.get() + gonio_offset_x,
+            "y": self.main_window.gon.y.readback.get() + gonio_offset_y,
+            "z": self.main_window.gon.z.readback.get() + gonio_offset_z,
             "omega": omega,
         }
         vectorCoords = self.transform_vector_coords(point.coords, gonio_coords)

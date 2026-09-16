@@ -21,12 +21,13 @@ from bluesky.preprocessors import finalize_wrapper
 import bluesky.plan_stubs as bps
 import logging
 from utils import validation
-logger = logging.getLogger(__name__)
+from utils.command_execution import safe_to_run_in_parallel
+import requests
+import threading
+import json
 
-try:
-  import ispybLib
-except Exception as e:
-  logger.error("daq_lib: ISPYB import error, %s" % e)
+from utils.bluesky import get_bluesky_metadata
+logger = logging.getLogger(__name__)
 
 if daq_utils.beamline in ["amx", "fmx"]:
   from start_bs import gov_mon_signal
@@ -42,7 +43,7 @@ global message_string_pv
 global gui_popup_message_string_pv
 global data_directory_name
 global currentIspybDCID
-
+currentIspybDCID = 1
 global fastDPNodeCount
 fastDPNodeCount = 4
 global fastDPNodeCounter
@@ -58,6 +59,9 @@ var_channel_list = {}
 
 global abort_flag
 abort_flag = 0
+
+unpause_evt = threading.Event()
+unpause_evt.set()
 
 def init_var_channels():
   global var_channel_list
@@ -160,11 +164,22 @@ def continue_data_collection():
   set_field("pause_button_state","Pause")  
 
 
-def abort_data_collection(flag):
+def abort_data_collection(flag, action=None):
   global datafile_name,abort_flag,image_started
 
   if (flag==2): #stop queue after current collection
     abort_flag = 2
+    if action in ("pause", "stop"):
+      if unpause_evt.is_set():
+        unpause_evt.clear()
+      set_field("pause_button_state", "Continue")
+    else:
+      unpause_evt.set()
+      from epics import PV
+      set_field("pause_button_state", "Pause")
+      comm_pv = PV(daq_utils.beamlineComm + "immediate_command_s")
+      message = json.dumps({"function": "runDCQueue", "args": [2], "kwargs": {}})
+      comm_pv.put(message)
     return
   gui_message("Aborting. This may take a minute or more.")  
   while not (getPvDesc("VectorActive")): #only stop if actually collecting
@@ -236,14 +251,14 @@ def flocoUnlock():
   unlockGUI()
   govMonOn()
 
-def flocoStopOperations():
+def floco_stop_operations():
   try:
     daq_macros.run_recovery_procedure(stop=True)
     lockGUI()
   except Exception as e:
-    logger.exception("Error encountered while running flocoStopOperations. Stopping...")
+    logger.exception("Error encountered while running floco_stop_operations. Stopping...")
 
-def flocoContinueOperations():
+def floco_continue_operations():
   try:
     daq_macros.run_recovery_procedure(stop=False)
     flocoUnlock()
@@ -400,7 +415,7 @@ def unmountCold():
     set_mounted_pin_data(currentMountedSampleID, mount_state=MountState.CURRENTLY_UNMOUNTING.value)
     if robot_lib.unmountRobotSample(gov_robot, puckPos,pinPos,currentMountedSampleID):
       db_lib.deleteCompletedRequestsforSample(currentMountedSampleID)      
-      if getBlConfig("robot_online"):
+      if getBlConfig("robot_online") and not getBlConfig("special_mount_enabled"):
         robot_lib.parkGripper()
       clearMountedSample()
       setPvDesc("robotGovActive",1)
@@ -444,7 +459,20 @@ def runDCQueue(): #maybe don't run rasters from here???
   autoMounted = 0 #this means the mount was performed from a runQueue, as opposed to a manual mount button push
   logger.info("running queue in daq server")
   while (1):
+    logger.info(f"Unpause event is_set: {unpause_evt.is_set()}")
+    # unpause_evt.wait()
+    if not unpause_evt.is_set():
+      return
     currentRequest = db_lib.popNextRequest(daq_utils.beamline)
+    logger.info(f"Next request in queue: {currentRequest}")
+    if (currentRequest == {}):
+      break
+    elif currentRequest is None:
+      gui_message("Queue contains collection requests from different proposals" 
+                  "and not using commissioning directory."
+                  "Please remove invalid requests or switch to" 
+                  "commissioning directory to continue")
+      break
     if (getBlConfig("queueCollect") == 1): 
       if (getBlConfig(BEAM_CHECK) == 1):
         waitBeam()
@@ -458,17 +486,6 @@ def runDCQueue(): #maybe don't run rasters from here???
         refreshGuiTree()
         continue
       
-    if (abort_flag):
-      abort_flag =  0 #careful about when to reset this
-      return
-    if (currentRequest == {}):
-      break
-    elif currentRequest is None:
-      gui_message("Queue contains collection requests from different proposals" 
-                  "and not using commissioning directory."
-                  "Please remove invalid requests or switch to" 
-                  "commissioning directory to continue")
-      break
     logger.info("processing request " + str(time.time()))
     reqObj = currentRequest["request_obj"]
     gov_lib.set_detz_in(gov_robot, reqObj["detDist"])
@@ -517,9 +534,10 @@ def runDCQueue(): #maybe don't run rasters from here???
 
     
 
-def stopDCQueue(flag):
+@safe_to_run_in_parallel
+def stopDCQueue(flag, action=None):
   logger.info("stopping queue in daq server " + str(flag))
-  abort_data_collection(int(flag))
+  abort_data_collection(int(flag), action=action)
 
 
 
@@ -553,15 +571,6 @@ def logMxRequestParams(currentRequest,wait=True):
   logfile.write("detector distance: " + str(reqObj["detDist"]) +"\n")
   logfile.write("wavelength: " + str(reqObj["wavelength"]) +"\n")
   logfile.close()
-  visitName = daq_utils.getVisitName()
-  try: #I'm worried about unforseen ispyb db errors
-    #rasters results are entered in ispyb by the GUI, no need to wait
-    if wait:
-      time.sleep(getBlConfig(ISPYB_RESULT_ENTRY_DELAY))
-    currentIspybDCID = ispybLib.insertResult(newResult,"mxExpParams",currentRequest,visitName)
-  except Exception as e:
-    currentIspybDCID = 999999
-    logger.error("logMxRequestParams - ispyb error: %s" % e)
 
 
 
@@ -613,7 +622,8 @@ def collectData(currentRequest):
   db_lib.updateRequest(currentRequest)
   if prot == CollectionProtocols.RASTER:
     logger.info('entering raster')
-    RE(daq_macros.snakeRaster(currentRequest["uid"]))
+    request_id = currentRequest["uid"]
+    RE(daq_macros.snakeRaster(request_id), **get_bluesky_metadata(request_id=request_id))
     status = 0
     logger.info('exiting raster')
   elif prot == CollectionProtocols.STEP_RASTER:
@@ -621,7 +631,8 @@ def collectData(currentRequest):
   elif prot in (CollectionProtocols.VECTOR, CollectionProtocols.STEP_VECTOR):
     imagesAttempted = collect_detector_seq_hw(sweep_start,range_degrees,img_width,exposure_period,file_prefix,data_directory_name,file_number_start,currentRequest)
   elif prot == CollectionProtocols.MULTI_COL:
-    RE(daq_macros.snakeRaster(currentRequest["uid"]))
+    request_id = currentRequest["uid"]
+    RE(daq_macros.snakeRaster(request_id), **get_bluesky_metadata(request_id=request_id))
   elif prot == CollectionProtocols.RASTER_SCREEN:
     daq_macros.rasterScreen(currentRequest)    
   elif prot == CollectionProtocols.MULTI_COL_Q:
@@ -641,7 +652,7 @@ def collectData(currentRequest):
       # Store original user-requested start angle before auto-centering
       original_sweep_start = reqObj["sweep_start"]
       
-      daq_macros.run_loop_center_plan()
+      daq_macros.run_loop_center_plan(str(reqObj["sample"]))
       if not (daq_macros.autoRasterLoop(currentRequest)):
         logger.info("could not center sample")
         db_lib.updatePriority(currentRequest["uid"],-1)
@@ -658,60 +669,9 @@ def collectData(currentRequest):
           sweep_start = reqObj["sweep_start"]
       daq_macros.setTrans(attenuation)      
 
-    if (reqObj["protocol"] in (CollectionProtocols.CHARACTERIZE, CollectionProtocols.EDNA_COL)):
-      characterizationParams = reqObj["characterizationParams"]
-      index_success = daq_macros.dna_execute_collection3(0.0,img_width,2,exposure_period,data_directory_name+"/",file_prefix,1,-89.0,1,currentRequest)
-      if (index_success):        
-        resultsList = db_lib.getResultsforRequest(currentRequest["uid"]) # because for testing I keep running the same request. Probably not in usual use.
-        results = None
-        for i in range(0,len(resultsList)):
-          if (resultsList[i]['result_type'] == 'characterizationStrategy'):
-            results = resultsList[i]
-            break
-        if (results != None):
-          
-          strategyResults = results["result_obj"]["strategy"]
-          stratStart = strategyResults["start"]
-          stratEnd = strategyResults["end"]
-          stratWidth = strategyResults["width"]
-          stratExptime = strategyResults["exptime"]
-          stratTrans = strategyResults["transmission"]          
-          stratDetDist = strategyResults["detDist"]
-          sampleID = currentRequest["sample"]
-          tempnewStratRequest = daq_utils.createDefaultRequest(sampleID)
-          newReqObj = tempnewStratRequest["request_obj"]
-          newReqObj["sweep_start"] = stratStart
-          newReqObj["sweep_end"] = stratEnd
-          newReqObj["img_width"] = stratWidth
-          newReqObj["exposure_time"] = stratExptime
-          newReqObj["attenuation"] = stratTrans
-          newReqObj["detDist"] = stratDetDist
-          newReqObj["directory"] = data_directory_name
-          newReqObj["pos_x"] = beamline_lib.motorPosFromDescriptor("sampleX")
-          newReqObj["pos_y"] = beamline_lib.motorPosFromDescriptor("sampleY")
-          newReqObj["pos_z"] = beamline_lib.motorPosFromDescriptor("sampleZ")
-          newReqObj["fastDP"] = True # this is where you might want a "new from old" request to carry over stuff like this.
-          newReqObj["fastEP"] = reqObj["fastEP"]
-          newReqObj["dimple"] = reqObj["dimple"]                
-          newReqObj["xia2"] = reqObj["xia2"]
-          runNum = db_lib.incrementSampleRequestCount(sampleID)
-          newReqObj["runNum"] = runNum
-          newStratRequest = db_lib.addRequesttoSample(sampleID,newReqObj["protocol"],daq_utils.owner,newReqObj,priority=0,proposalID=daq_utils.getProposalID())
-          if (reqObj["protocol"] == CollectionProtocols.EDNA_COL):
-            logger.info("new strat req = ")
-            logger.info(newStratRequest)
-            db_lib.updatePriority(currentRequest["uid"],-1)
-            refreshGuiTree()
-            collectData(db_lib.getRequestByID(newStratRequest))
-            return 1
-    else: #standard
-      logger.info("moving omega to start " + str(time.time()))      
-      if daq_utils.beamline == "nyx":
-          direction = (sweep_end - sweep_start) / abs(sweep_end - sweep_start)
-          beamline_lib.mvaDescriptor("omega",sweep_start - direction*0.05)
-      else:
-          beamline_lib.mvaDescriptor("omega",sweep_start)
-      collect_detector_seq_hw(sweep_start,range_degrees,img_width,exposure_period,file_prefix,data_directory_name,file_number_start,currentRequest)
+    logger.info("moving omega to start " + str(time.time()))      
+    beamline_lib.mvaDescriptor("omega",sweep_start)
+    collect_detector_seq_hw(sweep_start,range_degrees,img_width,exposure_period,file_prefix,data_directory_name,file_number_start,currentRequest)
   try:
     if (logMe) and prot == CollectionProtocols.RASTER:
       logMxRequestParams(currentRequest,wait=False)
@@ -726,50 +686,57 @@ def collectData(currentRequest):
 
   # collection finished, start processing
   if prot in (CollectionProtocols.VECTOR, CollectionProtocols.STANDARD, CollectionProtocols.STEP_VECTOR):
-    if daq_utils.beamline != "nyx":
-      seqNum = flyer.detector.cam.sequence_id.get()
-      comm_s = os.environ["LSDCHOME"] + "/runSpotFinder4syncW.py " + data_directory_name + " " + file_prefix + " " + str(currentRequest["uid"]) + " " + str(seqNum) + " " + str(currentIspybDCID)+ "&"
-      logger.info(f"NOT running spotfinding for per-image analysis in Synchweb: {comm_s}")
-      #os.system(comm_s)    
-      filename = f"{data_directory_name}/{file_prefix}_{seqNum}_master.h5"
-      logger.info(f"Checking integrity of {filename}")
-      timeout_index = 0
-      while not validation.validate_master_HDF5_file(filename):
-        timeout_index += 1
-        time.sleep(3)
-        if timeout_index > 15:
-          logger.error(f"Unable to verify master file after {timeout_index} tries, not proceeding with processing")
-          return 
-      if img_width > 0: #no dataset processing in stills mode
-        if (reqObj["fastDP"]):
-          if (reqObj["fastEP"]):
-            fastEPFlag = 1
-          else:
-            fastEPFlag = 0
-          if (reqObj["dimple"]):
-            dimpleFlag = 1
-          else:
-            dimpleFlag = 0        
-          nodeName = "fastDPNode" + str((fastDPNodeCounter%fastDPNodeCount)+1)
-          fastDPNodeCounter+=1
-          node = getBlConfig(nodeName)      
-          dimpleNode = getBlConfig("dimpleNode")      
-          if (daq_utils.detector_id == "EIGER-16"):
-            seqNum = flyer.detector.cam.sequence_id.get()
-            comm_s = os.environ["LSDCHOME"] + "/runFastDPH5.py " + data_directory_name + " " + str(seqNum) + " " + str(currentRequest["uid"]) + " " + str(fastEPFlag) + " " + node + " " + str(dimpleFlag) + " " + dimpleNode + " " + str(currentIspybDCID)+ "&"
-          else:
-            comm_s = os.environ["LSDCHOME"] + "/runFastDP.py " + data_directory_name + " " + file_prefix + " " + str(file_number_start) + " " + str(int(round(range_degrees/img_width))) + " " + str(currentRequest["uid"]) + " " + str(fastEPFlag) + " " + node + " " + str(dimpleFlag) + " " + dimpleNode + "&"
-          logger.info(f'Running fastdp command: {comm_s}')
-          if daq_utils.beamline in ("amx", "fmx"):
-            visitName = daq_utils.getVisitName()
-            if (not os.path.exists(visitName + "/fast_dp_dir")) or subprocess.run(['pgrep', '-f', 'loop-fdp-dple-populate'], stdout=subprocess.PIPE).returncode == 1:  # for pgrep, return of 1 means string not found
-              os.system("killall -KILL loop-fdp-dple-populate")
-              logger.info('starting fast dp result gathering script')
-              os.system("cd " + visitName + ";${LSDCHOME}/bin/loop-fdp-dple-populate.sh&")
-          os.system(comm_s)
-        if (reqObj["xia2"]):
-          comm_s = f"ssh -q xf17id2-srv1 \"{os.environ['MXPROCESSINGSCRIPTSDIR']}xia2.sh {currentRequest['uid']} \"&"
-          os.system(comm_s)
+    seqNum = flyer.detector.cam.sequence_id.get()
+    comm_s = os.environ["LSDCHOME"] + "/runSpotFinder4syncW.py " + data_directory_name + " " + file_prefix + " " + str(currentRequest["uid"]) + " " + str(seqNum) + " " + str(currentIspybDCID)+ "&"
+    logger.info(f"NOT running spotfinding for per-image analysis in Synchweb: {comm_s}")
+    #os.system(comm_s)    
+    filename = f"{data_directory_name}/{file_prefix}_{seqNum}_master.h5"
+    logger.info(f"Checking integrity of {filename}")
+    timeout_index = 0
+    while not validation.validate_master_HDF5_file(filename):
+      timeout_index += 1
+      time.sleep(3)
+      if timeout_index > 15:
+        logger.error(f"Unable to verify master file after {timeout_index} tries, not proceeding with processing")
+        return 
+    if img_width > 0: #no dataset processing in stills mode
+      if (reqObj["fastDP"]):
+        if (reqObj["fastEP"]):
+          fastEPFlag = 1
+        else:
+          fastEPFlag = 0
+        if (reqObj["dimple"]):
+          dimpleFlag = 1
+        else:
+          dimpleFlag = 0        
+        nodeName = "fastDPNode" + str((fastDPNodeCounter%fastDPNodeCount)+1)
+        fastDPNodeCounter+=1
+        node = getBlConfig(nodeName)      
+        dimpleNode = getBlConfig("dimpleNode")      
+        if (daq_utils.detector_id in EIGER_DETECTORS):
+          with open(f"{os.environ['CONFIGDIR']}/autoproc_blacklist.json") as autoproc_blacklist_file:
+            autoproc_proposal_data = json.load(autoproc_blacklist_file)
+          run_autoproc = 0
+          try:
+            r = requests.get(f"{os.environ['NSLS2_API_URL']}/v1/proposal/{currentRequest['proposalID']}")
+            r.raise_for_status()
+            response = r.json()['proposal']
+            if ("proprietary" in response["type"].lower() 
+            or int(currentRequest["proposalID"]) in autoproc_proposal_data["blacklist"]):
+              run_autoproc = 0
+            else:
+              run_autoproc = 1
+          except Exception as e:
+            run_autoproc = 0
+          seqNum = flyer.detector.cam.sequence_id.get()
+          comm_s = os.environ["LSDCHOME"] + "/runFastDPH5.py " + data_directory_name + " " + str(seqNum) + " " + str(currentRequest["uid"]) + " " + str(fastEPFlag) + " " + node + " " + str(dimpleFlag) + " " + dimpleNode + " " + str(currentIspybDCID)+ " " + str(run_autoproc) + " &"
+        else:
+          comm_s = os.environ["LSDCHOME"] + "/runFastDP.py " + data_directory_name + " " + file_prefix + " " + str(file_number_start) + " " + str(int(round(range_degrees/img_width))) + " " + str(currentRequest["uid"]) + " " + str(fastEPFlag) + " " + node + " " + str(dimpleFlag) + " " + dimpleNode + "&"
+        logger.info(f'Running fastdp command: {comm_s}')
+        os.system(comm_s)
+      if (reqObj["xia2"]):
+        comm_s = f"ssh -q xf17id2-srv1 \"{os.environ['MXPROCESSINGSCRIPTSDIR']}xia2.sh {currentRequest['uid']} \"&"
+        os.system(comm_s)
   
   logger.info('processing should be triggered')
   db_lib.updatePriority(currentRequest["uid"],-1)
@@ -794,7 +761,7 @@ def collect_detector_seq_hw(sweep_start,range_degrees,image_width,exposure_perio
   else:
     number_of_images = round(range_degrees/image_width)
   range_seconds = number_of_images*exposure_period
-  if (daq_utils.detector_id == "EIGER-16"):  
+  if (daq_utils.detector_id in EIGER_DETECTORS):  
     exposure_time = exposure_period - .00001
   else:
     exposure_time = exposure_period - .0024  
@@ -807,28 +774,18 @@ def collect_detector_seq_hw(sweep_start,range_degrees,image_width,exposure_perio
 
   logger.info("collect %f degrees for %f seconds %d images exposure_period = %f exposure_time = %f" % (range_degrees,range_seconds,number_of_images,exposure_period,exposure_time))
   
-  if OPHYD_COLLECTIONS[daq_utils.beamline]:
-      logger.info("ophyd collections enabled")
-      if (protocol == CollectionProtocols.STANDARD):
-        RE(daq_macros.standard_plan_wrapped(currentRequest))
-      elif (protocol == CollectionProtocols.VECTOR):
-        RE(daq_macros.vector_plan_wrapped(currentRequest))
-  else:  
-    if (protocol in (CollectionProtocols.STANDARD, CollectionProtocols.CHARACTERIZE,
-                     CollectionProtocols.EDNA_COL, CollectionProtocols.BURN)):
-      logger.info("vectorSync " + str(time.time()))    
-      daq_macros.vectorSync()
-      logger.info("zebraDaq " + str(time.time()))
-    
-      vector_params = daq_macros.gatherStandardVectorParams()
-      logger.debug(f"vector_params: {vector_params}") 
-      RE(daq_macros.standard_zebra_plan(flyer,angleStart,number_of_images,range_degrees,image_width,exposure_period,file_prefix_minus_directory,data_directory_name,file_number, vector_params, file_prefix_minus_directory))
-    elif (protocol == CollectionProtocols.VECTOR):
-      RE(daq_macros.vectorZebraScan(currentRequest))
-    elif (protocol == CollectionProtocols.STEP_VECTOR):
-      daq_macros.vectorZebraStepScan(currentRequest)
-    else:
-      pass
+  if (protocol in (CollectionProtocols.STANDARD, CollectionProtocols.BURN)):
+    logger.info("vectorSync " + str(time.time()))    
+    daq_macros.vectorSync()
+    logger.info("zebraDaq " + str(time.time()))
+  
+    vector_params = daq_macros.gatherStandardVectorParams()
+    logger.debug(f"vector_params: {vector_params}") 
+    RE(daq_macros.standard_zebra_plan(flyer,angleStart,number_of_images,range_degrees,image_width,exposure_period,file_prefix_minus_directory,data_directory_name,file_number, vector_params, file_prefix_minus_directory), **get_bluesky_metadata(request_dict=currentRequest))
+  elif (protocol == CollectionProtocols.VECTOR):
+    RE(daq_macros.vectorZebraScan(currentRequest), **get_bluesky_metadata(request_dict=currentRequest))
+  elif (protocol == CollectionProtocols.STEP_VECTOR):
+    daq_macros.vectorZebraStepScan(currentRequest)
   return 
 
 
@@ -880,21 +837,6 @@ def checkC2C_X(x,fovx): # this is to make sure the user doesn't make too much of
 def center_on_click(x,y,fovx,fovy,source="screen",maglevel=0,jog=0,viewangle=daq_utils.CAMERA_ANGLE_BEAM): #maglevel=0 means lowmag, high fov, #1 = himag with digizoom option, 
   #source=screen = from screen click, otherwise from macro with full pixel dimensions
   #viewangle=daq_utils.CAMERA_ANGLE_BEAM, default camera angle is in-line with the beam
-
-  if daq_utils.beamline == "nyx":
-    logger.info("center_on_click: %s" % str((x,y)))
-    lsdc_x = daq_utils.screenPixX
-    lsdc_y = daq_utils.screenPixY
-    md2_x = getPvDesc("md2CenterPixelX") * 2
-    md2_y = getPvDesc("md2CenterPixelY") * 2
-    scale_x = md2_x / lsdc_x
-    scale_y = md2_y / lsdc_y
-    x = x * scale_x
-    y = y * scale_y
-    str_coords = f'{x} {y}'
-    logger.info(f'center_on_click: {str_coords}')
-    setPvDesc("MD2C2C", str_coords)
-    return
 
   if (getBlConfig('robot_online')): #so that we don't move things when robot moving?
     robotGovState = (getPvDesc("robotSaActive") or getPvDesc("humanSaActive"))
@@ -952,4 +894,3 @@ def setProposalID(proposalID):
 
 def getProposalID():
   return daq_utils.getProposalID()
-

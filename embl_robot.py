@@ -66,7 +66,7 @@ class EMBLRobot:
       setPvDesc("warmupThreshold",savedThreshold)
 
 
-    def recoverRobot(self):
+    def _recoverRobot(self, raise_on_error=False):
       try:
         self.rebootEMBL()
         time.sleep(8.0)
@@ -74,15 +74,27 @@ class EMBLRobot:
         if bLoaded:
           daq_macros.robotOff()
           daq_macros.disableMount()
-          daq_lib.gui_message("Found a sample in the gripper - CALL STAFF! disableMount() executed.")
+          message = "FATAL ROBOT ERROR Found a sample in the gripper - CALL STAFF! disableMount() and robotOff() executed."
+          daq_lib.gui_message(message)
+          if raise_on_error:
+            raise Exception(message)
         else:
           RobotControlLib.runCmd("goHome")
       except Exception as e:
         e_s = str(e)
         daq_lib.gui_message("ROBOT Recover failed! " + e_s)
+        if raise_on_error:
+          raise
 
+    def recoverRobot(self):
+      self._recoverRobot()
+      RobotControlLib.initialize()
 
-    def dryGripper(self):
+    def recoverRobotFloco(self):
+      self._recoverRobot(raise_on_error=True)
+      RobotControlLib.initialize()
+
+    def _dryGripper(self, raise_on_error=False):
       try:
         saveThreshold = getPvDesc("warmupThresholdRBV")
         setPvDesc("warmupThreshold",50)
@@ -92,6 +104,14 @@ class EMBLRobot:
         e_s = str(e)
         daq_lib.gui_message("Dry gripper failed! " + e_s)
         setPvDesc("warmupThreshold",saveThreshold)
+        if raise_on_error:
+          raise
+
+    def dryGripper(self):
+      self._dryGripper()
+
+    def dryGripperFloco(self):
+      self._dryGripper(raise_on_error=True)
 
     def DewarAutoFillOn(self):
       RobotControlLib.runCmd("turnOnAutoFill")
@@ -366,7 +386,7 @@ class EMBLRobot:
             try: #make sure workposThread is finished before proceeding to robotGovActive check
               timeout = 20
               start_time = time.time()
-              while self.workposThread.isAlive():
+              while self.workposThread.is_alive():
                 time.sleep(0.5)
                 if time.time() - start_time > timeout:
                   raise Exception(f'setWorkposThread failed to finish before {timeout}s timeout')
@@ -385,7 +405,7 @@ class EMBLRobot:
             logger.info("Cannot align pin - Mount next sample.")
         if daq_utils.beamline == "amx":
           try:
-            daq_macros.run_top_view_optimized()
+            daq_macros.run_top_view_optimized(sampID)
           except:
             logger.exception("Error running top_view_optimized")
         if gov_robot.state.get() != "SA":
@@ -407,11 +427,7 @@ class EMBLRobot:
         if daq_utils.beamline == "fmx":
             beamline_lib.mvaDescriptor("omega", 0)
         logger.info("Setting SE state")
-        if daq_utils.beamline == "amx":
-          wait = False
-        else:
-          wait = True
-        gov_lib.setGovRobot(gov_robot, "SE")
+        gov_lib.setGovRobot(gov_robot, "SE", wait=True)
         logger.info("Done setting SE")
         logger.info("unmounting " + str(puckPos) + " " + str(pinPos) + " " + str(sampID))
         logger.info("absPos = " + str(absPos))

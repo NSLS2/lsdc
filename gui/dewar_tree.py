@@ -1,6 +1,7 @@
 import getpass
 import logging
 import os
+import time
 import typing
 
 import requests
@@ -54,6 +55,8 @@ class DewarTree(QtWidgets.QTreeView):
         self._programmatic_status_update = False
         self.threadPool = QtCore.QThreadPool.globalInstance()
         self.refresh_running = False
+        self._min_refresh_interval_s = 1.0
+        self._last_refresh_started_monotonic = 0.0
         self.expanded.connect(self.on_expanded)
 
     def on_expanded(self, index):
@@ -65,7 +68,7 @@ class DewarTree(QtWidgets.QTreeView):
     def toggle_follow_request(self, check_state):
         if check_state == Qt.CheckState.Checked:
             self.follow_current_request = True
-            self.refreshTree()
+            self.refreshTreeThreaded()
         else:
             self.follow_current_request = False
 
@@ -158,35 +161,96 @@ class DewarTree(QtWidgets.QTreeView):
             super(DewarTree, self).keyPressEvent(event)
 
     def refreshTree(self):
-        self._programmatic_status_update = True
-        self.refreshTreeDewarView()
-        self._programmatic_status_update = False
+        self.refreshTreeThreaded()
 
-    def refreshTreeThreaded(self):
+    def refreshTreeThreaded(self, get_latest_pucks=False, hard_refresh=False):
         if self.refresh_running:
-            # A refresh is already running, so ignore the new request.
             return
 
-        self.refresh_running = True  # Mark that a refresh is in progress
-        self.runnable = DataFetchRunnable(self.fetchData)
+        if (
+            time.monotonic() - self._last_refresh_started_monotonic
+            < self._min_refresh_interval_s
+        ):
+            return
+
+        self._start_refresh_now(get_latest_pucks, hard_refresh)
+
+    def _start_refresh_now(self, get_latest_pucks, hard_refresh):
+        self.refresh_running = True
+        self._last_refresh_started_monotonic = time.monotonic()
+        self.runnable = DataFetchRunnable(
+            self.fetchData,
+            get_latest_pucks=get_latest_pucks,
+            hard_refresh=hard_refresh,
+        )
         self.runnable.signal.finished.connect(self.update_model)
         self.threadPool.start(self.runnable)
 
-    def fetchData(self):
+    def _fetch_proposal_membership_updates(self, sample_data):
+        if IS_STAFF:
+            return {}
+
+        missing_proposals = {
+            sample.get("proposalID")
+            for sample in sample_data.values()
+            if sample.get("proposalID") not in (None, "")
+            and sample.get("proposalID") not in self.proposal_membership
+        }
+        if not missing_proposals:
+            return {}
+
+        proposal_api_url = os.environ.get("NSLS2_API_URL")
+        if not proposal_api_url:
+            return {proposal_id: False for proposal_id in missing_proposals}
+
+        username = getpass.getuser()
+        proposal_membership_updates = {}
+        for proposal_id in missing_proposals:
+            try:
+                response = requests.get(
+                    f"{proposal_api_url}/v1/proposal/{proposal_id}", timeout=(2, 5)
+                )
+                response.raise_for_status()
+                proposal = response.json().get("proposal", {})
+                users = proposal.get("users", [])
+                proposal_membership_updates[proposal_id] = username in [
+                    user.get("username") for user in users if "username" in user
+                ]
+            except Exception as e:
+                logger.exception(e)
+                proposal_membership_updates[proposal_id] = False
+
+        return proposal_membership_updates
+
+    def fetchData(self, get_latest_pucks=False, hard_refresh=False):
         """
         This method performs the heavy data retrieval.
         It must not interact with any GUI elements.
         """
-        dewar_data, puck_data, sample_data, request_data = db_lib.get_dewar_tree_data(
-            daq_utils.primaryDewarName, daq_utils.beamline, get_latest_pucks=False
-        )
-        # Return the fetched data in a convenient container.
-        return {
-            "dewar_data": dewar_data,
-            "puck_data": puck_data,
-            "sample_data": sample_data,
-            "request_data": request_data,
-        }
+        try:
+            dewar_data, puck_data, sample_data, request_data = db_lib.get_dewar_tree_data(
+                daq_utils.primaryDewarName,
+                daq_utils.beamline,
+                get_latest_pucks=get_latest_pucks,
+            )
+            proposal_membership_updates = self._fetch_proposal_membership_updates(
+                sample_data
+            )
+            return {
+                "dewar_data": dewar_data,
+                "puck_data": puck_data,
+                "sample_data": sample_data,
+                "request_data": request_data,
+                "proposal_membership_updates": proposal_membership_updates,
+                "hard_refresh": hard_refresh,
+            }
+        except Exception as e:
+            logger.exception(e)
+            return {
+                "refresh_error": str(e),
+                "hard_refresh": hard_refresh,
+                "proposal_membership_updates": {},
+            }
 
     def set_unmounted_sample(self, item):
         item.setForeground(QtGui.QColor("black"))
@@ -204,65 +268,98 @@ class DewarTree(QtWidgets.QTreeView):
         font.setItalic(True)
         font.setOverline(True)
         item.setFont(font)
-        if self.parent.mountedPin_pv.get_pin_state() is not None:
-            state = self.parent.mountedPin_pv.get_pin_state()
+        if self.parent.get_mounted_pin_state() is not None:
+            state = self.parent.get_mounted_pin_state()
             mount_state = MountState(state)
             if sample_name is None:
                 sample_name = item.text()
             item.setText(sample_name + MountState.get_text(mount_state))
 
-    def refreshTreeDewarView(self, get_latest_pucks=False):
-        puck = ""
-        #self.model.clear()
-        dewar_data, puck_data, sample_data, request_data = db_lib.get_dewar_tree_data(
-            daq_utils.primaryDewarName, daq_utils.beamline, get_latest_pucks
+    def refreshTreeDewarView(self, get_latest_pucks=False, hard_refresh=False):
+        self.refreshTreeThreaded(
+            get_latest_pucks=get_latest_pucks,
+            hard_refresh=hard_refresh,
         )
-        data = {
-            "dewar_data": dewar_data,
-            "puck_data": puck_data,
-            "sample_data": sample_data,
-            "request_data": request_data,
-        }
-        self.update_model(data)
+
+    def _finish_refresh(self):
+        self.refresh_running = False
+
+    def _index_signature(self, index):
+        if not index or not index.isValid():
+            return (None, None)
+        item = self.model.itemFromIndex(index)
+        if item is None:
+            return (None, None)
+        return (item.data(33), item.data(32))
 
     def update_model(self, data):
+        update_start = time.monotonic()
         self._programmatic_status_update = True
-        dewar_data = data["dewar_data"]
-        puck_data = data["puck_data"]
-        sample_data = data["sample_data"]
-        request_data = data["request_data"]
-        parentItem = self.model.invisibleRootItem()
-        for i, puck_id in enumerate(
-            dewar_data["content"]
-        ):  # dewar contents is the list of puck IDs
-            puck = ""
-            puckName = ""
-            if puck_id:
-                puck = puck_data[puck_id]
-                puckName = puck["name"]
-            sector, puck_pos = divmod(i, self.pucksPerDewarSector)
-            index_s = f"{sector+1}{chr(puck_pos + ord('A'))}"
-            item = QtGui.QStandardItem(QtGui.QIcon(ICON), f"{index_s} {puckName}")
-            item.setData(puckName, 32)
-            item.setData("container", 33)
-            if parentItem.rowCount() == i:
-                parentItem.appendRow(item)
-            elif item.data(32) != parentItem.child(i).data(32):
-                # parentItem.takeChild(i,0)
-                parentItem.setChild(i, 0, item)
-            
-            updated_item = parentItem.child(i)
-            if puck != "" and puckName != "private":
-                puckContents = puck.get("content", [])
-                self.add_samples_to_puck_tree(
-                    puckContents, updated_item, index_s, sample_data, request_data
-                )
-        #self.setModel(self.model)
-        if not self.initialized:
-            self.expandAll()
-            self.initialized = True
-        self._programmatic_status_update = False
-        self.refresh_running = False
+        try:
+            if isinstance(data, Exception):
+                logger.error("Dewar tree fetch failed: %s", data)
+                return
+
+            proposal_membership_updates = data.get("proposal_membership_updates", {})
+            if proposal_membership_updates:
+                self.proposal_membership.update(proposal_membership_updates)
+
+            if data.get("refresh_error"):
+                return
+
+            if daq_utils.getBlConfig("special_mount_enabled"):
+                self.pucksPerDewarSector = 1
+                self.dewarSectors = 1
+            else:
+                self.pucksPerDewarSector = PUCKS_PER_DEWAR_SECTOR[daq_utils.beamline]
+                self.dewarSectors = DEWAR_SECTORS[daq_utils.beamline]
+
+            if data.get("hard_refresh"):
+                self.model.clear()
+
+            dewar_data = data["dewar_data"]
+            puck_data = data["puck_data"]
+            sample_data = data["sample_data"]
+            request_data = data["request_data"]
+            parentItem = self.model.invisibleRootItem()
+            for i, puck_id in enumerate(
+                dewar_data["content"]
+            ):  # dewar contents is the list of puck IDs
+                puck = ""
+                puckName = ""
+                if puck_id:
+                    puck = puck_data[puck_id]
+                    puckName = puck["name"]
+                sector, puck_pos = divmod(i, self.pucksPerDewarSector)
+                index_s = f"{sector+1}{chr(puck_pos + ord('A'))}"
+                item = QtGui.QStandardItem(QtGui.QIcon(ICON), f"{index_s} {puckName}")
+                item.setData(puckName, 32)
+                item.setData("container", 33)
+                if parentItem.rowCount() == i:
+                    parentItem.appendRow(item)
+                elif item.data(32) != parentItem.child(i).data(32):
+                    # parentItem.takeChild(i,0)
+                    parentItem.setChild(i, 0, item)
+
+                updated_item = parentItem.child(i)
+                if puck != "" and puckName != "private":
+                    puckContents = puck.get("content", [])
+                    self.add_samples_to_puck_tree(
+                        puckContents, updated_item, index_s, sample_data, request_data
+                    )
+            #self.setModel(self.model)
+            if not self.initialized:
+                self.expandAll()
+                self.initialized = True
+
+            update_duration = time.monotonic() - update_start
+            if update_duration > 1.0:
+                logger.warning("DEWAR_TREE_UPDATE_SLOW duration_s=%.3f", update_duration)
+            else:
+                logger.info("DEWAR_TREE_UPDATE_DONE duration_s=%.3f", update_duration)
+        finally:
+            self._programmatic_status_update = False
+            self._finish_refresh()
 
     def add_samples_to_puck_tree(
         self,
@@ -322,11 +419,11 @@ class DewarTree(QtWidgets.QTreeView):
             item.setText(position_s)
             item.setData(sample_id, 32)
             item.setData("sample", 33)
-            if hasattr(self.parent, "mountedPin_pv") and sample_id == self.parent.mountedPin_pv.get():
+            if sample_id == self.parent.get_mounted_sample_id():
                 self.set_mounted_sample(item, position_s)
             else:
                 self.set_unmounted_sample(item)
-            if hasattr(self.parent, "mountedPin_pv") and sample_id == self.parent.mountedPin_pv.get():
+            if sample_id == self.parent.get_mounted_sample_id():
                 mountedIndex = self.model.indexFromItem(item)
             # looking for the selected item
             if sample_id == self.parent.selectedSampleID:
@@ -359,8 +456,10 @@ class DewarTree(QtWidgets.QTreeView):
             current_index = mountedIndex
 
         if current_index and self.follow_current_request:
-            self.setCurrentIndex(current_index)
-            self.parent.row_clicked(current_index)
+            if self._index_signature(current_index) != self._index_signature(
+                self.currentIndex()
+            ):
+                self.setCurrentIndex(current_index)
 
     def add_requests_to_sample(self, item, base_requests, nested_requests):
         # Go through the sample requests and add them to the sample
@@ -428,23 +527,7 @@ class DewarTree(QtWidgets.QTreeView):
                     self.expand(match_index)
             
     def is_proposal_member(self, proposal_id) -> bool:
-        # Check if the user running LSDC is part of the sample's proposal
-        try:
-            if proposal_id not in self.proposal_membership:
-                r = requests.get(f"{os.environ['NSLS2_API_URL']}/v1/proposal/{proposal_id}")
-                r.raise_for_status()
-                response = r.json()['proposal']
-                if "users" in response and getpass.getuser() in [
-                    user["username"] for user in response["users"] if "username" in user
-                ]:
-                    self.proposal_membership[proposal_id] = True
-                else:
-                    logger.info(f"Users not found in response: {response}")
-                    self.proposal_membership[proposal_id] = False
-        except Exception as e:
-            logger.exception(e)
-            return False
-        return self.proposal_membership[proposal_id]
+        return self.proposal_membership.get(proposal_id, False)
 
     def create_request_item(self, request) -> QtGui.QStandardItem:
         col_item = QtGui.QStandardItem(
@@ -499,7 +582,7 @@ class DewarTree(QtWidgets.QTreeView):
         )["content"]
         maxPucks = len(dewarContents)
         requestedSampleList = []
-        mountedPin = self.parent.mountedPin_pv.get()
+        mountedPin = self.parent.get_mounted_sample_id()
         for i in range(
             len(self.orderedRequests)
         ):  # I need a list of samples for parent nodes
@@ -588,11 +671,11 @@ class DewarTree(QtWidgets.QTreeView):
             if item.data(33) == "request":
                 reqID = str(item.data(32))
                 if item.checkState() == Qt.Checked:
-                    db_lib.updatePriority(reqID, 5000)
+                    db_lib.queueRequest(reqID)
                 else:
-                    db_lib.updatePriority(reqID, 0)
+                    db_lib.dequeueRequest(reqID)
                 item.setBackground(QtGui.QColor("white"))
-                self.parent.treeChanged_pv.put(
+                self.parent.queue_change_signal.put(
                     self.parent.processID
                     #1
                 )  # the idea is touch the pv, but have this gui instance not refresh
@@ -609,9 +692,8 @@ class DewarTree(QtWidgets.QTreeView):
             itemData = str(item.data(32))
             itemDataType = str(item.data(33))
             if (itemDataType == "request") and item.isCheckable():
-                selectedSampleRequest = db_lib.getRequestByID(itemData)
-                db_lib.updatePriority(itemData, 5000)
-        self.parent.treeChanged_pv.put(1)
+                db_lib.queueRequest(itemData)
+        self.parent.queue_change_signal.put(1)
 
     def deQueueAllSelectedCB(self):
         selmod = self.selectionModel()
@@ -622,9 +704,8 @@ class DewarTree(QtWidgets.QTreeView):
             itemData = str(item.data(32))
             itemDataType = str(item.data(33))
             if (itemDataType == "request") and item.isCheckable():
-                selectedSampleRequest = db_lib.getRequestByID(itemData)
-                db_lib.updatePriority(itemData, 0)
-        self.parent.treeChanged_pv.put(1)
+                db_lib.dequeueRequest(itemData)
+        self.parent.queue_change_signal.put(1)
 
     def confirmDelete(self, numReq):
         if numReq:
@@ -668,6 +749,9 @@ class DewarTree(QtWidgets.QTreeView):
                 selectedSampleRequest = db_lib.getRequestByID(itemData)
                 self.selectedSampleID = selectedSampleRequest["sample"]
                 db_lib.deleteRequest(selectedSampleRequest["uid"])
+                for row in range(item.rowCount()):
+                    child_item = item.child(row)
+                    db_lib.deleteRequest(str(child_item.data(32)))
                 if selectedSampleRequest["request_obj"]["protocol"] in (
                     CollectionProtocols.RASTER,
                     CollectionProtocols.STEP_RASTER,
@@ -687,7 +771,7 @@ class DewarTree(QtWidgets.QTreeView):
                                                                         CollectionProtocols.STEP_VECTOR):
                     self.parent.clearVectorCB()
         self.parent.progressDialog.close()
-        self.parent.treeChanged_pv.put(1)
+        self.parent.queue_change_signal.put(1)
 
     def expandAllCB(self):
         self.expandAll()

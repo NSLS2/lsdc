@@ -36,9 +36,10 @@ def cleanup_topcam():
 
 def inner_pseudo_fly_scan(*args, **kwargs):
     scan_uid = yield from bp.count(*args, **kwargs)
-    omegas = db[scan_uid].table()[
-        top_aligner_fast.zebra.pos_capt.data.enc4.name
-    ][1]
+    scan_table = db[scan_uid].table()
+    omegas = scan_table[
+         top_aligner_fast.zebra.pos_capt.data.enc4.name
+             ][1]
 
     d = np.pi / 180
 
@@ -47,7 +48,7 @@ def inner_pseudo_fly_scan(*args, **kwargs):
     omegas_rad = np.array(omegas) * d
     X = np.vstack([np.cos(omegas_rad), np.sin(omegas_rad)]).T
 
-    y = np.array(db[scan_uid].table()[top_aligner_fast.topcam.out9_buffer.name][
+    y = np.array(scan_table[top_aligner_fast.topcam.out9_buffer.name][
         1
     ]).reshape(-1,1)
     try:
@@ -70,7 +71,7 @@ def inner_pseudo_fly_scan(*args, **kwargs):
     )
     
     # face on calculation
-    b = db[scan_uid].table()[top_aligner_fast.topcam.out10_buffer.name][1]
+    b = scan_table[top_aligner_fast.topcam.out10_buffer.name][1]
 
     sample = 300
     f_splines = interp1d(omegas, b)
